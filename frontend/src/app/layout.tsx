@@ -1,0 +1,19 @@
+import type { Metadata } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({ variable: "--font-inter", subsets: ["latin", "vietnamese"], display: "swap" });
+const mono = JetBrains_Mono({ variable: "--font-jbmono", subsets: ["latin", "vietnamese"], display: "swap" });
+
+export const metadata: Metadata = {
+  title: "AI Reminder · Task Detection v3",
+  description: "Demo pipeline phát hiện và tạo task từ chat công việc — sổ cái cập nhật theo từng tin.",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="vi">
+      <body className={`${inter.variable} ${mono.variable} antialiased`}>{children}</body>
+    </html>
+  );
+}

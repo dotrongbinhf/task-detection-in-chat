@@ -1,0 +1,27 @@
+# Tham số mục 6 (docs v3). Ghi đè bằng --set key=value. Giá trị là điểm khởi đầu, chưa đo.
+draft_min: assignee            # assignee | assignee_due
+gate_mode: none                # none (trần chất lượng) | shadow (chấm p, không chặn) | llm (chặn khi p < ngưỡng)
+gate_threshold: 0.20
+gate_window_k: 5
+window_k: 10
+reply_chain_max: 3
+open_tasks_max: 5
+evidence_per_task: 1
+closed_lookup_days: 30
+closed_tasks_max: 2
+context_token_budget: 3000
+message_max_tokens: 80
+coalesce_seconds: 5
+candidate_ttl_hours: 48
+draft_ttl_days: 7
+approved_grace_days: 3
+undated_open_days: 14
+declined_suppress_days: 7
+llm_max_retries: 2
+
+# Bảng giá USD / 1M token để ước tính chi phí (input, input được cache, output).
+pricing:
+  gpt-4.1-mini: {input: 0.40, cached: 0.10, output: 1.60}
+  gpt-4.1-nano: {input: 0.10, cached: 0.025, output: 0.40}
+  gpt-4o-mini: {input: 0.15, cached: 0.075, output: 0.60}
+  heuristic: {input: 0, cached: 0, output: 0}

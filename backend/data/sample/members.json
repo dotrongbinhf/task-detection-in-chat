@@ -1,0 +1,57 @@
+{
+  "ch_design": [
+    {
+      "user_id": "u_hung",
+      "display_name": "Hưng",
+      "aliases": [
+        "anh Hưng",
+        "Hung"
+      ]
+    },
+    {
+      "user_id": "u_linh",
+      "display_name": "Linh",
+      "aliases": [
+        "Linh Nguyễn"
+      ]
+    },
+    {
+      "user_id": "u_nam",
+      "display_name": "Nam",
+      "aliases": [
+        "Nam Trần"
+      ]
+    },
+    {
+      "user_id": "u_mai",
+      "display_name": "Mai",
+      "aliases": [
+        "Mai Phạm"
+      ]
+    },
+    {
+      "user_id": "u_tuan",
+      "display_name": "Tuấn",
+      "aliases": [
+        "Tuan"
+      ]
+    }
+  ],
+  "dm_hung_linh": [
+    {
+      "user_id": "u_hung",
+      "display_name": "Hưng",
+      "aliases": [
+        "anh Hưng",
+        "Hung"
+      ]
+    },
+    {
+      "user_id": "u_linh",
+      "display_name": "Linh",
+      "aliases": [
+        "Linh Nguyễn"
+      ]
+    }
+  ]
+}
