@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from .config import ROOT
 from .context import BuiltContext
 from .heuristic import heuristic_extract, heuristic_gate
-from .models import EXTRACT_JSON_SCHEMA
+from .models import EXTRACT_JSON_SCHEMA, extract_schema
 
 load_dotenv(ROOT / ".env")
 # Biến để trống trong .env (vd. OPENAI_BASE_URL=) sẽ bị SDK hiểu là URL rỗng → bỏ đi.
@@ -106,6 +106,9 @@ class OpenAILLM:
         self.gate_model = gate_model_name()
         self.extract_model = extract_model_name()
         self.no_cache = no_cache
+        from .embed import OpenAIEmbedder
+
+        self.embedder = OpenAIEmbedder(name=os.environ.get("EMBED_MODEL") or "text-embedding-3-small", no_cache=no_cache)
 
     def gate(self, ctx: BuiltContext) -> GateResult:
         """max_tokens=1, logprobs; p = P(yes) / (P(yes) + P(no)), cộng dồn biến thể token."""
@@ -128,11 +131,15 @@ class OpenAILLM:
         return GateResult(py / (py + pn), v["content"], int((time.time() - t0) * 1000), hit)
 
     def extract(self, ctx: BuiltContext, attempt: int) -> ExtractResult:
-        """response_format json_schema strict; temperature=0, seed cố định; khối 1 đứng đầu để tận dụng prompt caching."""
+        """response_format json_schema strict; temperature=0, seed cố định; khối 1 đứng đầu để tận dụng prompt caching.
+
+        Chế độ scored gửi đúng request v3 (schema v3, không prompt_cache_key) để so sánh và để cache đĩa cũ còn trúng."""
         t0 = time.time()
         req = dict(model=self.extract_model, messages=[{"role": "system", "content": ctx.system},
                                                        {"role": "user", "content": ctx.user}],
-                   temperature=0, seed=7 + attempt, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
+                   temperature=0, seed=7 + attempt, response_format={"type": "json_schema", "json_schema": extract_schema(ctx.mode)})
+        if ctx.cache_key:
+            req["prompt_cache_key"] = ctx.cache_key  # định tuyến các lời gọi có cùng tiền tố tới cùng máy cache
 
         def call() -> dict:
             r = _retry(lambda: self.client.chat.completions.create(**req))
@@ -154,6 +161,11 @@ class HeuristicLLM:
     gate_model = "heuristic"
     extract_model = "heuristic"
 
+    def __init__(self) -> None:
+        from .embed import HashEmbedder
+
+        self.embedder = HashEmbedder()  # n-gram ký tự, KHÔNG hiểu nghĩa — chỉ để demo offline
+
     def gate(self, ctx: BuiltContext) -> GateResult:
         t0 = time.time()
         p = heuristic_gate(ctx)
@@ -168,7 +180,9 @@ class HeuristicLLM:
 
 @dataclass
 class FakeLLM:
-    """Cho unit test: trả kết quả định sẵn theo id TIN MỚI (message_id thật → được ánh xạ sang #n)."""
+    """Cho unit test: trả kết quả định sẵn theo id TIN MỚI (message_id thật → được ánh xạ sang #n).
+
+    `by_message[id]` = {"ops": [...], "search": ...} cho mọi lần gọi, hoặc [lần1, lần2] theo lần gọi trong lượt."""
 
     by_message: dict[str, Any] = field(default_factory=dict)  # message_id -> {"ops": [...]} (tham chiếu bằng message_id / task_id)
     p_by_message: dict[str, float] = field(default_factory=dict)
@@ -180,14 +194,26 @@ class FakeLLM:
         p = max((self.p_by_message.get(m.id, 0.0) for m in ctx.new_msgs), default=0.0)
         return GateResult(p, "yes" if p >= 0.5 else "no", 0, False)
 
+    calls: list[dict[str, Any]] = field(default_factory=list)  # nhật ký các lần gọi (để test)
+    embedder: Any = None  # None → tìm kiếm chỉ BM25; test ngữ nghĩa truyền FakeEmbedder
+
     def extract(self, ctx: BuiltContext, attempt: int) -> ExtractResult:
         out: dict[str, Any] = {"ops": []}
+        self.calls.append({"call": ctx.call, "new": [m.id for m in ctx.new_msgs], "extra_kind": ctx.extra_kind,
+                           "task_map": dict(ctx.task_map), "user": ctx.user})
         for m in ctx.new_msgs:
             v = self.by_message.get(m.id)
+            if isinstance(v, list):
+                v = v[min(ctx.call, len(v)) - 1]
             if isinstance(v, str):  # chuỗi thô (để test JSON hỏng)
                 return ExtractResult(v)
             if v:
-                out["ops"] += json.loads(_localize(json.dumps(v, ensure_ascii=False), ctx))["ops"]
+                loc = json.loads(_localize(json.dumps(v, ensure_ascii=False), ctx))
+                out["ops"] += loc.get("ops", [])
+                if loc.get("search") is not None:
+                    out["search"] = loc["search"]
+        if ctx.mode != "scored":
+            out.setdefault("search", None)
         return ExtractResult(json.dumps(out, ensure_ascii=False))
 
 
@@ -195,7 +221,7 @@ def _localize(s: str, ctx: BuiltContext) -> str:
     """Thay message_id / task_id thật bằng #n / T<n> của prompt."""
     for mid, local in sorted(ctx.rev_map.items(), key=lambda x: -len(x[0])):
         s = s.replace(f'"@{mid}"', f'"{local}"').replace(f"SPEAKER:@{mid}", f"SPEAKER:{local}")
-    for local, tid in ctx.task_map.items():
+    for local, tid in sorted(ctx.task_map.items(), key=lambda x: -len(x[1])):
         s = s.replace(f'"@{tid}"', f'"{local}"')
     return s
 

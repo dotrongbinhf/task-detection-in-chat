@@ -54,6 +54,8 @@ export type Task = {
   created_at: string;
   created_turn: number;
   last_touched_at: string;
+  /** created_at của tin bằng chứng mới nhất (không đổi khi duyệt) — dùng chọn "3 task gần nhất" */
+  last_mentioned_at?: string;
   shown_at: string | null;
   status_changed_at: string;
   draft_update_count: number;
@@ -74,8 +76,60 @@ export type PendingChange = {
 };
 export type TraceEntry = { type: string; at: string; turn?: number; [k: string]: unknown };
 
-export type ScoredTask = { local: string; task_id: string; title: string; status: TaskStatus; score: number; reasons: string[]; source: "open" | "db" };
-export type Tokens = { b1: number; b2: number; b3: number; b4: number; b5: number; total: number };
+export type TaskSource = "open" | "db" | "linked" | "recent" | "search" | "dedup";
+export type ScoredTask = { local: string; task_id: string; title: string; status: TaskStatus; score: number; reasons: string[]; source: TaskSource };
+/** Task trong khối 3a (được link) / 3b (gần nhất) của chế độ linked_recent_search */
+export type ContextTask = ScoredTask & { via: string; last_mentioned_at: string; evidence_shown: string[] };
+export type Tokens = { b1: number; b2: number; b3: number; b4: number; b5: number; total: number; b3a?: number; b3b?: number; b6?: number };
+export type ContextMode = "scored" | "linked_recent_search";
+
+/** Một lần gọi bộ trích trong lượt (lần 1 = ban đầu, lần 2 = sau khi tìm task / kiểm trùng) */
+export type ExtractCall = {
+  call: number;
+  reason: "initial" | "search" | "target_check" | "dedup";
+  model: string;
+  raw: string;
+  attempts: number;
+  latency_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_tokens: number;
+  disk_cache: boolean;
+  prompt_tokens_est: number;
+  extra_block: string;
+  extra_tokens: number;
+  cost_usd: number;
+  error: string | null;
+  failure?: string;
+};
+export type SearchHitRow = { local: string; task_id: string; title: string; status: TaskStatus; score: number; matched: string[]; similarity?: number | null; already_in_prompt: boolean };
+export type SearchRecord = {
+  requested: { query: string; people: string[] | null; reason: string };
+  ignored: string | null;
+  query: string;
+  people: string[];
+  results: SearchHitRow[];
+  call: number | null;
+  second_call_search_ignored?: string;
+};
+export type TargetCheckRecord = {
+  checks: { op: string; target: string | null; task_id: string | null; target_title: string | null; target_overlap: number; target_similarity?: number | null; threshold?: number | null; query: string; people: string[];
+    results: { task_id: string; title: string; status: TaskStatus; score: number; matched: string[]; overlap: number }[]; candidates: string[] }[];
+  triggered: boolean;
+  call: number | null;
+  ops_after?: string[];
+};
+export type DedupRow = { task_id: string; title: string; status: TaskStatus; score: number; matched: string[]; overlap: number; similarity?: number | null; same_people: boolean; candidate: boolean; why_not: string | null };
+export type DedupRecord = {
+  checks: { title: string | null; anchor: string; query: string; people: string[]; named?: string[]; assigner: string | null; results: DedupRow[]; candidates: string[] }[];
+  triggered: boolean;
+  call: number | null;
+  skipped: string | null;
+  outcome: "still_create" | "create_dropped" | null;
+  creates_before?: number;
+  creates_after?: number;
+  ops_after?: string[];
+};
 export type OpResult = {
   op: string;
   target: string | null;
@@ -95,6 +149,12 @@ export type TurnRecord = {
   skipped: string | null;
   pre: { expirations: TraceEntry[]; user_actions: TraceEntry[] };
   context: {
+    mode?: ContextMode;
+    linked?: ContextTask[];
+    recent?: ContextTask[];
+    linked_chain_ids?: string[];
+    task_map_final?: Record<string, string>;
+    id_map_final?: Record<string, string>;
     selected: ScoredTask[];
     not_selected: ScoredTask[];
     window_ids: string[];
@@ -106,7 +166,7 @@ export type TurnRecord = {
     tokens: Tokens;
     window_k_used: number;
     prompt: string;
-    blocks: Record<"b1" | "b2" | "b3" | "b4" | "b5", string>;
+    blocks: Record<string, string>;
   } | null;
   gate: { mode: string; p: number | null; threshold: number; skipped: boolean; warning: string | null; model: string; latency_ms: number; prompt: string; cached: boolean; raw: string } | null;
   extract: {
@@ -119,7 +179,12 @@ export type TurnRecord = {
     cached_tokens: number;
     disk_cache: boolean;
     error: string | null;
+    calls?: number;
   } | null;
+  extract_calls?: ExtractCall[];
+  search?: SearchRecord | null;
+  target_check?: TargetCheckRecord | null;
+  dedup?: DedupRecord | null;
   ops: OpResult[];
   events: TraceEntry[];
 };
@@ -167,9 +232,17 @@ export type EvalReport = {
   };
   cost: {
     turns: number; extract_calls: number; gate_calls: number; op_turn_ratio: Rate;
-    tokens: Record<"b1" | "b2" | "b3" | "b4" | "b5" | "total", { p50: number | null; p95: number | null }>;
+    tokens: Record<string, { p50: number | null; p95: number | null }>;
     input_tokens: number; cached_tokens: number; output_tokens: number; cost_usd: number; cost_per_1000_msgs: number;
     budget_trims: Record<string, number>; messages: number;
+    by_call?: Record<string, { calls: number; input_tokens: number; cached_tokens: number; output_tokens: number; cost_usd: number }>;
+    turn_input_tokens?: { p50: number | null; p95: number | null };
+    cache_ratio?: number | null;
+  };
+  search?: {
+    mode_linked: boolean; search_turns: Rate; search_ignored: number; second_call_turns: Rate; second_call_by: { search: number; dedup: number; target_check?: number };
+    need_search: number; search_found: number; search_wrong: number; search_missed: number; search_not_needed: number; need_search_items: string[];
+    dedup_triggered: number; dedup_dropped: number; dedup_still_create: number; dedup_still_bad: number; dedup_still_ok: number; dedup_skipped: number;
   };
   gate_curve: { threshold: number; recall_vs_ceiling: Rate; pass_rate: Rate }[];
   by_tag: { tag: string; recall: Rate }[];

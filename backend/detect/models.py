@@ -140,6 +140,8 @@ class Task(BaseModel):
     created_at: str
     created_turn: int
     last_touched_at: str
+    # created_at của tin bằng chứng mới nhất trong chat (tin hoặc reaction). Thao tác duyệt KHÔNG cập nhật.
+    last_mentioned_at: str = ""
     shown_at: Optional[str] = None
     status_changed_at: str
     draft_update_count: int = 0
@@ -225,8 +227,30 @@ class Op(BaseModel):
     changes: Optional[list[Change]]
 
 
+# LLM yêu cầu tìm task trong kho khi TIN MỚI nói về việc cũ không có trong ngữ cảnh.
+# (Không dùng docstring: pydantic đưa docstring vào JSON schema → tốn token mỗi lần gọi.)
+class SearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str
+    people: Optional[list[str]]
+    reason: str
+
+
+# Schema v3 (chế độ scored) — giữ nguyên từng byte để so sánh và để cache đĩa của các lần chạy cũ còn trúng.
+class ExtractOutputV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ops: list[Op]
+
+
+# Thứ tự trường = thứ tự model sinh: phân loại TIN MỚI trước, rồi search, rồi ops (đo được: model quyết định
+# "việc cũ ngoài prompt → search" tốt hơn khi phải phân loại trước — xem DECISIONS).
+ExtractKind = Literal["no_change", "new_task", "task_in_prompt", "old_task_not_in_prompt"]
+
+
 class ExtractOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    message_type: Optional[ExtractKind] = None
+    search: Optional[SearchRequest] = None
     ops: list[Op]
 
 
@@ -263,4 +287,9 @@ def _strict(schema: dict[str, Any]) -> dict[str, Any]:
     return fix(schema)
 
 
-EXTRACT_JSON_SCHEMA = {"name": "ledger_ops", "strict": True, "schema": _strict(ExtractOutput.model_json_schema())}
+EXTRACT_JSON_SCHEMA_V3 = {"name": "ledger_ops", "strict": True, "schema": _strict(ExtractOutputV3.model_json_schema())}
+EXTRACT_JSON_SCHEMA = {"name": "ledger_ops_v4", "strict": True, "schema": _strict(ExtractOutput.model_json_schema())}
+
+
+def extract_schema(mode: str) -> dict[str, Any]:
+    return EXTRACT_JSON_SCHEMA_V3 if mode == "scored" else EXTRACT_JSON_SCHEMA

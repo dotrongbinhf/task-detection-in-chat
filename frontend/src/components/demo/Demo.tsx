@@ -15,7 +15,7 @@ import { Button, PanelHeader, Segmented } from "./ui";
 import { useEngine } from "./useEngine";
 import type { TurnRecord } from "@/lib/types";
 
-const DATASET_LABEL: Record<string, string> = { sample: "Dữ liệu mẫu (53 tin · 13 task nhãn)", empty: "Trống — tự nhập chat" };
+const DATASET_LABEL: Record<string, string> = { sample: "Dữ liệu mẫu (78 tin · 16 task nhãn)", empty: "Trống — tự nhập chat" };
 
 export default function Demo() {
   const engine = useEngine();

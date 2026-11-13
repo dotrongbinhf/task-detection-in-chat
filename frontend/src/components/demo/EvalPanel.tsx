@@ -122,15 +122,26 @@ export function EvalPanel({ engine }: { engine: Engine }) {
             <li>Token input {c.input_tokens.toLocaleString("vi")} (cache {c.cached_tokens.toLocaleString("vi")}) · output {c.output_tokens.toLocaleString("vi")}</li>
             <li>Ước tính ${c.cost_usd.toFixed(4)} · ${c.cost_per_1000_msgs.toFixed(3)} / 1.000 tin</li>
             <li>budget_trim: {Object.entries(c.budget_trims).map(([k, v]) => `${k} ×${v}`).join(", ") || "0"}</li>
+            {c.by_call && Object.entries(c.by_call).map(([k, v]) => (
+              <li key={k}>Lần gọi {k}: {v.calls} lần · input {v.input_tokens.toLocaleString("vi")} (cache {v.cached_tokens.toLocaleString("vi")}) · output {v.output_tokens.toLocaleString("vi")} · ${v.cost_usd.toFixed(4)}</li>
+            ))}
+            {c.turn_input_tokens && <li>Token input mỗi lượt (mọi lần gọi): p50 {c.turn_input_tokens.p50 ?? "—"} · p95 {c.turn_input_tokens.p95 ?? "—"}{c.cache_ratio != null ? ` · cache ${(c.cache_ratio * 100).toFixed(0)}%` : ""}</li>}
+            {rep.search?.mode_linked && (
+              <>
+                <li>Lượt có tìm kiếm: <RateCell r={rep.search.search_turns} /> · lượt gọi lần 2: <RateCell r={rep.search.second_call_turns} /> (tìm {rep.search.second_call_by.search} · kiểm trùng {rep.search.second_call_by.dedup})</li>
+                <li>Nhắc việc ngoài ngữ cảnh: {rep.search.need_search} → tìm thấy {rep.search.search_found} · tìm sai {rep.search.search_wrong} · bỏ lỡ tìm kiếm {rep.search.search_missed}</li>
+                <li>Kiểm trùng: kích hoạt {rep.search.dedup_triggered} · bỏ CREATE {rep.search.dedup_dropped} · vẫn CREATE {rep.search.dedup_still_create}</li>
+              </>
+            )}
           </ul>
           <table className="mt-2 w-full">
             <thead><tr className="text-left text-ink-3"><th className="font-medium">Khối</th><th className="text-right font-medium">p50</th><th className="text-right font-medium">p95</th></tr></thead>
             <tbody>
-              {(["b1", "b2", "b3", "b4", "b5", "total"] as const).map((b) => (
+              {(["b1", "b2", "b3", "b3a", "b3b", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
                 <tr key={b} className="border-t border-line">
-                  <td>{{ b1: "1. Hướng dẫn", b2: "2. Lịch", b3: "3. Task liên quan", b4: "4. Lịch sử gần", b5: "5. Tin mới", total: "Tổng" }[b]}</td>
-                  <td className="text-right tabular-nums">{c.tokens[b].p50 ?? "—"}</td>
-                  <td className="text-right tabular-nums">{c.tokens[b].p95 ?? "—"}</td>
+                  <td>{{ b1: "1. Hướng dẫn", b2: "2. Lịch", b3: "3. Task (tổng)", b3a: "3a. Được link", b3b: "3b. Gần nhất", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. Khối lần gọi 2", total: "Tổng lần 1" }[b]}</td>
+                  <td className="text-right tabular-nums">{c.tokens[b]?.p50 ?? "—"}</td>
+                  <td className="text-right tabular-nums">{c.tokens[b]?.p95 ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

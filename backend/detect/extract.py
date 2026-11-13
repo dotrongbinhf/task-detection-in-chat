@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+import re
+from typing import Any, Callable, Optional
 
 from pydantic import ValidationError
 
-from .config import PROMPT_VERSION, Config
+from .config import Config, prompt_version
 from .context import BuiltContext
 from .ledger import (apply_field_value, display_due, log, meets_draft_min, pending_for, propose_change, set_status,
                      sync_approvals, task_due_display)
@@ -71,10 +72,14 @@ def _role_for(field: str) -> str:
     return {"due": "due", "assignee_refs": "assignee"}.get(field, "content")
 
 
-def _add_evidence(t: Task, items: list[tuple[str, str]], at: str) -> None:
+def _add_evidence(t: Task, items: list[tuple[str, str]], at: str, when: Callable[[str], str]) -> None:
+    """Thêm bằng chứng; last_mentioned_at = created_at của tin bằng chứng mới nhất (không phải giờ xử lý)."""
     for mid, role in items:
         if not any(e.message_id == mid and e.role == role for e in t.evidence):
             t.evidence.append(Evidence(message_id=mid, role=role, added_at=at))
+        m_at = when(mid)
+        if not t.last_mentioned_at or ts(m_at) > ts(t.last_mentioned_at):
+            t.last_mentioned_at = m_at
 
 
 def _show_draft(state: EngineState, t: Task, at: str, turn: int, events: list[dict]) -> None:
@@ -94,7 +99,13 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
     created_now: set[str] = set()
 
     def resolve(local: Optional[str]) -> Optional[str]:
-        return ctx.id_map.get(local.strip()) if local else None
+        """'#12' → message_id. Chấp nhận '#12 [thứ 2 …] Linh: …' (model chép cả dòng tin) — chỉ lấy id ở đầu."""
+        if not local:
+            return None
+        hit = ctx.id_map.get(local.strip())
+        if hit is None and (m := re.match(r"\s*(#\d+)(?!\d)", local)):
+            hit = ctx.id_map.get(m.group(1))
+        return hit
 
     for op in out.ops:
         res: dict[str, Any] = {"op": op.op, "target": op.target, "task_id": None, "accepted": False, "notes": [],
@@ -153,9 +164,9 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
                 **df, task_id=f"K{state.counters.task}", conversation_key=ctx.key, status="candidate", kind=kind,
                 title=(op.title or "").strip() or "(chưa có tiêu đề)", notes=op.notes, assignee_refs_raw=op.assignee_refs or [],
                 assignee_ids=ids, assigner_id=assigner, due_type=due.due_type, due_date=due.due_date, anchor_message_id=anchor_id,
-                created_at=at, created_turn=turn, last_touched_at=at, status_changed_at=at, prompt_version=PROMPT_VERSION, model=model,
+                created_at=at, created_turn=turn, last_touched_at=at, status_changed_at=at, prompt_version=prompt_version(ctx.mode), model=model,
             )
-            _add_evidence(t, ev_list, at)
+            _add_evidence(t, ev_list, at, msg_at)
             state.tasks.append(t)
             created_now.add(t.task_id)
             res.update(task_id=t.task_id, accepted=True)
@@ -169,10 +180,10 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             results.append(res)
             continue
 
-        # 4. UPDATE / CANCEL phải nhắm vào task trong khối TASK LIÊN QUAN
+        # 4. UPDATE / CANCEL phải nhắm vào task có trong prompt (TASK LIÊN QUAN | 3a/3b/khối 6)
         task_id = ctx.task_map.get((op.target or "").strip())
         if not task_id:
-            reject(f"unknown_task {op.target} (không có trong TASK LIÊN QUAN)")
+            reject(f"unknown_task {op.target} (không có trong prompt)")
             continue
         t = next(x for x in state.tasks if x.task_id == task_id)
         res["task_id"] = t.task_id
@@ -185,7 +196,7 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             if not ev_new:
                 reject("not_from_new_message")
                 continue
-            _add_evidence(t, ev_ids, at)
+            _add_evidence(t, ev_ids, at, msg_at)
             t.last_touched_at = at
             if t.status == "approved":
                 if any(p.field == "status" for p in pending_for(state, t.task_id)):
@@ -287,8 +298,8 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
                 apply_field_value(t, p["field"], p["value"])
                 applied.append(f"{p['field']} → {p['display']}")
             if p["ev"] not in ev_msg_ids:
-                _add_evidence(t, [(p["ev"], _role_for(p["field"]))], at)
-        _add_evidence(t, ev_ids, at)
+                _add_evidence(t, [(p["ev"], _role_for(p["field"]))], at, msg_at)
+        _add_evidence(t, ev_ids, at, msg_at)
         t.last_touched_at = at
 
         if not applied and not ev_ids:
@@ -319,3 +330,119 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
         log(state, events, {"type": "op_applied", "at": at, "turn": turn, "op": "UPDATE", "task_id": t.task_id, "changes": applied})
         results.append(res)
     return results, events
+
+
+# ---------- kiểm trùng khi CREATE (mục 7 tài liệu "Ngữ cảnh mới") ----------
+
+def dedup_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, embedder: Any = None) -> list[dict[str, Any]]:
+    """Mỗi CREATE đủ điều kiện cơ bản → tìm task gần giống trong kho (mọi trạng thái, kể cả declined).
+
+    Ứng viên = giống nội dung (≥ dedup_min_keyword_overlap từ khoá chung, HOẶC cosine ≥ ngưỡng ngữ nghĩa khi
+    search_mode ≠ keyword) VÀ (trùng người nhận / người được nhắc hoặc trùng người giao) VÀ không nằm trong prompt.
+    Trả về một mục cho mỗi CREATE (kể cả khi không có ứng viên) để ghi trace."""
+    from .context import to_iso_days_before
+    from .store import TaskStore
+
+    store = TaskStore(state, cfg, embedder)
+    thr = store.threshold("dedup")
+    new_ids = {m.id for m in ctx.new_msgs}
+    in_prompt = set(ctx.task_map.values())
+    since = to_iso_days_before(ctx.turn_at, cfg.search_lookup_days)
+    checks: list[dict[str, Any]] = []
+    for op in out.ops:
+        if op.op != "CREATE":
+            continue
+        anchor_id = ctx.id_map.get((op.anchor or "").strip())
+        if not anchor_id:
+            continue
+        ev = [ctx.id_map.get(e.msg.strip()) for e in op.evidence]
+        if anchor_id not in new_ids and not any(i in new_ids for i in ev if i):
+            continue  # Validate sẽ loại (not_from_new_message)
+        if any(t.anchor_message_id == anchor_id for t in state.tasks):
+            continue  # Validate sẽ loại (duplicate_anchor)
+        ids, _ = resolve_assignees(op.assignee_refs or [], ctx, anchor_id)
+        anchor_msg = next((m for m in ctx.messages if m.id == anchor_id), None)
+        assigner = (anchor_msg.author_id if anchor_msg and op.kind != "self_commit" and anchor_msg.author_id not in ids else None)
+        query = f"{op.title or ''} {anchor_msg.text if anchor_msg else ''}".strip()
+        # người được nhắc trong tin anchor (@mention hoặc gọi tên viết hoa "Mai ơi…") cũng tính là "cùng người":
+        # LLM có thể gán sai người nhận (vd. SPEAKER) nhưng việc vẫn là của người được gọi tên → vẫn phải bắt trùng
+        named = [x["user_id"] for x in (anchor_msg.mentions if anchor_msg else [])]
+        named += store.names_in_query(ctx.key, anchor_msg.text) if anchor_msg and anchor_msg.kind == "message" else []
+        named = [u for u in dict.fromkeys(named) if u not in ids and u != (anchor_msg.author_id if anchor_msg else None)]
+        people = [*ids, *named]
+        hits = store.search(ctx.key, query, people, since, cfg.search_max_results, now=ctx.turn_at, lookup_days=cfg.search_lookup_days)
+        rows, cands = [], []
+        for h in hits:
+            t = h.task
+            same_people = bool(set(people) & set(t.assignee_ids)) or bool(assigner and t.assigner_id == assigner)
+            why = None
+            semantic = h.similarity is not None and h.similarity >= thr
+            if h.keyword_overlap < cfg.dedup_min_keyword_overlap and not semantic:
+                why = (f"chỉ {h.keyword_overlap} từ khoá chung" + (f", ngữ nghĩa {h.similarity:.2f} < {thr:.2f}" if h.similarity is not None else ""))
+            elif not same_people:
+                why = "khác người nhận và người giao"
+            elif t.task_id in in_prompt:
+                why = "đã có trong prompt"
+            rows.append({"task_id": t.task_id, "title": t.title, "status": t.status, "score": h.score,
+                         "matched": h.matched, "overlap": h.keyword_overlap, "similarity": h.similarity,
+                         "same_people": same_people, "candidate": why is None, "why_not": why})
+            if why is None:
+                cands.append(h)
+        checks.append({"title": op.title, "anchor": anchor_id, "query": query, "people": ids, "named": named, "assigner": assigner,
+                       "results": rows, "candidates": [h.task.task_id for h in cands], "_hits": cands})
+    return checks
+
+
+# ---------- kiểm tra target của UPDATE / CANCEL (bổ sung ngoài tài liệu — xem DECISIONS) ----------
+
+def target_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, embedder: Any = None) -> list[dict[str, Any]]:
+    """Đo được: gpt-4.1-mini hay UPDATE/CANCEL nhầm sang một task gần nhất (hoặc bịa T<n>) thay vì search.
+
+    Với mỗi UPDATE/CANCEL nhắm task KHÔNG được link: tìm trong kho bằng nội dung TIN MỚI; nếu có task ngoài prompt
+    khớp ≥ dedup_min_keyword_overlap từ khoá VÀ khớp nhiều hơn task đang nhắm (hoặc T<n> không tồn tại) → ứng viên."""
+    from .context import to_iso_days_before
+    from .store import TaskStore
+    from .text import terms
+
+    store = TaskStore(state, cfg, embedder)
+    thr = store.threshold()
+    in_prompt = set(ctx.task_map.values())
+    linked = {p.task.task_id for p in ctx.tasks if p.source == "linked"}
+    text = " ".join(m.text for m in ctx.new_msgs if m.kind == "message")
+    people = list(dict.fromkeys(x["user_id"] for m in ctx.new_msgs for x in m.mentions))
+    since = to_iso_days_before(ctx.turn_at, cfg.search_lookup_days)
+    q_terms = set(terms(text))
+    checks: list[dict[str, Any]] = []
+    if not q_terms:
+        return checks
+    hits = None
+    for op in out.ops:
+        if op.op not in ("UPDATE", "CANCEL"):
+            continue
+        tid = ctx.task_map.get((op.target or "").strip())
+        if tid in linked:
+            continue
+        target = next((t for t in state.tasks if t.task_id == tid), None)
+        t_overlap = len(q_terms & set(terms(store.document(target)))) if target else -1
+        t_sim = (store.similarity(store.query_text(ctx.key, text), [target]).get(target.task_id, -1.0)
+                 if target and store.mode != "keyword" else -1.0)
+        if hits is None:
+            hits = [h for h in store.search(ctx.key, text, people, since, cfg.search_max_results, now=ctx.turn_at,
+                                            lookup_days=cfg.search_lookup_days) if h.task.task_id not in in_prompt]
+        # ứng viên: khớp từ khoá tốt hơn target, HOẶC thuộc top `target_check_max_candidates` task gần nghĩa nhất ngoài
+        # prompt, cosine ≥ ngưỡng và hơn target ≥ semantic_margin. Đưa nhiều ứng viên để LLM tự chọn: embedding chỉ xếp
+        # task đúng hạng 1 ở 11/14 tin — chỉ đưa 1 thì hạng 2 bị bỏ và LLM đi theo ứng viên sai (m073).
+        sem = sorted([h for h in hits if h.similarity is not None and h.similarity >= thr
+                      and h.similarity >= t_sim + cfg.semantic_margin], key=lambda h: -h.similarity)
+        sem_ids = {h.task.task_id for h in sem[: max(0, cfg.target_check_max_candidates)]}
+        cands = [h for h in hits
+                 if (h.keyword_overlap >= cfg.dedup_min_keyword_overlap and h.keyword_overlap > t_overlap)
+                 or h.task.task_id in sem_ids]
+        cands.sort(key=lambda h: -(h.similarity if h.similarity is not None else -1))
+        checks.append({"op": op.op, "target": op.target, "task_id": tid, "target_title": target.title if target else None,
+                       "target_overlap": t_overlap, "target_similarity": None if t_sim < 0 else round(t_sim, 3),
+                       "threshold": thr if store.mode != "keyword" else None, "query": text, "people": people,
+                       "results": [{"task_id": h.task.task_id, "title": h.task.title, "status": h.task.status, "score": h.score,
+                                    "matched": h.matched, "overlap": h.keyword_overlap, "similarity": h.similarity} for h in hits],
+                       "candidates": [h.task.task_id for h in cands], "_hits": cands})
+    return checks

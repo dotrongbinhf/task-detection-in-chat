@@ -50,5 +50,6 @@ def load_dataset(name: str) -> dict[str, Any]:
 
 def load_prompts() -> dict[str, str]:
     extract = (ROOT / "prompts" / "extract_v3.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
+    v4 = (ROOT / "prompts" / "extract_v4.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
     gate = (ROOT / "prompts" / "gate_v3.txt").read_text(encoding="utf-8")
-    return {"extract": extract.strip(), "gate": gate.strip()}
+    return {"extract": extract.strip(), "extract_v4": v4.strip(), "gate": gate.strip()}

@@ -19,9 +19,32 @@ undated_open_days: 14
 declined_suppress_days: 7
 llm_max_retries: 2
 
+# Ngữ cảnh mới (tài liệu "Ngữ cảnh mới - task được link, 3 task gần nhất, tìm task").
+# scored = v3 (bảng điểm, dùng open_tasks_max / closed_tasks_max / closed_lookup_days ở trên) — giữ để so sánh.
+context_mode: linked_recent_search   # scored | linked_recent_search
+linked_tasks_max: 3                  # task được link (reply / reaction vào tin bằng chứng)
+linked_evidence_per_task: 3          # tin bằng chứng kèm mỗi task được link
+recent_tasks_max: 3                  # task được nhắc gần nhất (theo last_mentioned_at)
+search_enabled: true                 # LLM được yêu cầu tìm task trong kho
+search_max_results: 5
+search_lookup_days: 30               # phạm vi tìm / task được link
+extract_max_calls_per_turn: 2        # lần 2 = sau tìm task, kiểm tra target hoặc kiểm trùng
+dedup_check_on_create: true
+dedup_min_keyword_overlap: 2
+target_check_on_update: true         # thêm ngoài tài liệu — DECISIONS #31
+search_mode: hybrid                  # keyword | semantic | hybrid (BM25 + embedding, RRF) — DECISIONS #41
+semantic_min_similarity:             # kiểm tra target; trống = mặc định embedder (text-embedding-3-small: 0.45)
+dedup_semantic_min_similarity:       # kiểm trùng; trống = mặc định embedder (text-embedding-3-small: 0.55)
+semantic_margin: 0.0                 # ứng viên chỉ cần gần nghĩa hơn task LLM đang nhắm
+target_check_max_candidates: 3       # DECISIONS #44
+semantic_floor: 0.35
+rrf_k: 10
+prompt_cache_key: ai_reminder_extract
+
 # Bảng giá USD / 1M token để ước tính chi phí (input, input được cache, output).
 pricing:
   gpt-4.1-mini: {input: 0.40, cached: 0.10, output: 1.60}
   gpt-4.1-nano: {input: 0.10, cached: 0.025, output: 0.40}
   gpt-4o-mini: {input: 0.15, cached: 0.075, output: 0.60}
   heuristic: {input: 0, cached: 0, output: 0}
+  text-embedding-3-small: {input: 0.02, cached: 0, output: 0}

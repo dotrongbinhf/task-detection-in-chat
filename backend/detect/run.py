@@ -14,13 +14,14 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .config import ROOT, Config, load_config
-from .context import build_context, conversation_key
+from .context import BuiltContext, build_context, conversation_key, extend_context, to_iso_days_before
 from .dataset import load_dataset, load_prompts
-from .extract import parse_extract, validate_and_apply
+from .extract import dedup_check, parse_extract, target_check, validate_and_apply
 from .gate import run_gate
 from .ledger import apply_expiry, apply_user_action, is_open
 from .llm import LLM, make_llm
-from .models import EngineState, Message, Mention, Reaction, StreamEvent, UserAction
+from .models import EngineState, ExtractOutput, Message, Mention, Reaction, StreamEvent, UserAction
+from .store import TaskStore
 from .timeexpr import parse, to_iso, ts
 from .tokens import set_model
 
@@ -98,7 +99,7 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     exp, acts = catch_up(state, at, cfg)
     rec: dict[str, Any] = {"turn": turn, "key": key, "at": at, "new_event_ids": [e.id for e in batch], "coalesced": len(batch) > 1,
                            "skipped": None, "pre": {"expirations": exp, "user_actions": acts}, "context": None, "gate": None,
-                           "extract": None, "ops": [], "events": []}
+                           "extract": None, "extract_calls": [], "search": None, "target_check": None, "dedup": None, "ops": [], "events": []}
 
     def finish(skipped: Optional[str] = None, **extra: Any) -> dict[str, Any]:
         rec["skipped"] = skipped
@@ -121,9 +122,11 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     if not kept:
         return finish("reaction_not_relevant")
 
-    ctx = build_context(state, key, kept, cfg, prompts["extract"], prompts["gate"])
+    instructions = prompts["extract"] if cfg.context_mode == "scored" else prompts.get("extract_v4", prompts["extract"])
+    ctx = build_context(state, key, kept, cfg, instructions, prompts["gate"])
     rec["context"] = {
-        "selected": ctx.selected, "not_selected": ctx.not_selected, "window_ids": ctx.window_ids,
+        "mode": ctx.mode, "selected": ctx.selected, "not_selected": ctx.not_selected, "linked": ctx.linked,
+        "recent": ctx.recent, "linked_chain_ids": ctx.extra.get("chain_ids", []), "window_ids": ctx.window_ids,
         "reply_chain_ids": ctx.reply_ids, "evidence_ids": ctx.evidence_ids, "id_map": ctx.id_map, "task_map": ctx.task_map,
         "trims": ctx.trims, "tokens": ctx.tokens, "window_k_used": ctx.window_k,
         "prompt": ctx.user,  # khối 1 cố định, không lưu lại mỗi lượt
@@ -141,38 +144,167 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
         state.trace.append({"type": "gate_skip", "at": at, "turn": turn, "p": g["p"]})
         return finish("gate_skip", p=g["p"])
 
-    # ---- bộ trích (retry khi JSON hỏng / lỗi mạng) ----
-    parsed, err, last, attempts, latency = None, None, None, 0, 0
-    while attempts <= cfg.llm_max_retries:
-        try:
-            last = llm.extract(ctx, attempts)
-        except Exception as e:  # noqa: BLE001
-            err = str(e)
-            attempts += 1
-            continue
-        attempts += 1
-        latency += last.latency_ms
-        if last.refusal:
-            break
-        parsed, err = parse_extract(last.raw)
-        if parsed:
-            break
-    rec["extract"] = {
-        "model": llm.extract_model, "raw": last.raw if last else "", "attempts": attempts, "latency_ms": latency,
-        "input_tokens": last.input_tokens if last else 0, "output_tokens": last.output_tokens if last else 0,
-        "cached_tokens": last.cached_tokens if last else 0, "disk_cache": last.disk_cache if last else False,
-        "error": None if parsed else (f"refusal: {last.refusal}" if last and last.refusal else err),
-    }
-    if not parsed:
-        kind = "refusal" if last and last.refusal else ("parse_failure" if last else "llm_error")
-        state.trace.append({"type": kind, "at": at, "turn": turn, "error": rec["extract"]["error"]})
-        return finish(kind)  # lượt bị bỏ không làm mất tin: tin vẫn nằm trong LỊCH SỬ GẦN của lượt sau
+    # ---- bộ trích: tối đa extract_max_calls_per_turn lần gọi (lần 2 = tìm task hoặc kiểm trùng) ----
+    calls: list[dict[str, Any]] = []
+    rec["extract_calls"] = calls
+    embedder = getattr(llm, "embedder", None)
+    emb_before = getattr(embedder, "tokens_used", 0)
 
-    ops, events = validate_and_apply(state, ctx, parsed, cfg, turn, llm.extract_model)
+    def call(c: BuiltContext, reason: str) -> Optional[ExtractOutput]:
+        """Một lần gọi bộ trích (retry khi JSON hỏng / lỗi mạng). Ghi token, tiền, latency, raw của lần gọi."""
+        parsed, err, last, attempts, latency = None, None, None, 0, 0
+        while attempts <= cfg.llm_max_retries:
+            try:
+                last = llm.extract(c, attempts)
+            except Exception as e:  # noqa: BLE001
+                err = str(e)
+                attempts += 1
+                continue
+            attempts += 1
+            latency += last.latency_ms
+            if last.refusal:
+                break
+            parsed, err = parse_extract(last.raw)
+            if parsed:
+                break
+        r: dict[str, Any] = {
+            "call": len(calls) + 1, "reason": reason, "model": llm.extract_model, "raw": last.raw if last else "",
+            "attempts": attempts, "latency_ms": latency, "input_tokens": last.input_tokens if last else 0,
+            "output_tokens": last.output_tokens if last else 0, "cached_tokens": last.cached_tokens if last else 0,
+            "disk_cache": last.disk_cache if last else False, "prompt_tokens_est": c.tokens.get("total", 0),
+            "extra_block": c.extra_block, "extra_tokens": c.tokens.get("b6", 0),
+            "error": None if parsed else (f"refusal: {last.refusal}" if last and last.refusal else err),
+        }
+        r["cost_usd"] = call_cost(r, cfg.pricing)
+        calls.append(r)
+        rec["extract"] = {**r, "calls": len(calls)}
+        if not parsed:
+            kind = "refusal" if last and last.refusal else ("parse_failure" if last else "llm_error")
+            r["failure"] = kind
+            state.trace.append({"type": kind, "at": at, "turn": turn, "call": r["call"], "error": r["error"]})
+        return parsed
+
+    parsed = call(ctx, "initial")
+    if not parsed:
+        return finish(calls[-1]["failure"])  # lượt bị bỏ không làm mất tin: tin vẫn nằm trong LỊCH SỬ GẦN của lượt sau
+    cur_ctx, cur_out = ctx, parsed
+    max_calls = max(1, cfg.extract_max_calls_per_turn)
+
+    if ctx.mode != "scored":
+        # ---- tìm task (LLM điền search khi TIN MỚI nói về việc cũ không có trong ngữ cảnh) ----
+        sq = parsed.search
+        if sq is not None:
+            srec: dict[str, Any] = {"requested": sq.model_dump(), "ignored": None, "query": sq.query, "people": [],
+                                    "results": [], "call": None}
+            rec["search"] = srec
+            ignore = ("search_with_ops_ignored" if parsed.ops else "search_disabled" if not cfg.search_enabled
+                      else "search_call_limit" if len(calls) >= max_calls else None)
+            parsed.search = None
+            if ignore:
+                srec["ignored"] = ignore
+                state.trace.append({"type": ignore, "at": at, "turn": turn, "query": sq.query})
+            else:
+                store = TaskStore(state, cfg, embedder)
+                since = to_iso_days_before(at, cfg.search_lookup_days)
+                people = store.resolve_people(key, sq.people)
+                hits = store.search(key, sq.query, sq.people, since, cfg.search_max_results, now=at,
+                                    lookup_days=cfg.search_lookup_days)
+                in_prompt = set(ctx.task_map.values())
+                attrs = f'query="{sq.query}"' + (f' people="{",".join(people)}"' if people else "")
+                ctx2 = extend_context(state, ctx, "search", hits, cfg, attrs=attrs)
+                rev_task = {v: k for k, v in ctx2.task_map.items()}
+                srec.update(people=people, results=[{
+                    "local": rev_task.get(h.task.task_id, ""), "task_id": h.task.task_id, "title": h.task.title,
+                    "status": h.task.status, "score": h.score, "matched": h.matched, "similarity": h.similarity,
+                    "already_in_prompt": h.task.task_id in in_prompt,
+                } for h in hits])
+                state.trace.append({"type": "task_search", "at": at, "turn": turn, "query": sq.query, "people": people,
+                                    "results": [h.task.task_id for h in hits]})
+                out2 = call(ctx2, "search")
+                srec["call"] = len(calls)
+                if not out2:
+                    return finish(calls[-1]["failure"])
+                if out2.search is not None:
+                    state.trace.append({"type": "search_on_second_call", "at": at, "turn": turn, "query": out2.search.query})
+                    srec["second_call_search_ignored"] = out2.search.query
+                    out2.search = None
+                cur_ctx, cur_out = ctx2, out2
+
+        # ---- kiểm tra target của UPDATE / CANCEL (bổ sung, xem DECISIONS) ----
+        if cfg.target_check_on_update and len(calls) < max_calls and any(o.op in ("UPDATE", "CANCEL") for o in cur_out.ops):
+            tchecks = target_check(state, cur_ctx, cur_out, cfg, embedder)
+            tc_hits = list({h.task.task_id: h for c in tchecks for h in c["_hits"]}.values())
+            rec["target_check"] = {"checks": [{k: v for k, v in c.items() if k != "_hits"} for c in tchecks],
+                                   "triggered": bool(tc_hits), "call": None}
+            if tc_hits:
+                # đo: câu "nếu không hợp hơn thì giữ lựa chọn cũ" làm LLM trả ops rỗng ở m064 → giữ câu dẫn ngắn
+                intro = ("Double-check: NEW_MESSAGES may refer to one of the tasks below (they were not in the prompt above). "
+                         "If so, use that task's T<n>.")
+                ctx_t = extend_context(state, cur_ctx, "search", tc_hits, cfg, attrs='source="target_check"', intro=intro)
+                state.trace.append({"type": "target_check_triggered", "at": at, "turn": turn,
+                                    "candidates": [h.task.task_id for h in tc_hits]})
+                out_t = call(ctx_t, "target_check")
+                rec["target_check"]["call"] = len(calls)
+                if not out_t:
+                    return finish(calls[-1]["failure"])
+                out_t.search = None
+                rec["target_check"]["ops_after"] = [f"{o.op} {o.target or ''}".strip() for o in out_t.ops]
+                cur_ctx, cur_out = ctx_t, out_t
+
+        # ---- kiểm trùng khi CREATE ----
+        if cfg.dedup_check_on_create and any(o.op == "CREATE" for o in cur_out.ops):
+            checks = dedup_check(state, cur_ctx, cur_out, cfg, embedder)
+            cands = list({h.task.task_id: h for c in checks for h in c["_hits"]}.values())
+            drec: dict[str, Any] = {"checks": [{k: v for k, v in c.items() if k != "_hits"} for c in checks],
+                                    "triggered": bool(cands), "call": None, "skipped": None, "outcome": None}
+            rec["dedup"] = drec
+            if cands and len(calls) >= max_calls:
+                drec["skipped"] = "dedup_skipped_call_limit"
+                state.trace.append({"type": "dedup_skipped_call_limit", "at": at, "turn": turn,
+                                    "candidates": [h.task.task_id for h in cands]})
+            elif cands:
+                titles = ", ".join(f'"{c["title"]}"' for c in checks if c["_hits"])
+                intro = (f"You are about to CREATE {titles}. The tasks below may be the same task. "
+                         "If it is the same task, use UPDATE or change nothing instead of CREATE.")
+                ctx3 = extend_context(state, cur_ctx, "dedup", cands, cfg, intro=intro)
+                state.trace.append({"type": "dedup_triggered", "at": at, "turn": turn,
+                                    "candidates": [h.task.task_id for h in cands]})
+                before = sum(1 for o in cur_out.ops if o.op == "CREATE")
+                out3 = call(ctx3, "dedup")
+                drec["call"] = len(calls)
+                if not out3:
+                    return finish(calls[-1]["failure"])
+                out3.search = None
+                after = sum(1 for o in out3.ops if o.op == "CREATE")
+                drec["outcome"] = "still_create" if after >= before else "create_dropped"
+                drec["creates_before"], drec["creates_after"] = before, after
+                drec["ops_after"] = [o.op for o in out3.ops]
+                cur_ctx, cur_out = ctx3, out3
+                # lần gọi cuối vẫn qua kiểm trùng; còn ứng viên mới thì không hỏi thêm (hết lượt gọi)
+                again = [h for c in dedup_check(state, cur_ctx, cur_out, cfg, embedder) for h in c["_hits"]]
+                if again:
+                    drec["skipped"] = "dedup_skipped_call_limit"
+                    state.trace.append({"type": "dedup_skipped_call_limit", "at": at, "turn": turn,
+                                        "candidates": [h.task.task_id for h in again]})
+
+    ops, events = validate_and_apply(state, cur_ctx, cur_out, cfg, turn, llm.extract_model)
+    rec["embed"] = {"model": getattr(embedder, "name", None), "search_mode": cfg.search_mode if ctx.mode != "scored" else None,
+                    "tokens": getattr(embedder, "tokens_used", 0) - emb_before}
     rec["ops"] = ops
     rec["events"] += events
+    if cur_ctx is not ctx:
+        rec["context"]["task_map_final"] = cur_ctx.task_map
+        rec["context"]["id_map_final"] = cur_ctx.id_map
     return finish(None, selected=[f"{s['local']}={s['task_id']}({s['score']})" for s in ctx.selected], tokens=ctx.tokens,
-                  p=g["p"] if g else None, ops=[o["op"] + ("" if o["accepted"] else "✗") for o in ops])
+                  p=g["p"] if g else None, ops=[o["op"] + ("" if o["accepted"] else "✗") for o in ops], calls=len(calls),
+                  search=rec["search"]["query"] if rec["search"] else None,
+                  dedup=bool(rec["dedup"] and rec["dedup"]["triggered"]))
+
+
+def call_cost(r: dict[str, Any], pricing: dict[str, dict[str, float]]) -> float:
+    pr = pricing.get(r["model"], pricing.get("gpt-4.1-mini", {"input": 0, "cached": 0, "output": 0}))
+    return ((r["input_tokens"] - r["cached_tokens"]) * pr.get("input", 0) + r["cached_tokens"] * pr.get("cached", 0)
+            + r["output_tokens"] * pr.get("output", 0)) / 1e6
 
 
 # ---------- thao tác từ UI ----------

@@ -116,8 +116,15 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             elif any(not o["accepted"] for tr in related for o in tr["ops"]):
                 cls = "4. Validate loại"
             elif any_task and any(tr.get("context") and ts(tr["at"]) > ts(any_task.created_at)
-                                  and not any(s["task_id"] == any_task.task_id for s in tr["context"]["selected"]) for tr in related):
-                cls = f"1. task liên quan {any_task.task_id} không được chọn vào prompt"
+                                  and any_task.task_id not in _prompt_tasks(tr) for tr in related):
+                miss = [tr for tr in related if tr.get("context") and ts(tr["at"]) > ts(any_task.created_at)
+                        and any_task.task_id not in _prompt_tasks(tr)]
+                if any((tr["context"].get("mode") or "scored") != "scored" for tr in miss):
+                    searched = [tr for tr in miss if tr.get("search") and not tr["search"].get("ignored")]
+                    cls = (f"7. tìm sai: LLM tìm \"{searched[0]['search']['query']}\" nhưng {any_task.task_id} không có trong kết quả"
+                           if searched else f"7. bỏ lỡ tìm kiếm: {any_task.task_id} có trong kho nhưng không trong ngữ cảnh, LLM không search")
+                else:
+                    cls = f"1. task liên quan {any_task.task_id} không được chọn vào prompt"
             elif related and related[-1].get("context"):
                 last = related[-1]
                 in_prompt = set(last["context"]["id_map"].values())
@@ -131,7 +138,18 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
                       "path": turn_path([e.message_id for e in t.evidence])})
     for t in dups:
         gid = next(p[0].gold_id for p in pairs if p[1].task_id == t.task_id)
-        items.append({"kind": "dup", "task_id": t.task_id, "note": f'"{t.title}" trùng nhãn {gid}', "path": turn_path([e.message_id for e in t.evidence])})
+        orig = g_match.get(gid)
+        why = ""
+        tr = next((x for x in state.turns if x["turn"] == t.created_turn), None)
+        if orig and tr and tr.get("context") and orig.created_turn < t.created_turn:
+            first = set((tr["context"].get("task_map") or {}).values()) | {x["task_id"] for x in tr["context"].get("selected", [])}
+            if orig.task_id in first:
+                why = f" · {orig.task_id} có trong prompt nhưng LLM vẫn CREATE"
+            elif tr.get("dedup") and tr["dedup"].get("call"):
+                why = f" · kiểm trùng đã đưa {orig.task_id} vào <POSSIBLE_DUPLICATES> nhưng LLM vẫn CREATE"
+            elif (tr["context"].get("mode") or "scored") != "scored":
+                why = f" · 7. bỏ lỡ tìm kiếm / kiểm trùng ({orig.task_id} có trong kho, không trong ngữ cảnh)"
+        items.append({"kind": "dup", "task_id": t.task_id, "note": f'"{t.title}" trùng nhãn {gid}{why}', "path": turn_path([e.message_id for e in t.evidence])})
 
     # ---- trường + trích dẫn ----
     as_ok = as_n = due_ok = due_n = ev_n = fab = c_ok = c_n = 0
@@ -207,17 +225,36 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
 
     # ---- chi phí ----
     with_ctx = [t for t in state.turns if t.get("context")]
-    tokens = {b: {"p50": pct([t["context"]["tokens"][b] for t in with_ctx], 0.5), "p95": pct([t["context"]["tokens"][b] for t in with_ctx], 0.95)}
-              for b in ("b1", "b2", "b3", "b4", "b5", "total")}
+    tokens = {b: {"p50": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.5), "p95": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.95)}
+              for b in ("b1", "b2", "b3", "b3a", "b3b", "b4", "b5", "total")}
+    b6 = [c.get("extra_tokens", 0) for t in state.turns for c in (t.get("extract_calls") or []) if c.get("call", 1) > 1]
+    tokens["b6"] = {"p50": pct(b6, 0.5), "p95": pct(b6, 0.95)}
     ext = [t for t in state.turns if t.get("extract")]
     cost = in_tok = cached = out_tok = 0.0
+    by_call: dict[int, dict[str, float]] = {}
+    turn_in: list[float] = []
     for t in ext:
-        e = t["extract"]
-        pr = pricing.get(e["model"], pricing.get("gpt-4.1-mini", {"input": 0, "cached": 0, "output": 0}))
-        in_tok += e["input_tokens"]
-        cached += e["cached_tokens"]
-        out_tok += e["output_tokens"]
-        cost += ((e["input_tokens"] - e["cached_tokens"]) * pr["input"] + e["cached_tokens"] * pr["cached"] + e["output_tokens"] * pr["output"]) / 1e6
+        calls = t.get("extract_calls") or [{**t["extract"], "call": 1}]
+        tin = 0
+        for e in calls:
+            pr = pricing.get(e["model"], pricing.get("gpt-4.1-mini", {"input": 0, "cached": 0, "output": 0}))
+            c_usd = ((e["input_tokens"] - e["cached_tokens"]) * pr["input"] + e["cached_tokens"] * pr["cached"] + e["output_tokens"] * pr["output"]) / 1e6
+            in_tok += e["input_tokens"]
+            cached += e["cached_tokens"]
+            out_tok += e["output_tokens"]
+            cost += c_usd
+            tin += e["input_tokens"]
+            b = by_call.setdefault(min(int(e.get("call", 1)), 2), {"calls": 0, "input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "cost_usd": 0.0})
+            b["calls"] += 1
+            b["input_tokens"] += e["input_tokens"]
+            b["cached_tokens"] += e["cached_tokens"]
+            b["output_tokens"] += e["output_tokens"]
+            b["cost_usd"] += c_usd
+        turn_in.append(tin)
+    emb_tok = sum((t.get("embed") or {}).get("tokens", 0) for t in state.turns)
+    emb_model = next(((t.get("embed") or {}).get("model") for t in state.turns if (t.get("embed") or {}).get("model")), None)
+    emb_cost = emb_tok * pricing.get(emb_model or "", {}).get("input", 0) / 1e6
+    cost += emb_cost
     gates = [t for t in state.turns if t.get("gate")]
     for t in gates:
         pr = pricing.get(t["gate"]["model"], pricing.get("gpt-4.1-nano", {"input": 0, "output": 0}))
@@ -236,6 +273,8 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
     curve = [{"threshold": th, "recall_vs_ceiling": wilson(sum(1 for t in applied if t["gate"]["p"] >= th), len(applied)),
               "pass_rate": wilson(sum(1 for t in g_turns if t["gate"]["p"] >= th), len(g_turns))}
              for th in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)]
+
+    search_stats = _search_stats(state, gold, g_match, tasks, ext, t_match, dups, fps, items)
 
     tags = sorted({tag for g in labeled for tag in g.scenario_tags})
     by_tag = [{"tag": tag, "recall": wilson(sum(1 for g in labeled if tag in g.scenario_tags and g.gold_id in g_match),
@@ -271,7 +310,11 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             "op_turn_ratio": wilson(op_turns, len(ext)), "tokens": tokens,
             "input_tokens": in_tok, "cached_tokens": cached, "output_tokens": out_tok,
             "cost_usd": cost, "cost_per_1000_msgs": cost / n_msgs * 1000, "budget_trims": trims, "messages": len(state.processed),
+            "by_call": by_call, "turn_input_tokens": {"p50": pct(turn_in, 0.5), "p95": pct(turn_in, 0.95)},
+            "cache_ratio": (cached / in_tok) if in_tok else None,
+            "embed_tokens": emb_tok, "embed_cost_usd": emb_cost, "embed_model": emb_model,
         },
+        "search": search_stats,
         "gate_curve": curve,
         "by_tag": by_tag,
         "items": items,
@@ -316,9 +359,27 @@ def to_markdown(rep: dict[str, Any], meta: dict[str, Any] | None = None) -> str:
           f"- Lượt: {c['turns']} · gọi bộ trích: {c['extract_calls']} · gọi cổng: {c['gate_calls']} · lượt có op: {_r(c['op_turn_ratio'])}",
           f"- Token input {c['input_tokens']:.0f} (cache {c['cached_tokens']:.0f}) · output {c['output_tokens']:.0f} · ước tính ${c['cost_usd']:.4f} (${c['cost_per_1000_msgs']:.3f} / 1.000 tin)",
           f"- budget_trim: {c['budget_trims'] or 0}", "", "| Khối | p50 | p95 |", "|---|---|---|"]
-    names = {"b1": "1. Hướng dẫn", "b2": "2. Lịch", "b3": "3. Task liên quan", "b4": "4. Lịch sử gần", "b5": "5. Tin mới", "total": "Tổng"}
+    names = {"b1": "1. Hướng dẫn", "b2": "2. Lịch", "b3": "3. Task (tổng)", "b3a": "3a. Được link", "b3b": "3b. Gần nhất / liên quan",
+             "b4": "4. Lịch sử gần", "b5": "5. Tin mới", "b6": "6. Kết quả tìm / khả năng trùng (lần 2)", "total": "Tổng lần 1"}
     for b, v in c["tokens"].items():
-        L.append(f"| {names[b]} | {v['p50']} | {v['p95']} |")
+        L.append(f"| {names.get(b, b)} | {v['p50']} | {v['p95']} |")
+    if c.get("by_call"):
+        L += ["", "| Lần gọi | Số lần | Token input | Cache | Output | Tiền |", "|---|---|---|---|---|---|"]
+        for k, v in sorted(c["by_call"].items(), key=lambda x: int(x[0])):
+            L.append(f"| {k} | {v['calls']} | {v['input_tokens']:.0f} | {v['cached_tokens']:.0f} | {v['output_tokens']:.0f} | ${v['cost_usd']:.4f} |")
+        L.append(f"- Token input mỗi lượt (cộng mọi lần gọi): p50 {c['turn_input_tokens']['p50']} · p95 {c['turn_input_tokens']['p95']}"
+                 f" · tỉ lệ cache {_p(c.get('cache_ratio'))}")
+    sr = rep.get("search")
+    if sr and sr.get("mode_linked"):
+        L += ["", "## Tìm task & kiểm trùng",
+              f"- Lượt có tìm kiếm: {_r(sr['search_turns'])} · bị bỏ (kèm ops / lần 2): {sr['search_ignored']}",
+              f"- Lượt gọi lần 2: {_r(sr['second_call_turns'])} — do LLM tìm {sr['second_call_by']['search']}, do kiểm tra target {sr['second_call_by'].get('target_check', 0)}, do kiểm trùng {sr['second_call_by']['dedup']}",
+              f"- Lượt cần tìm (tin của nhãn mà task đúng có trong kho nhưng không trong ngữ cảnh): {sr['need_search']}",
+              f"  - tìm và có kết quả đúng: {sr['search_found']} · **tìm sai**: {sr['search_wrong']} · **bỏ lỡ tìm kiếm** (không search → FN/sai trường/tạo trùng): {sr['search_missed']} · không search nhưng kết quả vẫn đúng: {sr['search_not_needed']}",
+              f"- Kiểm trùng: kích hoạt {sr['dedup_triggered']} · LLM bỏ CREATE {sr['dedup_dropped']} · vẫn CREATE {sr['dedup_still_create']}"
+              f" (đúng {sr['dedup_still_ok']}, sai {sr['dedup_still_bad']}) · bỏ qua vì hết lượt gọi {sr['dedup_skipped']}"]
+        for x in sr["need_search_items"]:
+            L.append(f"  - {x}")
     if any(x["pass_rate"]["n"] for x in rep["gate_curve"]):
         L += ["", "## Đường cong cổng (shadow)", "| Ngưỡng | Recall so với trần | Tỉ lệ lượt qua cổng |", "|---|---|---|"]
         L += [f"| {x['threshold']} | {_r(x['recall_vs_ceiling'])} | {_r(x['pass_rate'])} |" for x in rep["gate_curve"]]
@@ -332,6 +393,75 @@ def to_markdown(rep: dict[str, Any], meta: dict[str, Any] | None = None) -> str:
         for p in i.get("path") or []:
             L.append(f"  - {p}")
     return "\n".join(L) + "\n"
+
+
+def _prompt_tasks(tr: dict[str, Any]) -> set[str]:
+    """task_id có trong prompt của lượt (mọi lần gọi)."""
+    c = tr.get("context") or {}
+    return set((c.get("task_map_final") or c.get("task_map") or {}).values()) | {x["task_id"] for x in c.get("selected", [])}
+
+
+def _search_stats(state: EngineState, gold: list[GoldTask], g_match: dict[str, Task], tasks: list[Task], ext: list[dict],
+                  t_match: dict[str, GoldTask], dups: list[Task], fps: list[Task], items: list[dict]) -> dict[str, Any]:
+    linked_turns = [t for t in ext if (t.get("context") or {}).get("mode", "scored") != "scored"]
+    s_turns = [t for t in linked_turns if t.get("search")]
+    s_used = [t for t in s_turns if not t["search"].get("ignored")]
+    second = [t for t in linked_turns if len(t.get("extract_calls") or []) > 1]
+    by = {r: sum(1 for t in second if t["extract_calls"][1]["reason"] == r) for r in ("search", "target_check", "dedup")}
+    # lượt cần tìm: tin bằng chứng (không phải anchor) của nhãn, khi task đúng đã có trong kho nhưng không trong ngữ cảnh lần 1
+    need, found, wrong, missed, harmless, notes = 0, 0, 0, 0, 0, []
+    bad_gold = {i.get("gold_id") for i in items if i["kind"] in ("fn", "field")}
+    bad_ids = {x.task_id for x in dups + fps}
+    for g in gold:
+        t = g_match.get(g.gold_id) or next((x for x in tasks if x.anchor_message_id in g.supporting_message_ids), None)
+        if not t:
+            continue
+        for tr in linked_turns:
+            if not set(tr["new_event_ids"]) & set(g.supporting_message_ids) or tr["turn"] <= t.created_turn:
+                continue
+            first = set((tr["context"].get("task_map") or {}).values())
+            if t.task_id in first:
+                continue
+            need += 1
+            srch = tr.get("search")
+            tc = tr.get("target_check") or {}
+            dd = tr.get("dedup") or {}
+            if tc.get("call") and any(t.task_id in c.get("candidates", []) for c in tc.get("checks", [])):
+                found += 1
+                res = "kiểm tra target (code) tìm thấy"
+            elif dd.get("call") and any(t.task_id in c.get("candidates", []) for c in dd.get("checks", [])):
+                found += 1
+                res = "kiểm trùng (code) tìm thấy"
+            elif srch and not srch.get("ignored"):
+                if any(r["task_id"] == t.task_id for r in srch["results"]):
+                    found += 1
+                    res = "tìm thấy"
+                else:
+                    wrong += 1
+                    res = f"TÌM SAI (truy vấn \"{srch['query']}\")"
+            elif g.gold_id in bad_gold or any(o["op"] == "CREATE" and o["accepted"] and o["task_id"] in bad_ids for o in tr["ops"]):
+                missed += 1
+                res = "BỎ LỠ TÌM KIẾM (không search, nhãn sai/tạo trùng)"
+            else:
+                harmless += 1
+                res = "không search, kết quả vẫn đúng"
+            notes.append(f"Lượt {tr['turn']} [{'+'.join(tr['new_event_ids'])}] nhãn {g.gold_id} → {t.task_id}: {res}")
+    d_turns = [t for t in linked_turns if t.get("dedup") and t["dedup"].get("triggered")]
+    still = [t for t in d_turns if t["dedup"].get("outcome") == "still_create"]
+    still_bad = sum(1 for t in still for o in t["ops"] if o["op"] == "CREATE" and o["accepted"] and o["task_id"] in bad_ids)
+    n = len(linked_turns)
+
+
+    return {
+        "mode_linked": bool(linked_turns),
+        "search_turns": wilson(len(s_turns), n), "search_ignored": len(s_turns) - len(s_used),
+        "second_call_turns": wilson(len(second), n), "second_call_by": by,
+        "need_search": need, "search_found": found, "search_wrong": wrong, "search_missed": missed, "search_not_needed": harmless,
+        "need_search_items": notes,
+        "dedup_triggered": len(d_turns), "dedup_dropped": sum(1 for t in d_turns if t["dedup"].get("outcome") == "create_dropped"),
+        "dedup_still_create": len(still), "dedup_still_bad": still_bad, "dedup_still_ok": len(still) - min(len(still), still_bad),
+        "dedup_skipped": sum(1 for t in linked_turns if t.get("dedup") and t["dedup"].get("skipped")),
+    }
 
 
 def load_run(run_dir: Path) -> tuple[EngineState, dict[str, Any]]:
@@ -361,3 +491,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

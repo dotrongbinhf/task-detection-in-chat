@@ -46,3 +46,13 @@ def keywords(s: str) -> set[str]:
             continue
         out.add(w)
     return out
+
+
+# "tuần", "tháng" là stopword khi chấm điểm v3 nhưng lại phân biệt việc khi tìm ("báo cáo tuần" ≠ "báo cáo tháng")
+SEARCH_STOPWORDS = STOPWORDS - {"tuan", "thang"}
+
+
+def terms(s: str) -> list[str]:
+    """Từ khoá cho tìm kiếm (BM25): giữ thứ tự và số lần lặp; giữ "tuần"/"tháng"; giữ số ≥ 3 chữ số (vd. "PR #482")."""
+    return [w for w in re.split(r"[^a-z0-9]+", norm(s))
+            if len(w) >= 2 and w not in SEARCH_STOPWORDS and (not w.isdigit() or len(w) >= 3)]

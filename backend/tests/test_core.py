@@ -15,6 +15,18 @@ from detect.run import catch_up, flush_actions, init_state, next_batch, process_
 from detect.timeexpr import resolve_due
 
 PROMPTS = load_prompts()
+
+
+@pytest.fixture(autouse=True, params=["scored", "linked_recent_search"])
+def context_mode(request):
+    """Mọi test v3 chạy ở cả hai chế độ: `scored` phải giữ nguyên hành vi v3; `linked_recent_search` không được
+    làm hỏng luật sổ cái / Validate / hàng đợi (đổi giá trị mặc định của Config trong lúc chạy test)."""
+    old = Config.model_fields["context_mode"].default
+    Config.model_fields["context_mode"].default = request.param
+    Config.model_rebuild(force=True)
+    yield request.param
+    Config.model_fields["context_mode"].default = old
+    Config.model_rebuild(force=True)
 MEMBERS = {
     "g": [Member(user_id="u_hung", display_name="Hưng"), Member(user_id="u_linh", display_name="Linh"),
           Member(user_id="u_nam", display_name="Nam"), Member(user_id="u_nam2", display_name="Nam")],
@@ -118,7 +130,9 @@ def test_reply_chain_and_maps():
     assert ctx.new_msgs[0].id == "new"
 
 
-def test_budget_trim_order():
+def test_budget_trim_order(context_mode):
+    if context_mode != "scored":
+        pytest.skip("thứ tự cắt của v3; chế độ linked có test riêng (test_context_v4.py::test_budget_never_cuts_linked)")
     ms = [msg(f"m{i}", f"08:{i:02d}", "u_hung", ("Linh làm việc số %d nhé " % i) * 8, mentions=[{"user_id": "u_linh", "name": "Linh"}]) for i in range(20)]
     fake = FakeLLM({f"m{i}": {"ops": [create(f"m{i}", ["u_linh"], title=f"Việc {i}")]} for i in range(20)})
     s = state_of(ms)
