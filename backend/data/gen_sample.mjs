@@ -134,14 +134,25 @@ m("m073", G, "13", "14:00", "hung", "@Linh bộ trình bày cho buổi gặp đ�
 m("m074", G, "13", "15:00", "hung", "Mai ơi spec endpoint phần coupon không cần viết nữa nhé, backend tự lo", {}); // ↔ g02 tài liệu API voucher (huỷ)
 m("m076", G, "13", "16:30", "nam", "Hôm nay bên đối tác khen bộ trình bày lắm mọi người"); // hard negative gần nghĩa
 
+// ---------- Ca test v5 (code tìm trước, luật cứng) — thứ 2 16/11, thứ 3 17/11 ----------
+m("m080", G, "16", "09:00", "hung", "@Tuấn release note bản 2.3 xong trước thứ 4 nhé", { mentions: ["tuan"] }); // matched_far_no_reply ↔ g15
+m("m081", G, "16", "09:10", "hung", "@Nam viết script backup database hằng ngày nhé", { mentions: ["nam"] }); // g17 — Nam từ chối 09:30
+m("m082", G, "16", "10:00", "mai", "Sáng nay em họp với bên brand, họ ưng bảng màu mới rồi mọi người");
+m("m083", G, "17", "09:00", "hung", "Nam ơi cái backup database tính sao rồi em, làm giúp anh nhé"); // recreate_declined_soft (2 từ khoá chung)
+m("m084", G, "17", "09:30", "hung", "@Tuấn làm lại icon set cho màn Checkout đi em, khách đổi ý rồi", { mentions: ["tuan"] }); // cancelled_then_reassigned ↔ g04 đã huỷ
+m("m085", G, "17", "09:31", "tuan", "dạ ok anh", { reply: "m084" });
+m("m086", G, "17", "10:00", "hung", "@Linh cái anh nhờ xem hôm thứ 4 em làm chưa, chưa thì để thứ 5 cũng được", { mentions: ["linh"] }); // llm_flag_fallback ↔ g13 (không chung từ khoá)
+m("m087", G, "17", "11:00", "hung", "à mà @Nam PR #482 em review xong chưa, anh cần trước thứ 4", { mentions: ["nam"], reply: "m047" }); // reply_but_other_task: reply vào việc của Linh (g13), nói g05
+m("m088", G, "17", "16:00", "tuan", "release note bản 2.3 em đăng lên wiki rồi nhé"); // hard negative: báo xong
+
 msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
 
 const gold = [
-  { gold_id: "g01", conversation_key: G, anchor_message_id: "m003", supporting_message_ids: ["m003", "m004", "m030", "m032", "m067"], title: "Gửi báo cáo tuần cho anh Hưng", kind: "assigned", assignee_ids: ["u_linh"], due_type: "calendar", due_date: "2026-11-16", final_status: "active", scenario_tags: ["single_message", "later_update_approved", "change_supersede", "far_update_no_reply", "paraphrase"] },
+  { gold_id: "g01", conversation_key: G, anchor_message_id: "m003", supporting_message_ids: ["m003", "m004", "m030", "m032", "m067"], title: "Gửi báo cáo tuần cho anh Hưng", kind: "assigned", assignee_ids: ["u_linh"], due_type: "calendar", due_date: "2026-11-16", final_status: "active", scenario_tags: ["single_message", "later_update_approved", "change_supersede", "far_update_no_reply", "paraphrase", "matched_paraphrase"] },
   { gold_id: "g02", conversation_key: G, anchor_message_id: "m007", supporting_message_ids: ["m007", "m009", "m010", "m058", "m074"], title: "Cập nhật tài liệu API module voucher", kind: "assigned", assignee_ids: ["u_mai"], due_type: "calendar", due_date: "2026-11-16", final_status: "cancelled", scenario_tags: ["late_anchor", "name_collision", "multi_message", "far_update_no_reply", "paraphrase", "cancel_old_no_reply"] },
   { gold_id: "g03", conversation_key: G, anchor_message_id: "m014", supporting_message_ids: ["m014", "m015"], title: "Fix 2 bug mã giảm giá", kind: "assigned", assignee_ids: ["u_nam"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["multi_task_message"] },
   { gold_id: "g04", conversation_key: G, anchor_message_id: "m014", supporting_message_ids: ["m014", "m035"], title: "Làm lại icon set cho màn Checkout", kind: "assigned", assignee_ids: ["u_tuan"], due_type: "none", due_date: null, final_status: "cancelled", scenario_tags: ["multi_task_message", "cancel_approved", "cancel_old_no_reply"] },
-  { gold_id: "g05", conversation_key: G, anchor_message_id: "m018", supporting_message_ids: ["m018", "m022", "m064"], title: "Review PR #482", kind: "assigned", assignee_ids: ["u_nam"], due_type: "calendar", due_date: "2026-11-13", final_status: "active", scenario_tags: ["implicit_ask", "busy_channel_10"] },
+  { gold_id: "g05", conversation_key: G, anchor_message_id: "m018", supporting_message_ids: ["m018", "m022", "m064", "m087"], title: "Review PR #482", kind: "assigned", assignee_ids: ["u_nam"], due_type: "calendar", due_date: "2026-11-18", final_status: "active", scenario_tags: ["implicit_ask", "busy_channel_10", "reply_but_other_task"] },
   { gold_id: "g06", conversation_key: G, anchor_message_id: "m023", supporting_message_ids: ["m023", "m024", "m025"], title: "Làm slide tổng kết sprint", kind: "assigned", assignee_ids: ["u_linh"], due_type: "event", due_date: null, final_status: "active", scenario_tags: ["no_assignee", "event_deadline", "multi_message"] },
   { gold_id: "g07", conversation_key: G, anchor_message_id: "m026", supporting_message_ids: ["m026"], title: "Gửi anh Hưng bản mockup cuối", kind: "self_commit", assignee_ids: ["u_mai"], due_type: "calendar", due_date: "2026-11-10", final_status: "active", scenario_tags: ["self_commit", "name_collision", "relative_deadline"] },
   { gold_id: "g08", conversation_key: G, anchor_message_id: "m036", supporting_message_ids: ["m036", "m036#r1", "m037", "m073"], title: "Chuẩn bị slide demo cho khách hàng", kind: "assigned", assignee_ids: ["u_linh", "u_nam"], due_type: "calendar", due_date: "2026-11-18", final_status: "active", scenario_tags: ["multi_assignee", "paraphrase"] },
@@ -149,15 +160,20 @@ const gold = [
   { gold_id: "g10", conversation_key: G, anchor_message_id: "m039", supporting_message_ids: ["m039", "m039#r1"], title: "Đi họp với khách hàng chiều thứ 4 thay anh Hưng", kind: "assigned", assignee_ids: ["u_mai"], due_type: "calendar", due_date: "2026-11-11", final_status: "active", scenario_tags: ["reaction_accept", "implicit_ask"] },
   { gold_id: "g11", conversation_key: G, anchor_message_id: "m044", supporting_message_ids: ["m044"], title: "Restart staging", kind: "assigned", assignee_ids: ["u_tuan"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["burst"] },
   { gold_id: "g12", conversation_key: G, anchor_message_id: "m046", supporting_message_ids: ["m046"], title: "Viết lại FAQ cho trang thanh toán", kind: "open_ask", assignee_ids: [], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["unanswered_ask"] },
-  { gold_id: "g13", conversation_key: G, anchor_message_id: "m047", supporting_message_ids: ["m047", "m048"], title: "Review PR #490", kind: "assigned", assignee_ids: ["u_linh"], due_type: "calendar", due_date: "2026-11-11", final_status: "active", scenario_tags: ["informal_text", "relative_deadline"] },
+  { gold_id: "g13", conversation_key: G, anchor_message_id: "m047", supporting_message_ids: ["m047", "m048", "m086"], title: "Review PR #490", kind: "assigned", assignee_ids: ["u_linh"], due_type: "calendar", due_date: "2026-11-19", final_status: "active", scenario_tags: ["informal_text", "relative_deadline", "llm_flag_fallback"] },
   // ---- ca test "Ngữ cảnh mới" ----
   { gold_id: "g14", conversation_key: G, anchor_message_id: "m050", supporting_message_ids: ["m050", "m051", "m062", "m072"], title: "Viết unit test cho module voucher", kind: "assigned", assignee_ids: ["u_nam"], due_type: "calendar", due_date: "2026-11-17", final_status: "active", scenario_tags: ["reply_link_old", "paraphrase"] },
-  { gold_id: "g15", conversation_key: G, anchor_message_id: "m052", supporting_message_ids: ["m052", "m052#r1"], title: "Viết release note cho bản 2.3", kind: "assigned", assignee_ids: ["u_tuan"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["reaction_link", "implicit_ask"] },
+  { gold_id: "g15", conversation_key: G, anchor_message_id: "m052", supporting_message_ids: ["m052", "m052#r1", "m080"], title: "Viết release note cho bản 2.3", kind: "assigned", assignee_ids: ["u_tuan"], due_type: "calendar", due_date: "2026-11-18", final_status: "active", scenario_tags: ["reaction_link", "implicit_ask", "matched_far_no_reply"] },
   // m065 nhắc lại việc đã bị Mai từ chối: nằm trong supporting để một task tạo lại từ m065 được ghép vào nhãn → đếm "tạo lại"
-  { gold_id: "g16", conversation_key: G, anchor_message_id: "m053", supporting_message_ids: ["m053", "m065"], title: "Làm banner khuyến mãi Black Friday", kind: "assigned", assignee_ids: ["u_mai"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["recreate_declined_far", "declined_not_recreated"] },
+  { gold_id: "g16", conversation_key: G, anchor_message_id: "m053", supporting_message_ids: ["m053", "m065"], title: "Làm banner khuyến mãi Black Friday", kind: "assigned", assignee_ids: ["u_mai"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["recreate_declined_far", "declined_not_recreated", "recreate_declined_hard"] },
+  // ---- ca test v5 ----
+  // m083 nhắc lại việc Nam đã từ chối, chỉ 2 từ khoá chung (backup, database) → không đủ luật cứng, đi đường hỏi lại LLM
+  { gold_id: "g17", conversation_key: G, anchor_message_id: "m081", supporting_message_ids: ["m081", "m083"], title: "Viết script backup database hằng ngày", kind: "assigned", assignee_ids: ["u_nam"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["recreate_declined_soft", "declined_not_recreated"] },
+  // icon set đã huỷ (g04) được giao lại → task MỚI hợp lệ (luật cứng không áp cho cancelled)
+  { gold_id: "g18", conversation_key: G, anchor_message_id: "m084", supporting_message_ids: ["m084", "m085"], title: "Làm lại icon set cho màn Checkout", kind: "assigned", assignee_ids: ["u_tuan"], due_type: "none", due_date: null, final_status: "active", scenario_tags: ["cancelled_then_reassigned"] },
 ];
 
-const hardNegatives = ["m011", "m013", "m033", "m034", "d004", "m029", "m055", "m057", "m060", "m069" /* ambiguous_no_reply */, "m076" /* gần nghĩa nhưng không phải việc */];
+const hardNegatives = ["m011", "m013", "m033", "m034", "d004", "m029", "m055", "m057", "m060", "m069" /* ambiguous_no_reply */, "m076" /* gần nghĩa nhưng không phải việc */, "m082", "m088" /* báo xong việc g15 */];
 
 const A = (d, hms, who, mid, action) => ({ at: T(d, hms), user_id: U[who].user_id, message_id: mid, action });
 const actions = [
@@ -174,6 +190,7 @@ const actions = [
   A("10", "13:40", "nam", "m036", "decline"),
   A("11", "15:10", "nam", "m050", "approve"),
   A("11", "16:40", "mai", "m053", "decline"),
+  A("16", "09:30", "nam", "m081", "decline"),
 ];
 
 const jsonl = (rows) => rows.map((r) => JSON.stringify(r)).join("\n") + "\n";

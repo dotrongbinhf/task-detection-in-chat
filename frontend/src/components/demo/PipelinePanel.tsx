@@ -23,8 +23,11 @@ const BLOCKS_LINKED: { k: BlockKey; label: string; color: string }[] = [
   { k: "b5", label: "5 · Tin mới", color: "bg-violet-500" },
 ];
 
-const CALL_REASON: Record<string, string> = { initial: "lần 1", search: "lần 2 · sau tìm task", target_check: "lần 2 · sau kiểm tra target", dedup: "lần 2 · sau kiểm trùng" };
+const CALL_REASON: Record<string, string> = { initial: "lần 1", search: "lần 2 · sau tìm task", llm_flag: "lần 2 · sau khi LLM báo việc cũ ngoài prompt", target_check: "lần 2 · sau kiểm tra target", dedup: "lần 2 · sau kiểm trùng" };
 const IGNORE_LABEL: Record<string, string> = {
+  llm_flag_with_ops_ignored: "LLM báo việc cũ ngoài prompt nhưng vẫn trả ops → bỏ cờ",
+  llm_flag_disabled: "llm_flag_search = false → bỏ cờ",
+  llm_flag_call_limit: "hết lượt gọi (extract_max_calls_per_turn) → bỏ cờ",
   search_with_ops_ignored: "LLM vừa trả ops vừa search → bỏ search",
   search_disabled: "search_enabled = false → bỏ search",
   search_call_limit: "hết lượt gọi (extract_max_calls_per_turn) → bỏ search",
@@ -157,8 +160,9 @@ export function EventLine({ e }: { e: TraceEntry }) {
 export function PipelineView({ state, turn, onPrompt, selectTask }: { state: EngineState; turn: TurnRecord | null; onPrompt: (t: TurnRecord) => void; selectTask: (id: string) => void }) {
   const ctx = turn?.context;
   const totalTok = ctx?.tokens.total ?? 0;
-  const linkedMode = ctx?.mode === "linked_recent_search";
-  const BLOCKS = linkedMode ? BLOCKS_LINKED : BLOCKS_SCORED;
+  const linkedMode = ctx?.mode === "linked_recent_search" || ctx?.mode === "retrieve_first";
+  const v5 = ctx?.mode === "retrieve_first";
+  const BLOCKS = linkedMode ? (v5 ? BLOCKS_LINKED.map((b) => (b.k === "b3b" ? { ...b, label: "3b · Ứng viên" } : b)) : BLOCKS_LINKED) : BLOCKS_SCORED;
   const calls: ExtractCall[] = turn?.extract_calls?.length ? turn.extract_calls : turn?.extract ? [{ ...turn.extract, call: 1, reason: "initial", prompt_tokens_est: totalTok, extra_block: "", extra_tokens: 0, cost_usd: 0 }] : [];
   const callCost = calls.reduce((a, c) => a + (c.cost_usd ?? 0), 0);
   const callIn = calls.reduce((a, c) => a + c.input_tokens, 0);
@@ -212,7 +216,7 @@ export function PipelineView({ state, turn, onPrompt, selectTask }: { state: Eng
       {/* 3 */}
       <Stage n={3} title="Dựng ngữ cảnh" icon={<Layers size={15} />} status={ctx ? "done" : "skip"}
         summary={ctx ? (linkedMode
-          ? `${totalTok} token · ${ctx.linked?.length ?? 0} được link · ${ctx.recent?.length ?? 0} gần nhất · K=${ctx.window_k_used}${ctx.trims.length ? ` · cắt ${ctx.trims.length}` : ""}`
+          ? `${totalTok} token · ${ctx.linked?.length ?? 0} được link${v5 ? ` · ${ctx.matched?.length ?? 0} khớp nội dung` : ""} · ${ctx.recent?.length ?? 0} gần nhất · K=${ctx.window_k_used}${ctx.trims.length ? ` · cắt ${ctx.trims.length}` : ""}`
           : `${totalTok} token · ${ctx.selected.length} task · K=${ctx.window_k_used}${ctx.trims.length ? ` · cắt ${ctx.trims.length}` : ""}`) : "bỏ qua"}>
         {ctx && (
           <div className="space-y-3">
@@ -242,7 +246,7 @@ export function PipelineView({ state, turn, onPrompt, selectTask }: { state: Eng
             </div>
 
             {linkedMode ? (
-              <LinkedGroups linked={ctx.linked ?? []} recent={ctx.recent ?? []} selectTask={selectTask} />
+              <LinkedGroups linked={ctx.linked ?? []} recent={ctx.recent ?? []} matched={v5 ? ctx.matched ?? [] : null} retrieval={ctx.retrieval ?? null} selectTask={selectTask} />
             ) : (
             <div>
               <div className="mb-1 flex items-center justify-between">
@@ -316,23 +320,28 @@ export function PipelineView({ state, turn, onPrompt, selectTask }: { state: Eng
       {/* 6 */}
       <Stage n={6} title="Tìm task" icon={<Search size={15} />} status={!search && !tcheck?.triggered ? "na" : search?.ignored ? "warn" : "done"} defaultOpen={!!search || !!tcheck?.triggered}
         summary={!linkedMode ? "chế độ scored — không tìm"
-          : search ? (search.ignored ? `bỏ: ${search.ignored}` : `LLM tìm "${search.query}" → ${search.results.length} kết quả`)
+          : search ? (search.ignored ? `bỏ: ${search.ignored}` : search.source === "llm_flag" ? `LLM báo việc cũ ngoài prompt → code tìm → ${search.results.length} kết quả` : `LLM tìm "${search.query}" → ${search.results.length} kết quả`)
           : tcheck?.triggered ? `kiểm tra target (code) → ${tcheck.checks.flatMap((c) => c.candidates).length} ứng viên ngoài prompt`
-          : tcheck ? "LLM không tìm · kiểm tra target: target khớp TIN MỚI" : "LLM không yêu cầu tìm (search = null)"}>
+          : tcheck ? "LLM không tìm · kiểm tra target: target khớp TIN MỚI" : v5 ? "ứng viên đã có từ lần 1 · LLM không báo việc cũ ngoài prompt" : "LLM không yêu cầu tìm (search = null)"}>
         {search && <SearchView s={search} selectTask={selectTask} />}
         {tcheck && <TargetCheckView t={tcheck} selectTask={selectTask} />}
       </Stage>
 
       {/* 7 */}
-      <Stage n={7} title="Kiểm trùng (CREATE)" icon={<CopyCheck size={15} />} status={!dedup ? "na" : dedup.triggered ? "warn" : "done"} defaultOpen={!!dedup?.triggered}
-        summary={!linkedMode ? "chế độ scored — chỉ có luật duplicate_anchor" : !dedup ? "không có CREATE" : !dedup.triggered ? `${dedup.checks.length} CREATE · không có ứng viên trùng ngoài prompt`
-          : dedup.skipped ? `có ứng viên · ${dedup.skipped}` : `hỏi lại LLM → ${dedup.outcome === "create_dropped" ? "bỏ CREATE" : "vẫn CREATE"}`}>
+      <Stage n={7} title="Kiểm trùng (CREATE)" icon={<CopyCheck size={15} />} status={!dedup ? "na" : dedup.triggered || dedup.hard_blocked?.length ? "warn" : "done"} defaultOpen={!!dedup?.triggered || !!dedup?.hard_blocked?.length}
+        summary={!linkedMode ? "chế độ scored — chỉ có luật duplicate_anchor" : !dedup ? "không có CREATE" : (dedup.hard_blocked?.length ? `chặn cứng ${dedup.hard_blocked.length} CREATE · ` : "") + (!dedup.triggered ? `${dedup.checks.length} CREATE · không có ứng viên trùng ngoài prompt`
+          : dedup.skipped ? `có ứng viên · ${dedup.skipped}` : `hỏi lại LLM → ${dedup.outcome === "create_dropped" ? "bỏ CREATE" : "vẫn CREATE"}`)}>
         {dedup && <DedupView d={dedup} selectTask={selectTask} />}
       </Stage>
 
       {/* 8 */}
       <Stage n={8} title="Validate & quy đổi" icon={<ShieldCheck size={15} />} status={turn.ops.some((o) => !o.accepted) ? "warn" : turn.extract ? "done" : "skip"} defaultOpen={turn.ops.length > 0}
         summary={turn.ops.length ? `${opsOk.length} áp dụng · ${turn.ops.length - opsOk.length} bị loại` : "không có op"}>
+        {(turn.target_not_linked ?? []).map((r, i) => (
+          <p key={i} className="mb-2 rounded bg-orange-50 p-1.5 text-orange-800">
+            <b>target_not_linked</b> (chỉ ghi nhận, không sửa): TIN MỚI reply vào việc <b>{r.linked_task}</b> “{r.linked_title}” nhưng model {r.op} <b>{r.target_task}</b> “{r.target_title}” · từ khoá chung với task link: {r.kw_linked.join(", ") || "—"} · với task nhắm: {r.kw_target.join(", ") || "—"}
+          </p>
+        ))}
         {turn.ops.length > 0 && (
           <ul className="space-y-2">
             {turn.ops.map((o, i) => (
@@ -389,7 +398,10 @@ function TaskRow({ t, selectTask, children }: { t: { local: string; task_id: str
   );
 }
 
-function LinkedGroups({ linked, recent, selectTask }: { linked: ContextTask[]; recent: ContextTask[]; selectTask: (id: string) => void }) {
+function LinkedGroups({ linked, recent, matched, retrieval, selectTask }: {
+  linked: ContextTask[]; recent: ContextTask[]; matched: ContextTask[] | null;
+  retrieval: { query: string; people: string[]; joined_reply: string | null } | null; selectTask: (id: string) => void;
+}) {
   return (
     <div className="space-y-2">
       <div className="rounded-md border border-amber-300 bg-amber-50/70 p-2">
@@ -406,8 +418,29 @@ function LinkedGroups({ linked, recent, selectTask }: { linked: ContextTask[]; r
           ))}</ul>
         )}
       </div>
+      {matched && (
+        <div className="rounded-md border border-teal-300 bg-teal-50/60 p-2">
+          <div className="mb-1 flex items-center gap-1.5 font-medium text-teal-900">
+            <Search size={13} aria-hidden /> Khớp nội dung <span className="font-normal text-teal-800">— code tìm trong kho bằng TIN MỚI trước lần gọi 1 (BM25 + embedding) · nhãn [matched]</span>
+          </div>
+          {retrieval && (
+            <p className="mb-1 truncate text-[11px] text-ink-3" title={retrieval.query}>
+              truy vấn: <Mono>{retrieval.query || "(trống)"}</Mono> · người: {retrieval.people.join(", ") || "—"}{retrieval.joined_reply ? ` · nối tin được reply ${retrieval.joined_reply}` : ""}
+            </p>
+          )}
+          {matched.length === 0 ? (
+            <p className="text-ink-3">Không task nào khớp từ khoá / ngữ nghĩa (task chỉ trùng người không tính).</p>
+          ) : (
+            <ul>{matched.map((t) => (
+              <TaskRow key={t.task_id} t={t} selectTask={selectTask}>
+                <Mono>{t.via}</Mono> · {t.task_id}{t.evidence_shown.length ? ` · kèm ${t.evidence_shown.join(", ")}` : ""}
+              </TaskRow>
+            ))}</ul>
+          )}
+        </div>
+      )}
       <div className="rounded-md border border-line p-2">
-        <div className="mb-1 font-medium text-ink">Gần nhất <span className="font-normal text-ink-3">— theo lần được nhắc cuối trong chat (không tính thao tác duyệt) · khối 3b</span></div>
+        <div className="mb-1 font-medium text-ink">Gần nhất <span className="font-normal text-ink-3">— theo lần được nhắc cuối trong chat (không tính thao tác duyệt){matched ? " · lấp cho đủ candidate_tasks_max · nhãn [recent]" : " · khối 3b"}</span></div>
         {recent.length === 0 ? (
           <p className="text-ink-3">Chưa có task đang mở nào khác trong hội thoại này.</p>
         ) : (
@@ -453,9 +486,9 @@ function SearchView({ s, selectTask }: { s: NonNullable<TurnRecord["search"]>; s
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-        <span className="text-ink-3">Truy vấn</span><Mono className="text-ink">{s.requested.query}</Mono>
-        <span className="text-ink-3">Người</span><span>{s.requested.people?.join(", ") || "—"}{s.people.length ? ` → ${s.people.join(", ")}` : ""}</span>
-        <span className="text-ink-3">Lý do</span><span>{s.requested.reason}</span>
+        <span className="text-ink-3">Truy vấn</span><Mono className="text-ink">{s.requested?.query ?? s.query}</Mono>
+        <span className="text-ink-3">Người</span><span>{s.requested ? `${s.requested.people?.join(", ") || "—"}${s.people.length ? ` → ${s.people.join(", ")}` : ""}` : s.people.join(", ") || "—"}</span>
+        <span className="text-ink-3">Lý do</span><span>{s.requested?.reason ?? "LLM báo message_type = old_task_not_in_prompt → code tìm bằng nội dung TIN MỚI (không đòi model soạn truy vấn)"}</span>
       </div>
       {s.ignored ? (
         <p className="rounded bg-orange-50 p-1.5 text-orange-800">{IGNORE_LABEL[s.ignored] ?? s.ignored}</p>
@@ -502,6 +535,12 @@ function TargetCheckView({ t, selectTask }: { t: NonNullable<TurnRecord["target_
 function DedupView({ d, selectTask }: { d: NonNullable<TurnRecord["dedup"]>; selectTask: (id: string) => void }) {
   return (
     <div className="space-y-2">
+      {(d.hard_blocked ?? []).map((h, i) => (
+        <p key={`hb${i}`} className="rounded border border-rose-200 bg-rose-50/70 p-1.5 text-rose-900">
+          <b>Chặn cứng</b> (luật trong code, không hỏi LLM){h.after_call ? ` sau lần gọi ${h.after_call}` : ""}: CREATE thứ {h.op_index + 1} trùng{" "}
+          <button onClick={() => selectTask(h.task_id)} className="cursor-pointer font-mono underline">{h.task_id}</button> “{h.title}” [{h.status}] — {h.why}
+        </p>
+      ))}
       {d.checks.map((c, i) => (
         <div key={i} className="rounded-md border border-line p-2">
           <p><b className="font-mono">CREATE</b> “{c.title}” · anchor <Mono>{c.anchor}</Mono> · người nhận {c.people.join(", ") || "∅"}{c.named?.length ? ` · được gọi tên ${c.named.join(", ")}` : ""}{c.assigner ? ` · người giao ${c.assigner}` : ""}</p>

@@ -51,5 +51,12 @@ def load_dataset(name: str) -> dict[str, Any]:
 def load_prompts() -> dict[str, str]:
     extract = (ROOT / "prompts" / "extract_v3.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
     v4 = (ROOT / "prompts" / "extract_v4.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
+    v5 = (ROOT / "prompts" / "extract_v5.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
     gate = (ROOT / "prompts" / "gate_v3.txt").read_text(encoding="utf-8")
-    return {"extract": extract.strip(), "extract_v4": v4.strip(), "gate": gate.strip()}
+    return {"extract": extract.strip(), "extract_v4": v4.strip(), "extract_v5": v5.strip(), "gate": gate.strip()}
+
+
+def instructions_for(prompts: dict[str, str], mode: str) -> str:
+    """Khối 1 theo chế độ ngữ cảnh: scored → v3, linked_recent_search → v4, retrieve_first → v5."""
+    key = {"scored": "extract", "linked_recent_search": "extract_v4"}.get(mode, "extract_v5")
+    return prompts.get(key, prompts["extract"])

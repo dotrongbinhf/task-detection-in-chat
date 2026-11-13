@@ -182,7 +182,8 @@ class HeuristicLLM:
 class FakeLLM:
     """Cho unit test: trả kết quả định sẵn theo id TIN MỚI (message_id thật → được ánh xạ sang #n).
 
-    `by_message[id]` = {"ops": [...], "search": ...} cho mọi lần gọi, hoặc [lần1, lần2] theo lần gọi trong lượt."""
+    `by_message[id]` = {"ops": [...], "search": ..., "message_type": ...} cho mọi lần gọi, hoặc [lần1, lần2] theo lần gọi
+    trong lượt. Chế độ retrieve_first (schema v5) không trả `search`."""
 
     by_message: dict[str, Any] = field(default_factory=dict)  # message_id -> {"ops": [...]} (tham chiếu bằng message_id / task_id)
     p_by_message: dict[str, float] = field(default_factory=dict)
@@ -210,9 +211,11 @@ class FakeLLM:
             if v:
                 loc = json.loads(_localize(json.dumps(v, ensure_ascii=False), ctx))
                 out["ops"] += loc.get("ops", [])
-                if loc.get("search") is not None:
+                if loc.get("search") is not None and ctx.mode == "linked_recent_search":
                     out["search"] = loc["search"]
-        if ctx.mode != "scored":
+                if loc.get("message_type") is not None and ctx.mode != "scored":
+                    out["message_type"] = loc["message_type"]
+        if ctx.mode == "linked_recent_search":
             out.setdefault("search", None)
         return ExtractResult(json.dumps(out, ensure_ascii=False))
 

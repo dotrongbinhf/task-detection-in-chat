@@ -1,13 +1,16 @@
 """Dựng ngữ cảnh (mục 4.3): chọn task liên quan, cửa sổ K tin, chuỗi reply, định dạng nén, ngân sách token.
 
-Hai chế độ (`context_mode`):
+Ba chế độ (`context_mode`):
 - `scored` — v3: bảng điểm đặt tay, top `open_tasks_max` + tối đa `closed_tasks_max` task cũ (giữ để so sánh).
-- `linked_recent_search` — task được link (reply/reaction) + `recent_tasks_max` task nhắc gần nhất; việc cũ hơn
+- `linked_recent_search` — v4: task được link (reply/reaction) + `recent_tasks_max` task nhắc gần nhất; việc cũ hơn
   LLM tự yêu cầu tìm (khối 6 ở lần gọi 2, xem `extend_context`).
+- `retrieve_first` — v5: task được link + task KHỚP NỘI DUNG TIN MỚI (code tìm trong kho trước lần gọi 1) + task gần
+  nhất lấp cho đủ `candidate_tasks_max`, khối `<CANDIDATE_TASKS>` có nhãn `[matched: …]` / `[recent]`.
 """
 from __future__ import annotations
 
 import copy
+import re
 from datetime import timedelta
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -61,7 +64,7 @@ class PromptTask:
     task: Task
     score: int
     reasons: list[str]
-    source: str  # open | db (scored) · linked | recent | search | dedup (linked_recent_search)
+    source: str  # open | db (scored) · linked | recent | search | dedup (linked_recent_search) · + matched (retrieve_first)
     pending: list[PendingChange]
     evidence_shown: list[str]
     via: str = ""
@@ -102,6 +105,8 @@ class BuiltContext:
     recent: list[dict] = field(default_factory=list)
     extra_block: str = ""              # khối 6 (chỉ ở lần gọi 2)
     extra_kind: Optional[str] = None   # search | dedup
+    matched: list[dict] = field(default_factory=list)  # retrieve_first: task khớp nội dung TIN MỚI (B1)
+    candidates: list[dict] = field(default_factory=list)  # retrieve_first: {local, task_id, source, why} mọi task trong prompt lần 1
 
 
 def _to_prompt_msg(e: StreamEvent, section: str) -> PromptMsg:
@@ -147,9 +152,9 @@ def score_task(t: Task, new_events: list[StreamEvent], window_ids: set[str], tur
 
 
 def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: Config,
-                  instructions: str, gate_instructions: str) -> BuiltContext:
-    if cfg.context_mode == "linked_recent_search":
-        return build_context_linked(state, key, batch, cfg, instructions, gate_instructions)
+                  instructions: str, gate_instructions: str, embedder: Any = None) -> BuiltContext:
+    if cfg.context_mode in ("linked_recent_search", "retrieve_first"):
+        return build_context_linked(state, key, batch, cfg, instructions, gate_instructions, embedder)
     return build_context_scored(state, key, batch, cfg, instructions, gate_instructions)
 
 
@@ -358,6 +363,7 @@ def build_context_scored(state: EngineState, key: str, batch: list[StreamEvent],
 LINKED_HEADER = ("The sender of NEW_MESSAGES replied directly to (or reacted on) an evidence message of the task below. "
                  "Assume NEW_MESSAGES are about this task unless their content clearly refers to something else.")
 FINAL_CALL_NOTE = "This is the final call: return ops only, search must be null."
+FINAL_CALL_NOTE_V5 = "This is the final call: return ops only."
 OUTSIDE = "(message outside context)"
 
 
@@ -459,11 +465,58 @@ def to_iso_days_before(iso: str, days: float) -> str:
     return to_iso(parse(iso) - timedelta(days=days))
 
 
+def retrieval_query(store: Any, key: str, batch: list[StreamEvent], msgs: dict[str, Message],
+                    window_ids: set[str]) -> tuple[str, list[str], Optional[str]]:
+    """Truy vấn tìm ứng viên từ TIN MỚI (tài liệu v5 mục 3.1) → (query_text, people, id tin được reply đã nối).
+
+    query_text = nội dung mọi tin nhắn trong TIN MỚI (không gồm reaction), bỏ @mention; tin reply mà tin được reply nằm
+    ngoài cửa sổ K → nối thêm nội dung tin được reply (tối đa 1 tin): "ok em, lùi sang thứ 6 nhé" một mình không có từ khoá.
+    people = người gửi TIN MỚI + người được @mention + tác giả tin được reply + tên thành viên viết hoa trong tin."""
+    batch_ids = {e.id for e in batch}
+    texts = [e.message.text for e in batch if e.kind == "message" and e.message]
+    people: list[str] = []
+    joined: Optional[str] = None
+    for e in batch:
+        if e.kind == "message" and e.message:
+            people.append(e.message.author_id)
+            people += [x.user_id for x in e.message.mentions]
+            rid = e.message.reply_to_id
+            if rid and rid in msgs:
+                people.append(msgs[rid].author_id)
+                if joined is None and rid not in window_ids and rid not in batch_ids:
+                    joined = rid
+        elif e.user_id:
+            people.append(e.user_id)
+    if joined:
+        texts.append(msgs[joined].text)
+    raw = " ".join(texts)
+    people += store.names_in_query(key, raw)
+    q = re.sub(r"\s{2,}", " ", CHANGE_WORDS_RE.sub(" ", store.query_text(key, raw))).strip()
+    return q, list(dict.fromkeys(p for p in people if p)), joined
+
+
+# Từ mô tả THAY ĐỔI chứ không mô tả VIỆC: "lùi sang thứ 2 tuần sau" khớp mọi task có chữ "tuần"/"lùi" (đo trên
+# data/sample: chiếm 1–2 trong 3 chỗ matched). Bỏ khỏi truy vấn ứng viên — "báo cáo tuần" vẫn giữ "tuần".
+CHANGE_WORDS_RE = re.compile(
+    r"\b(tuần|tuan|tháng|thang)\s+(sau|này|nay|tới|toi|trước|truoc)\b"
+    r"|\b(lùi|lui|dời|dời lại|đổi|hoãn|hoan|gia hạn|xong|huỷ|hủy|huy|khỏi|khoi|nhé|nha)\b", re.IGNORECASE)
+
+
+def _matched_label(h: Any) -> str:
+    """`[matched: bao cao, tuan · 0.52]` — tối đa 3 từ khớp (bỏ dấu) và cosine nếu có."""
+    words = [w for w in h.matched if not w.startswith(("người:", "ngữ nghĩa"))][:3]
+    parts = ", ".join(words)
+    if h.similarity is not None:
+        parts = f"{parts} · {h.similarity:.2f}" if parts else f"{h.similarity:.2f}"
+    return f"[matched: {parts}]" if parts else "[matched]"
+
+
 def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent], cfg: Config,
-                         instructions: str, gate_instructions: str) -> BuiltContext:
+                         instructions: str, gate_instructions: str, embedder: Any = None) -> BuiltContext:
     from .store import TaskStore  # tránh vòng import
 
-    store = TaskStore(state)
+    v5 = cfg.context_mode == "retrieve_first"
+    store = TaskStore(state, cfg, embedder)
     msgs = {e.id: e.message for e in state.events if e.kind == "message"}
     by_id = {e.id: e for e in state.events}
     processed = set(state.processed)
@@ -486,17 +539,29 @@ def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent],
     for t in linked_tasks:
         ev = {e.message_id for e in t.evidence}
         linked_via[t.task_id] = next(c for c in chain if c[0] in ev)
-    # ---- B. task được nhắc gần nhất ----
-    recent_all = store.recent(key, cfg.recent_tasks_max, {t.task_id for t in linked_tasks})
+    # ---- B. linked_recent_search: task được nhắc gần nhất · retrieve_first: task khớp nội dung TIN MỚI + gần nhất ----
+    matched_hits: list[Any] = []
+    retrieval: dict[str, Any] = {}
+    if v5:
+        base_window = {e.id for e in hist_msgs[-cfg.window_k:]} if cfg.window_k > 0 else set()
+        q, q_people, joined = retrieval_query(store, key, batch, msgs, base_window)
+        matched_hits, recent_all = store.candidates(key, q, q_people, since, {t.task_id for t in linked_tasks}, now=turn_at)
+        retrieval = {"query": q, "people": q_people, "joined_reply": joined}
+    else:
+        recent_all = store.recent(key, cfg.recent_tasks_max, {t.task_id for t in linked_tasks})
+    matched_all = [h.task for h in matched_hits]
+    why_matched = {h.task.task_id: _matched_label(h) for h in matched_hits}
 
     at_of = {e.id: e.at for e in state.events if e.kind == "message" and e.key == key and ts(e.at) <= ts(turn_at)}
     K = cfg.window_k
     n_recent = len(recent_all)
+    n_matched = len(matched_all)
     recent_ev_on = True
     trims: list[str] = []
 
     def build() -> dict[str, Any]:
-        recent_tasks = recent_all[:n_recent]
+        recent_tasks = matched_all[:n_matched] + recent_all[:n_recent]
+        is_matched = {t.task_id for t in matched_all[:n_matched]}
         window = hist_msgs[-K:] if K > 0 else []
         window_ids = [e.id for e in window]
         wset = set(window_ids)
@@ -560,17 +625,25 @@ def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent],
             for i in ev_shown[t.task_id]:
                 lines_a.append("    " + _fmt_msg(pm_of[i], None, rev_map, mt))
             prompt_tasks.append(PromptTask(local, t, 100, [via], "linked", pend, ev_shown[t.task_id], via))
-        for j, t in enumerate(recent_tasks):
+        j_recent = 0
+        for t in recent_tasks:
             n += 1
             local = f"T{n}"
             task_map[local] = t.task_id
             head, pend = _task_head(state, t, local, members)
             when = fmt_day_time(t.last_mentioned_at or t.created_at)
-            lines_b.append(f"{head} — last mentioned: {when} — evidence: {_ev_refs(t, rev_map)}")
+            if t.task_id in is_matched:
+                label = why_matched[t.task_id]
+                lines_b.append(f"{head} — {label} — evidence: {_ev_refs(t, rev_map)}")
+                src, reasons, via = "matched", [f"khớp nội dung TIN MỚI {label}"], label
+            else:
+                j_recent += 1
+                lines_b.append(f"{head} — [recent] — evidence: {_ev_refs(t, rev_map)}" if v5
+                               else f"{head} — last mentioned: {when} — evidence: {_ev_refs(t, rev_map)}")
+                src, reasons, via = "recent", [f"gần thứ {j_recent} · nhắc lần cuối {when}"], f"gần thứ {j_recent}"
             for i in ev_shown[t.task_id]:
                 lines_b.append("    " + _fmt_msg(pm_of[i], None, rev_map, mt))
-            prompt_tasks.append(PromptTask(local, t, 0, [f"gần thứ {j + 1} · nhắc lần cuối {when}"], "recent", pend,
-                                           ev_shown[t.task_id], f"gần thứ {j + 1}"))
+            prompt_tasks.append(PromptTask(local, t, 0, reasons, src, pend, ev_shown[t.task_id], via))
 
         history = [m for m in all_msgs if m.section in ("window", "reply")]
         new_msgs = [m for m in all_msgs if m.section == "new"]
@@ -579,7 +652,7 @@ def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent],
             "b1": instructions,
             "b2": f"<CALENDAR>\n{calendar14(turn_at).replace('← hôm nay', '← today')}\n</CALENDAR>",
             "b3a": ("<LINKED_TASKS>\n" + LINKED_HEADER + "\n" + "\n".join(lines_a) + "\n</LINKED_TASKS>") if lines_a else "",
-            "b3b": "<RECENT_TASKS>\n" + ("\n".join(lines_b) or "(none)") + "\n</RECENT_TASKS>",
+            "b3b": f"<{tag_b}>\n" + ("\n".join(lines_b) or "(none)") + f"\n</{tag_b}>",
             "b4": "<RECENT_HISTORY>\n" + (_fmt_list(history, rev_map, mt) or "(empty)") + "\n</RECENT_HISTORY>",
             "b5": f"<NEW_MESSAGES>\n{_fmt_list(new_msgs, rev_map, mt)}\n</NEW_MESSAGES>",
         }
@@ -592,18 +665,27 @@ def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent],
                     tasks=prompt_tasks, blocks=b, tokens=tok, head=head, window_ids=window_ids, reply_ids=reply_ids,
                     evidence_ids=evidence_ids)
 
+    tag_b = "CANDIDATE_TASKS" if v5 else "RECENT_TASKS"
     r = build()
-    # ---- ngân sách: bằng chứng kèm task ở B → giảm K (≥ 5) → task thứ 3, thứ 2 ở B. KHÔNG BAO GIỜ cắt khối A ----
+    # ---- ngân sách. KHÔNG BAO GIỜ cắt khối A.
+    # linked_recent_search: bằng chứng kèm task ở B → giảm K (≥ 5) → task thứ 3, thứ 2 ở B (giữ ≥ 1).
+    # retrieve_first: bằng chứng kèm task ở B → giảm K (≥ 5) → task recent từ cuối → task matched từ cuối (giữ ≥ 1).
     for _ in range(200):
         if r["tokens"]["total"] <= cfg.context_token_budget:
             break
-        if recent_ev_on and any(p.source == "recent" and p.evidence_shown for p in r["tasks"]):
+        if recent_ev_on and any(p.source in ("recent", "matched") and p.evidence_shown for p in r["tasks"]):
             recent_ev_on = False
-            trims.append("drop_recent_evidence")
+            trims.append("drop_candidate_evidence" if v5 else "drop_recent_evidence")
         elif K > 5:
             K -= 1
             trims.append(f"reduce_k {K}")
-        elif n_recent > 1:
+        elif v5 and n_recent > 0:
+            n_recent -= 1
+            trims.append(f"drop_recent_task {recent_all[n_recent].task_id}")
+        elif v5 and n_matched > 1:
+            n_matched -= 1
+            trims.append(f"drop_matched_task {matched_all[n_matched].task_id}")
+        elif not v5 and n_recent > 1:
             n_recent -= 1
             trims.append(f"drop_recent_task {recent_all[n_recent].task_id}")
         else:
@@ -632,9 +714,12 @@ def build_context_linked(state: EngineState, key: str, batch: list[StreamEvent],
         tasks=r["tasks"], id_map=r["id_map"], rev_map=rev, task_map=r["task_map"], blocks=b, system=b["b1"], user=user,
         tokens=r["tokens"], trims=trims, selected=selected, not_selected=[], window_k=K,
         window_ids=r["window_ids"], reply_ids=r["reply_ids"], evidence_ids=r["evidence_ids"],
-        gate_system=gate_instructions, gate_user=gate_user, turn_at=turn_at, mode="linked_recent_search",
+        gate_system=gate_instructions, gate_user=gate_user, turn_at=turn_at, mode=cfg.context_mode,
         cache_key=cfg.prompt_cache_key, linked=[x for x in pub if x["source"] == "linked"],
-        recent=[x for x in pub if x["source"] == "recent"], extra={"chain_ids": chain_ids},
+        recent=[x for x in pub if x["source"] == "recent"], matched=[x for x in pub if x["source"] == "matched"],
+        candidates=[{"local": p.local, "task_id": p.task.task_id, "title": p.task.title, "status": p.task.status,
+                     "source": p.source, "why": p.via} for p in r["tasks"]] if v5 else [],
+        extra={"chain_ids": chain_ids, "retrieval": retrieval},
     )
 
 
@@ -682,7 +767,8 @@ def extend_context(state: EngineState, ctx: BuiltContext, kind: str, hits: list[
         lines.append("(no matching task found)" if kind == "search" else "(none)")
     elif kind == "search":
         lines.append("(no other results)")
-    block = f"<{tag}{(' ' + attrs) if attrs else ''}>\n" + "\n".join(lines) + f"\n</{tag}>\n{FINAL_CALL_NOTE}"
+    note = FINAL_CALL_NOTE_V5 if ctx.mode == "retrieve_first" else FINAL_CALL_NOTE
+    block = f"<{tag}{(' ' + attrs) if attrs else ''}>\n" + "\n".join(lines) + f"\n</{tag}>\n{note}"
     c.extra_block, c.extra_kind = block, kind
     c.user = ctx.user + "\n" + block
     c.tokens["b6"] = count_tokens(block)

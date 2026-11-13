@@ -76,17 +76,19 @@ export type PendingChange = {
 };
 export type TraceEntry = { type: string; at: string; turn?: number; [k: string]: unknown };
 
-export type TaskSource = "open" | "db" | "linked" | "recent" | "search" | "dedup";
+export type TaskSource = "open" | "db" | "linked" | "recent" | "matched" | "search" | "dedup";
 export type ScoredTask = { local: string; task_id: string; title: string; status: TaskStatus; score: number; reasons: string[]; source: TaskSource };
 /** Task trong khối 3a (được link) / 3b (gần nhất) của chế độ linked_recent_search */
 export type ContextTask = ScoredTask & { via: string; last_mentioned_at: string; evidence_shown: string[] };
 export type Tokens = { b1: number; b2: number; b3: number; b4: number; b5: number; total: number; b3a?: number; b3b?: number; b6?: number };
-export type ContextMode = "scored" | "linked_recent_search";
+export type ContextMode = "scored" | "linked_recent_search" | "retrieve_first";
+/** v5: mọi task trong prompt lần 1 kèm nguồn (linked / matched / recent) */
+export type CandidateRow = { local: string; task_id: string; title: string; status: TaskStatus; source: TaskSource; why: string };
 
 /** Một lần gọi bộ trích trong lượt (lần 1 = ban đầu, lần 2 = sau khi tìm task / kiểm trùng) */
 export type ExtractCall = {
   call: number;
-  reason: "initial" | "search" | "target_check" | "dedup";
+  reason: "initial" | "search" | "llm_flag" | "target_check" | "dedup";
   model: string;
   raw: string;
   attempts: number;
@@ -104,7 +106,9 @@ export type ExtractCall = {
 };
 export type SearchHitRow = { local: string; task_id: string; title: string; status: TaskStatus; score: number; matched: string[]; similarity?: number | null; already_in_prompt: boolean };
 export type SearchRecord = {
-  requested: { query: string; people: string[] | null; reason: string };
+  /** v5: "llm_flag" = model báo old_task_not_in_prompt, code tự tìm bằng TIN MỚI */
+  source?: "llm_flag";
+  requested: { query: string; people: string[] | null; reason: string } | null;
   ignored: string | null;
   query: string;
   people: string[];
@@ -120,8 +124,11 @@ export type TargetCheckRecord = {
   ops_after?: string[];
 };
 export type DedupRow = { task_id: string; title: string; status: TaskStatus; score: number; matched: string[]; overlap: number; similarity?: number | null; same_people: boolean; candidate: boolean; why_not: string | null };
+export type HardBlock = { task_id: string; title: string; status: TaskStatus; score: number; anchor: string; overlap: number; similarity: number | null; matched: string[]; why: string; op_index: number; after_call?: number };
 export type DedupRecord = {
-  checks: { title: string | null; anchor: string; query: string; people: string[]; named?: string[]; assigner: string | null; results: DedupRow[]; candidates: string[] }[];
+  checks: { title: string | null; anchor: string; query: string; people: string[]; named?: string[]; assigner: string | null; results: DedupRow[]; candidates: string[]; hard_block?: HardBlock | null }[];
+  /** v5: CREATE bị luật cứng bỏ (trùng mạnh task đã từ chối của cùng người) */
+  hard_blocked?: HardBlock[];
   triggered: boolean;
   call: number | null;
   skipped: string | null;
@@ -152,6 +159,9 @@ export type TurnRecord = {
     mode?: ContextMode;
     linked?: ContextTask[];
     recent?: ContextTask[];
+    matched?: ContextTask[];
+    candidates?: CandidateRow[];
+    retrieval?: { query: string; people: string[]; joined_reply: string | null } | null;
     linked_chain_ids?: string[];
     task_map_final?: Record<string, string>;
     id_map_final?: Record<string, string>;
@@ -185,6 +195,7 @@ export type TurnRecord = {
   search?: SearchRecord | null;
   target_check?: TargetCheckRecord | null;
   dedup?: DedupRecord | null;
+  target_not_linked?: { op: string; linked_task: string; linked_title: string; target: string; target_task: string; target_title: string | null; reply_ids: string[]; kw_linked: string[]; kw_target: string[] }[];
   ops: OpResult[];
   events: TraceEntry[];
 };
@@ -240,9 +251,16 @@ export type EvalReport = {
     cache_ratio?: number | null;
   };
   search?: {
-    mode_linked: boolean; search_turns: Rate; search_ignored: number; second_call_turns: Rate; second_call_by: { search: number; dedup: number; target_check?: number };
+    mode_linked: boolean; search_turns: Rate; search_ignored: number; second_call_turns: Rate; second_call_by: { search: number; dedup: number; target_check?: number; llm_flag?: number };
     need_search: number; search_found: number; search_wrong: number; search_missed: number; search_not_needed: number; need_search_items: string[];
     dedup_triggered: number; dedup_dropped: number; dedup_still_create: number; dedup_still_bad: number; dedup_still_ok: number; dedup_skipped: number;
+  };
+  /** v5 mục 10: tầng tìm ứng viên tách khỏi tầng model */
+  candidates?: {
+    n_turns: number; first_call_recall: Rate; by_source: Record<string, number>; second_by: Record<string, number>; missed: number; closed_excluded?: number;
+    link_accuracy: Rate; link_outcomes: { correct: number; wrong_target: number; create_instead: number; no_op: number };
+    second_call_by: Record<string, number>; llm_flag_turns: number; llm_flag_ignored: number;
+    hard_blocks: number; hard_ok: number; hard_bad: number; target_not_linked: number; tnl_linked_correct: number; tnl_target_correct: number; items: string[];
   };
   gate_curve: { threshold: number; recall_vs_ceiling: Rate; pass_rate: Rate }[];
   by_tag: { tag: string; recall: Rate }[];

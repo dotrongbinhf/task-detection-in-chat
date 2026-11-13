@@ -254,6 +254,15 @@ class ExtractOutput(BaseModel):
     ops: list[Op]
 
 
+# Schema v5 (chế độ retrieve_first): không có `search` — code tìm ứng viên trước lần gọi 1; khi model báo
+# old_task_not_in_prompt thì code tự tìm bằng nội dung TIN MỚI.
+# Thứ tự: message_type TRƯỚC ops (như v4). Đã thử ops trước (DECISIONS #56): recall 82% → 71%, không sửa được ca nào → bỏ.
+class ExtractOutputV5(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message_type: Optional[ExtractKind] = None
+    ops: list[Op]
+
+
 def empty_op(op: str, due: dict[str, Any] | None = None, **kw: Any) -> dict[str, Any]:
     """Op phẳng với mọi trường = null (dùng cho bộ trích giả lập và FakeLLM)."""
     base: dict[str, Any] = {k: None for k in Op.model_fields}
@@ -289,7 +298,9 @@ def _strict(schema: dict[str, Any]) -> dict[str, Any]:
 
 EXTRACT_JSON_SCHEMA_V3 = {"name": "ledger_ops", "strict": True, "schema": _strict(ExtractOutputV3.model_json_schema())}
 EXTRACT_JSON_SCHEMA = {"name": "ledger_ops_v4", "strict": True, "schema": _strict(ExtractOutput.model_json_schema())}
+EXTRACT_JSON_SCHEMA_V5 = {"name": "ledger_ops_v5", "strict": True, "schema": _strict(ExtractOutputV5.model_json_schema())}
 
 
 def extract_schema(mode: str) -> dict[str, Any]:
-    return EXTRACT_JSON_SCHEMA_V3 if mode == "scored" else EXTRACT_JSON_SCHEMA
+    """scored → v3, linked_recent_search → v4 (giữ từng byte để cache đĩa cũ còn trúng), retrieve_first → v5."""
+    return {"scored": EXTRACT_JSON_SCHEMA_V3, "linked_recent_search": EXTRACT_JSON_SCHEMA}.get(mode, EXTRACT_JSON_SCHEMA_V5)

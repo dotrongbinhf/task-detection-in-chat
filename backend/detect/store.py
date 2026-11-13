@@ -31,6 +31,7 @@ class SearchHit:
     keyword_overlap: int      # số từ khoá truy vấn khớp với văn bản task
     people_match: bool
     similarity: Optional[float] = None  # cosine embedding truy vấn ↔ task (None ở chế độ keyword)
+    people_only: bool = False           # chỉ trùng người, không khớp từ khoá nào và cosine < semantic_floor
 
 
 def mentioned_at(t: Task) -> str:
@@ -204,7 +205,7 @@ class TaskStore:
                     continue
                 score = bm25 + (PEOPLE_BONUS if pm else 0) + RECENCY_BONUS * fresh
                 m = matched + (["người: " + ", ".join(names.get(u, u) for u in sorted(pids & (set(t.assignee_ids) | {t.assigner_id})))] if pm else [])
-                hits.append(SearchHit(t, round(score, 3), m, len(matched), pm))
+                hits.append(SearchHit(t, round(score, 3), m, len(matched), pm, people_only=pm and not matched))
         else:
             k = getattr(self.cfg, "rrf_k", 10)
             ranks: dict[str, float] = {}
@@ -225,7 +226,37 @@ class TaskStore:
                     m.append("người: " + ", ".join(names.get(u, u) for u in sorted(pids & (set(t.assignee_ids) | {t.assigner_id}))))
                 if sim is not None and sim >= floor:
                     m.append(f"ngữ nghĩa {sim:.2f}")
+                semantic = sim is not None and sim >= floor
                 hits.append(SearchHit(t, round(ranks[t.task_id] + 0.001 * fresh, 4), m, len(matched), pm,
-                                      None if sim is None else round(sim, 3)))
+                                      None if sim is None else round(sim, 3),
+                                      people_only=pm and not (matched and mode == "hybrid") and not semantic))
         hits.sort(key=lambda h: (-h.score, -ts(mentioned_at(h.task))))
         return hits[: max(0, limit)]
+
+    # ---------- v5: ứng viên trước lần gọi 1 (context_mode = retrieve_first) ----------
+    def is_matched(self, h: SearchHit) -> bool:
+        """Hit vào nhóm B1 (khớp nội dung): ≥ matched_min_keyword_overlap từ khoá chung HOẶC cosine ≥ semantic_floor.
+        Hit chỉ trùng người không tính (mọi việc của cùng người đều "trùng người")."""
+        min_kw = getattr(self.cfg, "matched_min_keyword_overlap", 1)
+        floor = getattr(self.cfg, "semantic_floor", 0.35)
+        kw_ok = self.mode != "semantic" and h.keyword_overlap >= max(1, min_kw)
+        return not h.people_only and (kw_ok or (h.similarity is not None and h.similarity >= floor))
+
+    def candidates(self, key: str, query: str, people: Optional[list[str]], since: Optional[str], exclude: set[str],
+                   now: Optional[str] = None) -> tuple[list[SearchHit], list[Task]]:
+        """(matched, recent) cho khối CANDIDATE_TASKS (tài liệu v5 mục 3.2).
+
+        matched: task khớp nội dung TIN MỚI, trạng thái candidate / draft / approved hoặc có đề xuất pending, không nằm
+        trong `exclude` (task đã ở khối được link), tối đa `matched_tasks_max`, theo điểm giảm dần.
+        recent: task nhắc gần nhất, loại task đã có, lấp cho đủ `candidate_tasks_max`."""
+        cfg = self.cfg
+        n_match = max(0, getattr(cfg, "matched_tasks_max", 3))
+        n_total = max(0, getattr(cfg, "candidate_tasks_max", 5))
+        lookup = getattr(cfg, "search_lookup_days", 30)
+        n_docs = sum(1 for t in self.state.tasks if t.conversation_key == key)
+        hits = self.search(key, query, people, since, n_docs, now=now, lookup_days=lookup) if query.strip() and n_match else []
+        matched = [h for h in hits if h.task.task_id not in exclude and self.is_matched(h)
+                   and (h.task.status in RECENT_STATUSES or self._has_pending(h.task))][: min(n_match, n_total)]
+        taken = set(exclude) | {h.task.task_id for h in matched}
+        recent = self.recent(key, n_total - len(matched), taken)
+        return matched, recent

@@ -25,7 +25,22 @@ ROWS = [
     ("— do LLM tìm / kiểm tra target / kiểm trùng", lambda r: "{} / {} / {}".format(r["search"]["second_call_by"].get("search", 0), r["search"]["second_call_by"].get("target_check", 0), r["search"]["second_call_by"].get("dedup", 0)) if (r.get("search") or {}).get("mode_linked") else "—"),
     ("Lượt nhắc việc ngoài ngữ cảnh → tìm thấy / tìm sai / bỏ lỡ tìm kiếm / không cần", lambda r: "{need_search} → {search_found} / {search_wrong} / {search_missed} / {search_not_needed}".format(**r["search"]) if (r.get("search") or {}).get("mode_linked") else "— (scored không tìm)"),
     ("Kiểm trùng: kích hoạt / bỏ CREATE / vẫn CREATE", lambda r: "{dedup_triggered} / {dedup_dropped} / {dedup_still_create}".format(**r["search"]) if (r.get("search") or {}).get("mode_linked") else "—"),
+    # ---- v5 mục 10 ----
+    ("Candidate recall (task đúng trong prompt lần 1)", lambda r: _cs(r, lambda c: c["first_call_recall"])),
+    ("— qua linked / matched / recent", lambda r: _cs(r, lambda c: "{linked} / {matched} / {recent}".format(**{"linked": 0, "matched": 0, "recent": 0, **c["by_source"]}))),
+    ("— không có ở lần 1 → vào lần 2 / bỏ lỡ hẳn", lambda r: _cs(r, lambda c: f"{sum(c['second_by'].values())} ({', '.join(f'{k} {v}' for k, v in c['second_by'].items()) or '—'}) / {c['missed']}")),
+    ("Link accuracy (task đúng trong prompt → nhắm đúng)", lambda r: _cs(r, lambda c: c["link_accuracy"])),
+    ("— nhắm task khác / CREATE thay UPDATE / không làm gì", lambda r: _cs(r, lambda c: "{wrong_target} / {create_instead} / {no_op}".format(**c["link_outcomes"]))),
+    ("Lần gọi 2 theo lý do: llm_flag / target_check / dedup", lambda r: _cs(r, lambda c: f"{c['second_call_by'].get('llm_flag', 0)} / {c['second_call_by'].get('target_check', 0)} / {c['second_call_by'].get('dedup', 0)}")),
+    ("LLM cắm cờ old_task_not_in_prompt (bị bỏ)", lambda r: _cs(r, lambda c: f"{c['llm_flag_turns']} ({c['llm_flag_ignored']})")),
+    ("Chặn cứng: tổng / đúng / sai", lambda r: _cs(r, lambda c: f"{c['hard_blocks']} / {c['hard_ok']} / {c['hard_bad']}")),
+    ("target_not_linked: op / link đúng / nhắm đúng", lambda r: _cs(r, lambda c: f"{c['target_not_linked']} / {c['tnl_linked_correct']} / {c['tnl_target_correct']}")),
 ]
+
+
+def _cs(r, f):
+    c = r.get("candidates") or {}
+    return f(c) if c.get("n_turns") is not None and (r.get("search") or {}).get("mode_linked") else "—"
 
 
 def fmt(x) -> str:
@@ -61,7 +76,10 @@ def main() -> None:
         if DATA:
             state.gold, state.hardNegatives = DATA["gold"], DATA["hard_negatives"]
         runs.append((p.name, meta, evaluate(state)))
-    runs.sort(key=lambda r: (r[1].get("config", {}).get("gate_mode") != "shadow", r[0]))
+    # cột đầu: gate_mode = none, context_mode = retrieve_first (tài liệu v5 mục 10); rồi các chế độ cũ, shadow sau cùng
+    order = {"retrieve_first": 0, "linked_recent_search": 1, "scored": 2}
+    runs.sort(key=lambda r: (r[1].get("config", {}).get("gate_mode") != "none",
+                             order.get(r[1].get("config", {}).get("context_mode", "scored"), 3), r[0]))
     if not runs:
         print("Không có lần chạy nào (cần runs/<id>/state.json).")
         return

@@ -15,7 +15,7 @@ import { Button, PanelHeader, Segmented } from "./ui";
 import { useEngine } from "./useEngine";
 import type { TurnRecord } from "@/lib/types";
 
-const DATASET_LABEL: Record<string, string> = { sample: "Dữ liệu mẫu (78 tin · 16 task nhãn)", empty: "Trống — tự nhập chat" };
+const DATASET_LABEL: Record<string, string> = { sample: "Dữ liệu mẫu (87 tin · 18 task nhãn)", empty: "Trống — tự nhập chat" };
 
 export default function Demo() {
   const engine = useEngine();
@@ -75,7 +75,7 @@ export default function Demo() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white"><BellRing size={17} aria-hidden /></span>
           <div className="leading-tight">
             <h1 className="text-[15px] font-semibold text-ink">AI Reminder <span className="font-normal text-ink-3">· phát hiện task từ chat</span></h1>
-            <p className="text-[11px] text-ink-3">Prototype v3 — sổ cái cập nhật theo từng tin · bằng chứng theo task · người nhận duyệt</p>
+            <p className="text-[11px] text-ink-3">Prototype v5 — code tìm ứng viên trước, LLM phán sau · sổ cái cập nhật theo từng tin · bằng chứng theo task · người nhận duyệt</p>
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">

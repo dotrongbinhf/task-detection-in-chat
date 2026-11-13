@@ -17,7 +17,7 @@ from detect.timeexpr import resolve_due
 PROMPTS = load_prompts()
 
 
-@pytest.fixture(autouse=True, params=["scored", "linked_recent_search"])
+@pytest.fixture(autouse=True, params=["scored", "linked_recent_search", "retrieve_first"])
 def context_mode(request):
     """Mọi test v3 chạy ở cả hai chế độ: `scored` phải giữ nguyên hành vi v3; `linked_recent_search` không được
     làm hỏng luật sổ cái / Validate / hàng đợi (đổi giá trị mặc định của Config trong lúc chạy test)."""

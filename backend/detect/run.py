@@ -15,8 +15,8 @@ from typing import Any, Optional
 
 from .config import ROOT, Config, load_config
 from .context import BuiltContext, build_context, conversation_key, extend_context, to_iso_days_before
-from .dataset import load_dataset, load_prompts
-from .extract import dedup_check, parse_extract, target_check, validate_and_apply
+from .dataset import instructions_for, load_dataset, load_prompts
+from .extract import dedup_check, parse_extract, target_check, target_not_linked, validate_and_apply
 from .gate import run_gate
 from .ledger import apply_expiry, apply_user_action, is_open
 from .llm import LLM, make_llm
@@ -99,7 +99,8 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     exp, acts = catch_up(state, at, cfg)
     rec: dict[str, Any] = {"turn": turn, "key": key, "at": at, "new_event_ids": [e.id for e in batch], "coalesced": len(batch) > 1,
                            "skipped": None, "pre": {"expirations": exp, "user_actions": acts}, "context": None, "gate": None,
-                           "extract": None, "extract_calls": [], "search": None, "target_check": None, "dedup": None, "ops": [], "events": []}
+                           "extract": None, "extract_calls": [], "search": None, "target_check": None, "dedup": None,
+                           "target_not_linked": [], "ops": [], "events": []}
 
     def finish(skipped: Optional[str] = None, **extra: Any) -> dict[str, Any]:
         rec["skipped"] = skipped
@@ -122,11 +123,15 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     if not kept:
         return finish("reaction_not_relevant")
 
-    instructions = prompts["extract"] if cfg.context_mode == "scored" else prompts.get("extract_v4", prompts["extract"])
-    ctx = build_context(state, key, kept, cfg, instructions, prompts["gate"])
+    instructions = instructions_for(prompts, cfg.context_mode)
+    embedder = getattr(llm, "embedder", None)
+    emb_before = getattr(embedder, "tokens_used", 0)
+    ctx = build_context(state, key, kept, cfg, instructions, prompts["gate"], embedder)
     rec["context"] = {
         "mode": ctx.mode, "selected": ctx.selected, "not_selected": ctx.not_selected, "linked": ctx.linked,
-        "recent": ctx.recent, "linked_chain_ids": ctx.extra.get("chain_ids", []), "window_ids": ctx.window_ids,
+        "recent": ctx.recent, "matched": ctx.matched, "candidates": ctx.candidates,
+        "retrieval": ctx.extra.get("retrieval") or None,
+        "linked_chain_ids": ctx.extra.get("chain_ids", []), "window_ids": ctx.window_ids,
         "reply_chain_ids": ctx.reply_ids, "evidence_ids": ctx.evidence_ids, "id_map": ctx.id_map, "task_map": ctx.task_map,
         "trims": ctx.trims, "tokens": ctx.tokens, "window_k_used": ctx.window_k,
         "prompt": ctx.user,  # khối 1 cố định, không lưu lại mỗi lượt
@@ -147,8 +152,6 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     # ---- bộ trích: tối đa extract_max_calls_per_turn lần gọi (lần 2 = tìm task hoặc kiểm trùng) ----
     calls: list[dict[str, Any]] = []
     rec["extract_calls"] = calls
-    embedder = getattr(llm, "embedder", None)
-    emb_before = getattr(embedder, "tokens_used", 0)
 
     def call(c: BuiltContext, reason: str) -> Optional[ExtractOutput]:
         """Một lần gọi bộ trích (retry khi JSON hỏng / lỗi mạng). Ghi token, tiền, latency, raw của lần gọi."""
@@ -190,7 +193,42 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     cur_ctx, cur_out = ctx, parsed
     max_calls = max(1, cfg.extract_max_calls_per_turn)
 
-    if ctx.mode != "scored":
+    blocked: dict[int, dict[str, Any]] = {}
+    if ctx.mode == "retrieve_first":
+        parsed.search = None  # schema v5 không có search
+        # ---- llm_flag: model báo việc cũ ngoài prompt → code tự tìm bằng TIN MỚI (truy vấn mục 3.1) → lần 2 ----
+        if parsed.message_type == "old_task_not_in_prompt":
+            rv = ctx.extra.get("retrieval") or {}
+            frec: dict[str, Any] = {"source": "llm_flag", "requested": None, "ignored": None, "query": rv.get("query", ""),
+                                    "people": rv.get("people", []), "results": [], "call": None}
+            rec["search"] = frec
+            ignore = ("llm_flag_with_ops_ignored" if parsed.ops else "llm_flag_disabled" if not cfg.llm_flag_search
+                      else "llm_flag_call_limit" if len(calls) >= max_calls else None)
+            if ignore:
+                frec["ignored"] = ignore
+                state.trace.append({"type": ignore, "at": at, "turn": turn})
+            else:
+                store = TaskStore(state, cfg, embedder)
+                since = to_iso_days_before(at, cfg.search_lookup_days)
+                in_prompt = set(ctx.task_map.values())
+                hits = [h for h in store.search(key, frec["query"], frec["people"], since, 10 ** 6, now=at,
+                                                lookup_days=cfg.search_lookup_days)
+                        if h.task.task_id not in in_prompt and not h.people_only][: cfg.search_max_results] if frec["query"] else []
+                ctx2 = extend_context(state, ctx, "search", hits, cfg, attrs='source="llm_flag"')
+                rev_task = {v: k for k, v in ctx2.task_map.items()}
+                frec["results"] = [{"local": rev_task.get(h.task.task_id, ""), "task_id": h.task.task_id, "title": h.task.title,
+                                    "status": h.task.status, "score": h.score, "matched": h.matched,
+                                    "similarity": h.similarity, "already_in_prompt": False} for h in hits]
+                state.trace.append({"type": "llm_flag_search", "at": at, "turn": turn, "query": frec["query"],
+                                    "people": frec["people"], "results": [h.task.task_id for h in hits]})
+                out2 = call(ctx2, "llm_flag")
+                frec["call"] = len(calls)
+                if not out2:
+                    return finish(calls[-1]["failure"])
+                out2.search = None
+                cur_ctx, cur_out = ctx2, out2
+
+    if ctx.mode == "linked_recent_search":
         # ---- tìm task (LLM điền search khi TIN MỚI nói về việc cũ không có trong ngữ cảnh) ----
         sq = parsed.search
         if sq is not None:
@@ -230,6 +268,7 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
                     out2.search = None
                 cur_ctx, cur_out = ctx2, out2
 
+    if ctx.mode != "scored":
         # ---- kiểm tra target của UPDATE / CANCEL (bổ sung, xem DECISIONS) ----
         if cfg.target_check_on_update and len(calls) < max_calls and any(o.op in ("UPDATE", "CANCEL") for o in cur_out.ops):
             tchecks = target_check(state, cur_ctx, cur_out, cfg, embedder)
@@ -251,12 +290,21 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
                 rec["target_check"]["ops_after"] = [f"{o.op} {o.target or ''}".strip() for o in out_t.ops]
                 cur_ctx, cur_out = ctx_t, out_t
 
-        # ---- kiểm trùng khi CREATE ----
-        if cfg.dedup_check_on_create and any(o.op == "CREATE" for o in cur_out.ops):
+        # ---- kiểm trùng khi CREATE (v5: luật cứng trước, rồi mới hỏi lại LLM) ----
+        hard_on = cfg.dedup_hard_block and ctx.mode == "retrieve_first"
+        if (cfg.dedup_check_on_create or hard_on) and any(o.op == "CREATE" for o in cur_out.ops):
             checks = dedup_check(state, cur_ctx, cur_out, cfg, embedder)
+            blocked = {c["op_index"]: c["hard_block"] for c in checks if c.get("hard_block")}
+            for hb in blocked.values():
+                state.trace.append({"type": "dedup_hard_block", "at": at, "turn": turn, "task_id": hb["task_id"],
+                                    "overlap": hb["overlap"], "similarity": hb["similarity"], "matched": hb["matched"]})
+            if not cfg.dedup_check_on_create:
+                for c in checks:
+                    c["_hits"], c["candidates"] = [], []
             cands = list({h.task.task_id: h for c in checks for h in c["_hits"]}.values())
             drec: dict[str, Any] = {"checks": [{k: v for k, v in c.items() if k != "_hits"} for c in checks],
-                                    "triggered": bool(cands), "call": None, "skipped": None, "outcome": None}
+                                    "triggered": bool(cands), "call": None, "skipped": None, "outcome": None,
+                                    "hard_blocked": [{**hb, "op_index": i} for i, hb in blocked.items()]}
             rec["dedup"] = drec
             if cands and len(calls) >= max_calls:
                 drec["skipped"] = "dedup_skipped_call_limit"
@@ -264,6 +312,7 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
                                     "candidates": [h.task.task_id for h in cands]})
             elif cands:
                 titles = ", ".join(f'"{c["title"]}"' for c in checks if c["_hits"])
+                blocked = {}  # lần gọi 2 trả ops mới → luật cứng chạy lại trên ops đó (dưới)
                 intro = (f"You are about to CREATE {titles}. The tasks below may be the same task. "
                          "If it is the same task, use UPDATE or change nothing instead of CREATE.")
                 ctx3 = extend_context(state, cur_ctx, "dedup", cands, cfg, intro=intro)
@@ -280,14 +329,27 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
                 drec["creates_before"], drec["creates_after"] = before, after
                 drec["ops_after"] = [o.op for o in out3.ops]
                 cur_ctx, cur_out = ctx3, out3
-                # lần gọi cuối vẫn qua kiểm trùng; còn ứng viên mới thì không hỏi thêm (hết lượt gọi)
-                again = [h for c in dedup_check(state, cur_ctx, cur_out, cfg, embedder) for h in c["_hits"]]
+                # lần gọi cuối vẫn qua kiểm trùng (và luật cứng); còn ứng viên mới thì không hỏi thêm (hết lượt gọi)
+                checks2 = dedup_check(state, cur_ctx, cur_out, cfg, embedder)
+                blocked = {c["op_index"]: c["hard_block"] for c in checks2 if c.get("hard_block")}
+                for hb in blocked.values():
+                    state.trace.append({"type": "dedup_hard_block", "at": at, "turn": turn, "task_id": hb["task_id"],
+                                        "overlap": hb["overlap"], "similarity": hb["similarity"], "matched": hb["matched"],
+                                        "after_call": len(calls)})
+                drec["hard_blocked"] += [{**hb, "op_index": i, "after_call": len(calls)} for i, hb in blocked.items()]
+                again = [h for c in checks2 for h in c["_hits"]]
                 if again:
                     drec["skipped"] = "dedup_skipped_call_limit"
                     state.trace.append({"type": "dedup_skipped_call_limit", "at": at, "turn": turn,
                                         "candidates": [h.task.task_id for h in again]})
 
-    ops, events = validate_and_apply(state, cur_ctx, cur_out, cfg, turn, llm.extract_model)
+    if ctx.mode == "retrieve_first":
+        # ---- v5 mục 4.2: op lệch task được link — chỉ ghi nhận ----
+        for row in target_not_linked(cur_ctx, cur_out):
+            rec["target_not_linked"].append(row)
+            state.trace.append({"type": "target_not_linked", "at": at, "turn": turn, **row})
+
+    ops, events = validate_and_apply(state, cur_ctx, cur_out, cfg, turn, llm.extract_model, blocked)
     rec["embed"] = {"model": getattr(embedder, "name", None), "search_mode": cfg.search_mode if ctx.mode != "scored" else None,
                     "tokens": getattr(embedder, "tokens_used", 0) - emb_before}
     rec["ops"] = ops
@@ -298,7 +360,8 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     return finish(None, selected=[f"{s['local']}={s['task_id']}({s['score']})" for s in ctx.selected], tokens=ctx.tokens,
                   p=g["p"] if g else None, ops=[o["op"] + ("" if o["accepted"] else "✗") for o in ops], calls=len(calls),
                   search=rec["search"]["query"] if rec["search"] else None,
-                  dedup=bool(rec["dedup"] and rec["dedup"]["triggered"]))
+                  dedup=bool(rec["dedup"] and rec["dedup"]["triggered"]),
+                  hard_block=len(rec["dedup"]["hard_blocked"]) if rec["dedup"] and rec["dedup"].get("hard_blocked") else 0)
 
 
 def call_cost(r: dict[str, Any], pricing: dict[str, dict[str, float]]) -> float:

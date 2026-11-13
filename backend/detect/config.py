@@ -8,12 +8,12 @@ import yaml
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
-PROMPT_VERSION = "v4"  # prompt của context_mode = linked_recent_search; chế độ scored vẫn dùng extract_v3
-ContextMode = Literal["scored", "linked_recent_search"]
+PROMPT_VERSION = "v5"  # prompt của context_mode = retrieve_first; linked_recent_search dùng v4, scored dùng v3
+ContextMode = Literal["scored", "linked_recent_search", "retrieve_first"]
 
 
 def prompt_version(mode: str) -> str:
-    return "v3" if mode == "scored" else PROMPT_VERSION
+    return {"scored": "v3", "linked_recent_search": "v4"}.get(mode, PROMPT_VERSION)
 
 
 class Config(BaseModel):
@@ -37,7 +37,7 @@ class Config(BaseModel):
     declined_suppress_days: float = 7
     llm_max_retries: int = 2
     # ---- ngữ cảnh mới (tài liệu "Ngữ cảnh mới - task được link, 3 task gần nhất, tìm task") ----
-    context_mode: ContextMode = "linked_recent_search"
+    context_mode: ContextMode = "retrieve_first"
     linked_tasks_max: int = 3
     linked_evidence_per_task: int = 3
     recent_tasks_max: int = 3
@@ -55,6 +55,14 @@ class Config(BaseModel):
     semantic_floor: float = 0.35                     # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
     rrf_k: int = 10
     prompt_cache_key: Optional[str] = "ai_reminder_extract"
+    # ---- v5: code tìm trước, LLM phán sau (context_mode = retrieve_first) ----
+    candidate_tasks_max: int = 5            # tổng task ở khối B (matched + recent)
+    matched_tasks_max: int = 3              # task khớp nội dung TIN MỚI tối đa
+    matched_min_keyword_overlap: int = 1    # vào B1 khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
+    llm_flag_search: bool = True            # message_type = old_task_not_in_prompt → code tìm → lần 2
+    dedup_hard_block: bool = True           # bỏ CREATE trùng mạnh task declined cùng người (không hỏi LLM)
+    dedup_hard_keyword_overlap: int = 3
+    dedup_hard_similarity: Optional[float] = None  # None = không dùng ngữ nghĩa cho luật cứng
     pricing: dict[str, dict[str, float]] = {}
 
 
@@ -78,11 +86,11 @@ CONFIG_HELP: dict[str, str] = {
     "undated_open_days": "Task đã duyệt không hạn còn mở kể từ lần chạm cuối (ngày)",
     "declined_suppress_days": "Task/đề xuất bị từ chối còn dùng để chặn tạo lại (ngày)",
     "llm_max_retries": "Retry khi lỗi parse hoặc mạng",
-    "context_mode": "scored = v3 (bảng điểm, top 5) | linked_recent_search = task được link + 3 task gần nhất + tìm task",
+    "context_mode": "scored = v3 (bảng điểm, top 5) | linked_recent_search = v4 (task được link + 3 task gần nhất + LLM tìm task) | retrieve_first = v5 (task được link + task khớp nội dung TIN MỚI do code tìm + task gần nhất)",
     "linked_tasks_max": "Task được link (reply/reaction) tối đa",
     "linked_evidence_per_task": "Tin bằng chứng kèm mỗi task được link",
-    "recent_tasks_max": "Task được nhắc gần nhất đưa vào prompt",
-    "search_enabled": "Cho phép LLM yêu cầu tìm task trong kho",
+    "recent_tasks_max": "(linked_recent_search) Task được nhắc gần nhất đưa vào prompt",
+    "search_enabled": "(linked_recent_search) Cho phép LLM yêu cầu tìm task trong kho",
     "search_max_results": "Số kết quả tìm kiếm trả về LLM",
     "search_lookup_days": "Phạm vi thời gian tìm task / task được link (ngày)",
     "extract_max_calls_per_turn": "Số lần gọi bộ trích tối đa mỗi lượt",
@@ -96,6 +104,13 @@ CONFIG_HELP: dict[str, str] = {
     "semantic_floor": "Cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa",
     "rrf_k": "Hằng số k của Reciprocal Rank Fusion",
     "prompt_cache_key": "prompt_cache_key gửi OpenAI (null = không gửi)",
+    "candidate_tasks_max": "(retrieve_first) Tổng task ở khối CANDIDATE_TASKS (khớp nội dung + gần nhất)",
+    "matched_tasks_max": "(retrieve_first) Task khớp nội dung TIN MỚI tối đa",
+    "matched_min_keyword_overlap": "(retrieve_first) Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",
+    "llm_flag_search": "(retrieve_first) LLM báo old_task_not_in_prompt → code tìm bằng TIN MỚI → gọi lần 2",
+    "dedup_hard_block": "(retrieve_first) Bỏ CREATE trùng mạnh task đã bị từ chối của cùng người, không hỏi LLM",
+    "dedup_hard_keyword_overlap": "Luật cứng: số từ khoá chung tối thiểu",
+    "dedup_hard_similarity": "Luật cứng: cosine tối thiểu (trống = không dùng ngữ nghĩa)",
 }
 
 

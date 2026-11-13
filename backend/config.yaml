@@ -21,7 +21,7 @@ llm_max_retries: 2
 
 # Ngữ cảnh mới (tài liệu "Ngữ cảnh mới - task được link, 3 task gần nhất, tìm task").
 # scored = v3 (bảng điểm, dùng open_tasks_max / closed_tasks_max / closed_lookup_days ở trên) — giữ để so sánh.
-context_mode: linked_recent_search   # scored | linked_recent_search
+context_mode: retrieve_first         # scored (v3) | linked_recent_search (v4) | retrieve_first (v5)
 linked_tasks_max: 3                  # task được link (reply / reaction vào tin bằng chứng)
 linked_evidence_per_task: 3          # tin bằng chứng kèm mỗi task được link
 recent_tasks_max: 3                  # task được nhắc gần nhất (theo last_mentioned_at)
@@ -39,6 +39,16 @@ target_check_max_candidates: 3       # DECISIONS #44
 semantic_floor: 0.35
 rrf_k: 10
 prompt_cache_key: ai_reminder_extract
+
+# v5 — code tìm trước, LLM phán sau (tài liệu "Prototype detection task v5", mục 9). recent_tasks_max / search_enabled
+# ở trên chỉ dùng cho linked_recent_search.
+candidate_tasks_max: 5               # tổng task ở khối CANDIDATE_TASKS (matched + recent)
+matched_tasks_max: 3                 # task khớp nội dung TIN MỚI (BM25 + embedding)
+matched_min_keyword_overlap: 1       # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
+llm_flag_search: true                # message_type = old_task_not_in_prompt → code tìm → lần 2
+dedup_hard_block: true               # CREATE trùng mạnh task declined cùng người → bỏ, không hỏi LLM
+dedup_hard_keyword_overlap: 3
+dedup_hard_similarity:               # trống = tắt phần ngữ nghĩa (text-embedding-3-small: task sai tới 0.58)
 
 # Bảng giá USD / 1M token để ước tính chi phí (input, input được cache, output).
 pricing:

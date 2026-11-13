@@ -128,9 +128,16 @@ export function EvalPanel({ engine }: { engine: Engine }) {
             {c.turn_input_tokens && <li>Token input mỗi lượt (mọi lần gọi): p50 {c.turn_input_tokens.p50 ?? "—"} · p95 {c.turn_input_tokens.p95 ?? "—"}{c.cache_ratio != null ? ` · cache ${(c.cache_ratio * 100).toFixed(0)}%` : ""}</li>}
             {rep.search?.mode_linked && (
               <>
-                <li>Lượt có tìm kiếm: <RateCell r={rep.search.search_turns} /> · lượt gọi lần 2: <RateCell r={rep.search.second_call_turns} /> (tìm {rep.search.second_call_by.search} · kiểm trùng {rep.search.second_call_by.dedup})</li>
+                <li>Lượt có tìm kiếm: <RateCell r={rep.search.search_turns} /> · lượt gọi lần 2: <RateCell r={rep.search.second_call_turns} /> (tìm {rep.search.second_call_by.search}{rep.search.second_call_by.llm_flag ? ` · llm_flag ${rep.search.second_call_by.llm_flag}` : ""} · kiểm tra target {rep.search.second_call_by.target_check ?? 0} · kiểm trùng {rep.search.second_call_by.dedup})</li>
                 <li>Nhắc việc ngoài ngữ cảnh: {rep.search.need_search} → tìm thấy {rep.search.search_found} · tìm sai {rep.search.search_wrong} · bỏ lỡ tìm kiếm {rep.search.search_missed}</li>
                 <li>Kiểm trùng: kích hoạt {rep.search.dedup_triggered} · bỏ CREATE {rep.search.dedup_dropped} · vẫn CREATE {rep.search.dedup_still_create}</li>
+              </>
+            )}
+            {rep.candidates && rep.candidates.n_turns > 0 && (
+              <>
+                <li><b>Candidate recall</b> (task đúng có trong prompt lần 1): <RateCell r={rep.candidates.first_call_recall} /> · linked {rep.candidates.by_source.linked ?? 0} · matched {rep.candidates.by_source.matched ?? 0} · recent {rep.candidates.by_source.recent ?? 0} · vào lần 2 {Object.values(rep.candidates.second_by).reduce((a, b) => a + b, 0)} · bỏ lỡ {rep.candidates.missed}</li>
+                <li><b>Link accuracy</b>: <RateCell r={rep.candidates.link_accuracy} /> · nhắm task khác {rep.candidates.link_outcomes.wrong_target} · CREATE thay UPDATE {rep.candidates.link_outcomes.create_instead} · không làm gì {rep.candidates.link_outcomes.no_op}</li>
+                <li>Chặn cứng: {rep.candidates.hard_blocks} (đúng {rep.candidates.hard_ok} · sai {rep.candidates.hard_bad}) · LLM cắm cờ việc cũ ngoài prompt: {rep.candidates.llm_flag_turns} · target_not_linked: {rep.candidates.target_not_linked}</li>
               </>
             )}
           </ul>

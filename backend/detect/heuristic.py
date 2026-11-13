@@ -179,7 +179,7 @@ def pick_task(ctx: BuiltContext, m: PromptMsg, people: list[str] | None = None, 
     return best if best and best_s >= min_score else None
 
 
-LIVE_SOURCES = ("open", "linked", "recent", "search", "dedup")
+LIVE_SOURCES = ("open", "linked", "recent", "matched", "search", "dedup")
 
 
 def _declined_similar(ctx: BuiltContext, text: str) -> bool:
@@ -347,6 +347,11 @@ def heuristic_extract(ctx: BuiltContext) -> dict[str, Any]:
     ops = [o for o in ops if o["op"] != "CREATE" or not _declined_similar(ctx, anchor_text(o))]
     if ctx.mode == "scored":
         return {"ops": ops}
+    if ctx.mode == "retrieve_first":
+        # v5: không có search — tin dạng huỷ / đổi hạn không khớp task nào trong prompt → báo việc cũ ngoài prompt
+        mt = "old_task_not_in_prompt" if search is not None and not ops else (
+            "no_change" if not ops else "new_task" if all(o["op"] == "CREATE" for o in ops) else "task_in_prompt")
+        return {"message_type": mt, "ops": ops}
     return {"ops": ops, "search": None if ops else search}
 
 

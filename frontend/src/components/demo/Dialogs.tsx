@@ -80,7 +80,7 @@ export function ConfigDialog({ engine, onClose }: { engine: Engine; onClose: () 
       <div className="grid gap-x-4 gap-y-3 p-4 sm:grid-cols-2">
         {keys.map((k) => {
           const v = draft[k];
-          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : k === "gate_mode" ? ["none", "shadow", "llm"] : null;
+          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : k === "gate_mode" ? ["none", "shadow", "llm"] : k === "context_mode" ? ["retrieve_first", "linked_recent_search", "scored"] : k === "search_mode" ? ["hybrid", "keyword", "semantic"] : null;
           return (
             <div key={k}>
               <label htmlFor={`cfg-${k}`} className="block font-mono text-[11.5px] font-medium text-ink">{k}</label>
