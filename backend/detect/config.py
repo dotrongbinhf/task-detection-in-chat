@@ -51,7 +51,6 @@ class Config(BaseModel):
     search_mode: Literal["keyword", "semantic", "hybrid"] = "hybrid"
     semantic_min_similarity: Optional[float] = None  # kiểm tra target; None = mặc định embedder (OpenAI 0.45)
     dedup_semantic_min_similarity: Optional[float] = None  # kiểm trùng; None = mặc định embedder (OpenAI 0.55)
-    semantic_margin: float = 0.0
     target_check_max_candidates: int = 3  # kiểm tra target: số ứng viên NGỮ NGHĨA tối đa đưa vào lần 2 (DECISIONS #44)
     semantic_floor: float = 0.35                     # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
     rrf_k: int = 10
@@ -93,7 +92,6 @@ CONFIG_HELP: dict[str, str] = {
     "search_mode": "keyword = BM25 | semantic = embedding | hybrid = trộn BM25 + embedding (RRF)",
     "semantic_min_similarity": "Kiểm tra target: cosine tối thiểu của task gần nghĩa nhất; trống = mặc định embedder",
     "dedup_semantic_min_similarity": "Kiểm trùng: cosine tối thiểu để coi là có thể trùng; trống = mặc định embedder",
-    "semantic_margin": "Kiểm tra target: ứng viên phải gần nghĩa hơn task đang nhắm ít nhất chừng này",
     "target_check_max_candidates": "Kiểm tra target: số ứng viên gần nghĩa nhất tối đa đưa cho LLM chọn ở lần 2",
     "semantic_floor": "Cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa",
     "rrf_k": "Hằng số k của Reciprocal Rank Fusion",

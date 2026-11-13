@@ -35,7 +35,6 @@ target_check_on_update: true         # thêm ngoài tài liệu — DECISIONS #3
 search_mode: hybrid                  # keyword | semantic | hybrid (BM25 + embedding, RRF) — DECISIONS #41
 semantic_min_similarity:             # kiểm tra target; trống = mặc định embedder (text-embedding-3-small: 0.45)
 dedup_semantic_min_similarity:       # kiểm trùng; trống = mặc định embedder (text-embedding-3-small: 0.55)
-semantic_margin: 0.0                 # ứng viên chỉ cần gần nghĩa hơn task LLM đang nhắm
 target_check_max_candidates: 3       # DECISIONS #44
 semantic_floor: 0.35
 rrf_k: 10

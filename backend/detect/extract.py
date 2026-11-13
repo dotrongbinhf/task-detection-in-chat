@@ -429,11 +429,11 @@ def target_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg:
         if hits is None:
             hits = [h for h in store.search(ctx.key, text, people, since, cfg.search_max_results, now=ctx.turn_at,
                                             lookup_days=cfg.search_lookup_days) if h.task.task_id not in in_prompt]
-        # ứng viên: khớp từ khoá tốt hơn target, HOẶC thuộc top `target_check_max_candidates` task gần nghĩa nhất ngoài
-        # prompt, cosine ≥ ngưỡng và hơn target ≥ semantic_margin. Đưa nhiều ứng viên để LLM tự chọn: embedding chỉ xếp
-        # task đúng hạng 1 ở 11/14 tin — chỉ đưa 1 thì hạng 2 bị bỏ và LLM đi theo ứng viên sai (m073).
-        sem = sorted([h for h in hits if h.similarity is not None and h.similarity >= thr
-                      and h.similarity >= t_sim + cfg.semantic_margin], key=lambda h: -h.similarity)
+        # ứng viên: khớp từ khoá tốt hơn target, HOẶC (xếp mọi task theo cosine với tin mới) là một trong tối đa
+        # `target_check_max_candidates` task ngoài prompt đứng TRÊN task LLM đang nhắm, cosine ≥ ngưỡng loại nhiễu.
+        # Không dùng ngưỡng cosine tuyệt đối để quyết định: đo được task đúng 0.41–0.77, task sai tới 0.58.
+        sem = sorted([h for h in hits if h.similarity is not None and h.similarity >= thr and h.similarity > t_sim],
+                     key=lambda h: -h.similarity)
         sem_ids = {h.task.task_id for h in sem[: max(0, cfg.target_check_max_candidates)]}
         cands = [h for h in hits
                  if (h.keyword_overlap >= cfg.dedup_min_keyword_overlap and h.keyword_overlap > t_overlap)
