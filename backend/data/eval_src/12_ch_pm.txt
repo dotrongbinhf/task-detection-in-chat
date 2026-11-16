@@ -1,0 +1,130 @@
+conv ch_pm group test
+member hung Hưng | anh Hưng, Hung
+member thao Thảo | chị Thảo, Thao
+member khanh Khánh | anh Khánh, Khanh
+member phong Phong | Phong Đinh
+member yen Yến | Yen
+member ha Hà | Ha
+
+gold roadmap | Gửi roadmap Q1 bản chốt | self_commit | hung | 2026-12-02 | active | self_commit,relative_deadline
+gold demoenv | Dựng môi trường demo cho khách | assigned | phong | event | active | event_deadline
+gold risk | Cập nhật risk register dự án ví | assigned | ha | none | active | single_message
+
+day 2026-11-30
+08:40 hung: Tuần này chốt roadmap Q1 và demo cho khách ngân hàng
+08:45 thao: Bên design đã xong 80% màn hình ví cho bản demo
+08:46 hung: còn những màn nào
+08:47 thao: màn lịch sử và màn hạn mức
+08:50 khanh: Khách ngân hàng hỏi lại về tích hợp eKYC
+08:51 hung: mình đang dùng nhà cung cấp nào
+08:52 phong: FPT.AI, hợp đồng còn đến tháng 6
+08:53 khanh: khách muốn biết tỉ lệ nhận diện đúng
+08:55 phong: số tháng trước là 97,8%
+08:56 khanh: ok anh gửi khách số này
+09:20 ha: Dự án ví tuần trước trễ 2 ngày so với kế hoạch
+09:21 hung: do phần nào em
+09:22 ha: API hạn mức phải chờ bên core banking
+09:24 phong: bên core banking hẹn thứ 4 có sandbox
+09:25 ha: nếu thứ 4 không có thì trễ thêm
+09:40 hung [rk]: @Hà cập nhật risk register dự án ví, thêm rủi ro phụ thuộc core banking   ## risk:assign
+09:41 ha: dạ em nhận   ## risk:accept
+10:10 yen: Báo cáo tiến độ tháng 11 đã gửi ban giám đốc
+10:11 hung: phản hồi thế nào
+10:12 yen: sếp hỏi về chi phí cloud tăng
+10:13 phong: tăng do môi trường staging chạy 24/7
+10:14 hung: tháng sau tắt staging ngoài giờ được không
+10:16 phong: được, tiết kiệm khoảng 30%
+10:30 khanh: Buổi demo khách ngân hàng chốt chiều thứ 5
+10:31 thao: mấy giờ anh
+10:32 khanh: 2h chiều, online
+10:40 hung [de]: @Phong dựng môi trường demo riêng cho khách trước buổi demo nhé, tách khỏi staging   ## demoenv:assign demoenv:due
+10:41 +phong like de   ## demoenv:accept
+11:00 thao: Bản demo dùng dữ liệu giả hay dữ liệu ẩn danh
+11:01 hung: dữ liệu giả em
+11:02 thao: ok
+11:20 ha: Sprint này còn 14 story point chưa xong
+11:21 hung: tập trung vào luồng nạp tiền
+11:22 ha: vâng
+13:30 hung: Thứ 4 anh gửi roadmap Q1 bản chốt cho cả nhóm   ## roadmap:self_commit roadmap:due
+13:31 khanh: ok anh
+13:40 yen: roadmap có gộp phần loyalty không anh
+13:41 hung: có, nhưng để cuối quý
+13:42 yen: vâng
+14:10 phong: core banking gửi tài liệu API hạn mức bản mới
+14:11 ha: có khác nhiều không
+14:13 phong: đổi 2 trường, thêm mã lỗi mới
+14:14 ha: vậy test case phải cập nhật
+14:15 phong: bên QA đã biết rồi
+15:00 khanh: Khách ngân hàng gửi danh sách 12 câu hỏi trước demo
+15:01 hung: anh xem rồi, phần lớn về bảo mật
+15:02 thao: có câu nào về giao diện không
+15:03 khanh: 2 câu về khả năng tuỳ biến màu thương hiệu
+15:04 thao: bên design làm được
+15:40 ha: Velocity 3 sprint gần nhất là 34, 31, 36
+15:41 hung: ổn định
+act 09:45 ha approve risk
+act 10:45 phong approve demoenv
+
+day 2026-12-01
+08:45 phong: Môi trường demo em dựng xong hạ tầng, đang deploy app
+08:46 hung: dùng bản nào
+08:47 phong: bản RC2
+09:10 ha: risk register em thêm 3 rủi ro, mức cao nhất là core banking
+09:11 hung: ok em
+09:30 thao: màn hạn mức xong rồi
+09:31 khanh: cảm ơn chị
+10:00 yen: Ban giám đốc duyệt ngân sách Q1 rồi
+10:01 hung: tốt quá
+10:02 yen: cắt 10% so với đề xuất
+10:03 hung: chấp nhận được
+10:30 khanh: Khách hỏi có cần ký NDA trước demo không
+10:31 hung: ký rồi từ tháng 10
+10:32 khanh: à đúng
+11:00 phong: Sandbox core banking có sớm, sáng nay đã kết nối được
+11:01 ha: vậy rủi ro đó giảm xuống
+11:02 hung: tin tốt
+14:00 thao: bản demo em thêm màu thương hiệu của khách
+14:01 khanh: khách sẽ thích
+14:30 ha: Sprint planning chiều thứ 6 lúc 2h
+14:31 yen: vâng
+15:00 hung: roadmap Q1 anh viết xong phần mục tiêu
+15:01 yen: có số liệu năm nay chưa anh
+15:02 hung: có rồi
+
+day 2026-12-02
+09:00 hung: Roadmap Q1 bản chốt anh đã gửi lên Drive
+09:02 khanh: anh đọc rồi, rõ ràng
+09:03 yen: phần loyalty để tháng 3 hợp lý
+09:30 phong: môi trường demo chạy ổn, em đã thử luồng nạp tiền
+09:31 hung: tốt
+10:00 ha: Tiến độ dự án ví về đúng kế hoạch nhờ sandbox sớm
+10:01 hung: tuyệt
+11:00 khanh: Khách ngân hàng muốn thêm 1 người bên an ninh thông tin vào buổi demo
+11:01 hung: không vấn đề gì
+14:00 thao: design review màn ví lúc 3h
+15:30 thao: review xong, chỉ còn sửa nhỏ
+15:31 hung: ok
+16:00 yen: Báo cáo chi phí cloud tháng 11 đã có, giảm 8% so với tháng 10
+16:01 phong: nhờ tắt máy dev ngoài giờ
+
+day 2026-12-03
+09:00 khanh: Chiều nay demo khách ngân hàng
+09:01 phong: môi trường demo sẵn sàng
+09:30 hung: Phòng họp online đã mở sẵn
+14:00 khanh: bắt đầu demo
+15:30 khanh: Demo xong, khách đánh giá cao phần bảo mật
+15:31 hung: tốt lắm cả nhóm
+15:32 thao: 👏
+16:00 khanh: Khách muốn có báo giá chính thức trong tuần sau
+16:01 hung: báo giá thuộc phần team sales   ## hn
+
+day 2026-12-04
+09:00 ha: Sprint planning chiều nay 2h
+09:30 yen: Ban giám đốc muốn xem kết quả demo trong họp tuần
+09:31 hung: kết quả demo có trong slide họp tuần rồi
+10:00 phong: Môi trường demo em giữ đến hết tháng 12 hay tắt
+10:01 hung: giữ đến khi khách ký
+10:02 phong: vâng
+14:00 ha: Sprint planning bắt đầu
+16:00 ha: Sprint mới 35 story point, ưu tiên luồng rút tiền
+16:01 hung: ok

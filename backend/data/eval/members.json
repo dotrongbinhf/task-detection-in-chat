@@ -1,0 +1,753 @@
+{
+ "ch_backend": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phạm",
+    "chị Mai"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  }
+ ],
+ "ch_design": [
+  {
+   "user_id": "u_thao",
+   "display_name": "Thảo",
+   "aliases": [
+    "chị Thảo",
+    "Thao"
+   ]
+  },
+  {
+   "user_id": "u_linh",
+   "display_name": "Linh",
+   "aliases": [
+    "Linh Nguyễn"
+   ]
+  },
+  {
+   "user_id": "u_vy",
+   "display_name": "Vy",
+   "aliases": [
+    "Vy Đỗ"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  }
+ ],
+ "ch_mkt": [
+  {
+   "user_id": "u_phuong",
+   "display_name": "Phương",
+   "aliases": [
+    "chị Phương",
+    "Phuong"
+   ]
+  },
+  {
+   "user_id": "u_duc",
+   "display_name": "Đức",
+   "aliases": [
+    "Duc"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phạm",
+    "chị Mai"
+   ]
+  },
+  {
+   "user_id": "u_tram",
+   "display_name": "Trâm",
+   "aliases": [
+    "Tram"
+   ]
+  },
+  {
+   "user_id": "u_hieu",
+   "display_name": "Hiếu",
+   "aliases": [
+    "Hieu"
+   ]
+  }
+ ],
+ "ch_ops": [
+  {
+   "user_id": "u_son",
+   "display_name": "Sơn",
+   "aliases": [
+    "anh Sơn",
+    "Son"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_nhi",
+   "display_name": "Nhi",
+   "aliases": [
+    "Nhi Hồ"
+   ]
+  },
+  {
+   "user_id": "u_dat",
+   "display_name": "Đạt",
+   "aliases": [
+    "Dat"
+   ]
+  }
+ ],
+ "ch_platform": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  },
+  {
+   "user_id": "u_dat",
+   "display_name": "Đạt",
+   "aliases": [
+    "Dat"
+   ]
+  },
+  {
+   "user_id": "u_nhi",
+   "display_name": "Nhi",
+   "aliases": [
+    "Nhi Hồ"
+   ]
+  }
+ ],
+ "ch_app": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phạm",
+    "chị Mai"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  }
+ ],
+ "ch_data": [
+  {
+   "user_id": "u_minh",
+   "display_name": "Minh",
+   "aliases": [
+    "anh Minh",
+    "Minh Hoàng"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  },
+  {
+   "user_id": "u_tram",
+   "display_name": "Trâm",
+   "aliases": [
+    "Tram"
+   ]
+  },
+  {
+   "user_id": "u_duc",
+   "display_name": "Đức",
+   "aliases": [
+    "Duc"
+   ]
+  }
+ ],
+ "ch_web": [
+  {
+   "user_id": "u_thao",
+   "display_name": "Thảo",
+   "aliases": [
+    "chị Thảo",
+    "Thao"
+   ]
+  },
+  {
+   "user_id": "u_vy",
+   "display_name": "Vy",
+   "aliases": [
+    "Vy Đỗ"
+   ]
+  },
+  {
+   "user_id": "u_linh",
+   "display_name": "Linh",
+   "aliases": [
+    "Linh Nguyễn"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  },
+  {
+   "user_id": "u_phong",
+   "display_name": "Phong",
+   "aliases": [
+    "Phong Đinh"
+   ]
+  }
+ ],
+ "ch_sales": [
+  {
+   "user_id": "u_khanh",
+   "display_name": "Khánh",
+   "aliases": [
+    "anh Khánh",
+    "Khanh"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phạm",
+    "chị Mai"
+   ]
+  },
+  {
+   "user_id": "u_duc",
+   "display_name": "Đức",
+   "aliases": [
+    "Duc"
+   ]
+  },
+  {
+   "user_id": "u_hieu",
+   "display_name": "Hiếu",
+   "aliases": [
+    "Hieu"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  }
+ ],
+ "ch_pm": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_thao",
+   "display_name": "Thảo",
+   "aliases": [
+    "chị Thảo",
+    "Thao"
+   ]
+  },
+  {
+   "user_id": "u_khanh",
+   "display_name": "Khánh",
+   "aliases": [
+    "anh Khánh",
+    "Khanh"
+   ]
+  },
+  {
+   "user_id": "u_phong",
+   "display_name": "Phong",
+   "aliases": [
+    "Phong Đinh"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha"
+   ]
+  }
+ ],
+ "ch_qa": [
+  {
+   "user_id": "u_phong",
+   "display_name": "Phong",
+   "aliases": [
+    "Phong Đinh"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  }
+ ],
+ "ch_product": [
+  {
+   "user_id": "u_minh",
+   "display_name": "Minh",
+   "aliases": [
+    "anh Minh",
+    "Minh Hoàng"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  },
+  {
+   "user_id": "u_nhi",
+   "display_name": "Nhi",
+   "aliases": [
+    "Nhi Hồ"
+   ]
+  }
+ ],
+ "ch_infra": [
+  {
+   "user_id": "u_son",
+   "display_name": "Sơn",
+   "aliases": [
+    "anh Sơn",
+    "Son"
+   ]
+  },
+  {
+   "user_id": "u_dat",
+   "display_name": "Đạt",
+   "aliases": [
+    "Dat"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  }
+ ],
+ "ch_growth": [
+  {
+   "user_id": "u_phuong",
+   "display_name": "Phương",
+   "aliases": [
+    "chị Phương",
+    "Phuong"
+   ]
+  },
+  {
+   "user_id": "u_hieu",
+   "display_name": "Hiếu",
+   "aliases": [
+    "Hieu"
+   ]
+  },
+  {
+   "user_id": "u_tram",
+   "display_name": "Trâm",
+   "aliases": [
+    "Tram"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha"
+   ]
+  }
+ ],
+ "ch_hr": [
+  {
+   "user_id": "u_lan",
+   "display_name": "Lan",
+   "aliases": [
+    "chị Lan",
+    "Lan HR"
+   ]
+  },
+  {
+   "user_id": "u_nhi",
+   "display_name": "Nhi",
+   "aliases": [
+    "Nhi Hồ"
+   ]
+  },
+  {
+   "user_id": "u_tram",
+   "display_name": "Trâm",
+   "aliases": [
+    "Tram"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  },
+  {
+   "user_id": "u_duc",
+   "display_name": "Đức",
+   "aliases": [
+    "Duc"
+   ]
+  }
+ ],
+ "ch_cs": [
+  {
+   "user_id": "u_hoa",
+   "display_name": "Hoa",
+   "aliases": [
+    "chị Hoa",
+    "Hoa CS"
+   ]
+  },
+  {
+   "user_id": "u_tu",
+   "display_name": "Tú",
+   "aliases": [
+    "Tu"
+   ]
+  },
+  {
+   "user_id": "u_vinh",
+   "display_name": "Vinh",
+   "aliases": [
+    "Vinh Lê"
+   ]
+  },
+  {
+   "user_id": "u_my",
+   "display_name": "My",
+   "aliases": [
+    "My Trần"
+   ]
+  },
+  {
+   "user_id": "u_an",
+   "display_name": "An",
+   "aliases": [
+    "An Vũ"
+   ]
+  }
+ ],
+ "ch_event": [
+  {
+   "user_id": "u_phuong",
+   "display_name": "Phương",
+   "aliases": [
+    "chị Phương",
+    "Phuong"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  },
+  {
+   "user_id": "u_tram",
+   "display_name": "Trâm",
+   "aliases": [
+    "Tram"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha"
+   ]
+  }
+ ],
+ "ch_arch": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  },
+  {
+   "user_id": "u_son",
+   "display_name": "Sơn",
+   "aliases": [
+    "anh Sơn",
+    "Son"
+   ]
+  },
+  {
+   "user_id": "u_minh",
+   "display_name": "Minh",
+   "aliases": [
+    "anh Minh",
+    "Minh Hoàng"
+   ]
+  }
+ ],
+ "ch_release": [
+  {
+   "user_id": "u_hung",
+   "display_name": "Hưng",
+   "aliases": [
+    "anh Hưng",
+    "Hung"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa Lê"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phạm",
+    "chị Mai"
+   ]
+  },
+  {
+   "user_id": "u_quan",
+   "display_name": "Quân",
+   "aliases": [
+    "Quan"
+   ]
+  }
+ ]
+}

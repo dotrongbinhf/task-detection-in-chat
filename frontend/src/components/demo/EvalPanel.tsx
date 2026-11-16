@@ -126,27 +126,20 @@ export function EvalPanel({ engine }: { engine: Engine }) {
               <li key={k}>Lần gọi {k}: {v.calls} lần · input {v.input_tokens.toLocaleString("vi")} (cache {v.cached_tokens.toLocaleString("vi")}) · output {v.output_tokens.toLocaleString("vi")} · ${v.cost_usd.toFixed(4)}</li>
             ))}
             {c.turn_input_tokens && <li>Token input mỗi lượt (mọi lần gọi): p50 {c.turn_input_tokens.p50 ?? "—"} · p95 {c.turn_input_tokens.p95 ?? "—"}{c.cache_ratio != null ? ` · cache ${(c.cache_ratio * 100).toFixed(0)}%` : ""}</li>}
-            {rep.search?.mode_linked && (
-              <>
-                <li>Lượt có tìm kiếm: <RateCell r={rep.search.search_turns} /> · lượt gọi lần 2: <RateCell r={rep.search.second_call_turns} /> (tìm {rep.search.second_call_by.search}{rep.search.second_call_by.llm_flag ? ` · llm_flag ${rep.search.second_call_by.llm_flag}` : ""} · kiểm tra target {rep.search.second_call_by.target_check ?? 0} · kiểm trùng {rep.search.second_call_by.dedup})</li>
-                <li>Nhắc việc ngoài ngữ cảnh: {rep.search.need_search} → tìm thấy {rep.search.search_found} · tìm sai {rep.search.search_wrong} · bỏ lỡ tìm kiếm {rep.search.search_missed}</li>
-                <li>Kiểm trùng: kích hoạt {rep.search.dedup_triggered} · bỏ CREATE {rep.search.dedup_dropped} · vẫn CREATE {rep.search.dedup_still_create}</li>
-              </>
-            )}
             {rep.candidates && rep.candidates.n_turns > 0 && (
               <>
-                <li><b>Candidate recall</b> (task đúng có trong prompt lần 1): <RateCell r={rep.candidates.first_call_recall} /> · linked {rep.candidates.by_source.linked ?? 0} · matched {rep.candidates.by_source.matched ?? 0} · recent {rep.candidates.by_source.recent ?? 0} · vào lần 2 {Object.values(rep.candidates.second_by).reduce((a, b) => a + b, 0)} · bỏ lỡ {rep.candidates.missed}</li>
+                <li><b>Candidate recall</b> (task đúng có trong prompt lần 1): <RateCell r={rep.candidates.first_call_recall} /> · linked {rep.candidates.by_source.linked ?? 0} · matched {rep.candidates.by_source.matched ?? 0} · recent {rep.candidates.by_source.recent ?? 0} · vào lần 2 {rep.candidates.second_found} · bỏ lỡ {rep.candidates.missed}</li>
                 <li><b>Link accuracy</b>: <RateCell r={rep.candidates.link_accuracy} /> · nhắm task khác {rep.candidates.link_outcomes.wrong_target} · CREATE thay UPDATE {rep.candidates.link_outcomes.create_instead} · không làm gì {rep.candidates.link_outcomes.no_op}</li>
-                <li>Chặn cứng: {rep.candidates.hard_blocks} (đúng {rep.candidates.hard_ok} · sai {rep.candidates.hard_bad}) · LLM cắm cờ việc cũ ngoài prompt: {rep.candidates.llm_flag_turns} · target_not_linked: {rep.candidates.target_not_linked}</li>
+                <li>Lượt gọi lần 2 (kiểm tra target): <RateCell r={rep.candidates.second_call_turns} /></li>
               </>
             )}
           </ul>
           <table className="mt-2 w-full">
             <thead><tr className="text-left text-ink-3"><th className="font-medium">Khối</th><th className="text-right font-medium">p50</th><th className="text-right font-medium">p95</th></tr></thead>
             <tbody>
-              {(["b1", "b2", "b3", "b3a", "b3b", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
+              {(["b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
                 <tr key={b} className="border-t border-line">
-                  <td>{{ b1: "1. Hướng dẫn", b2: "2. Lịch", b3: "3. Task (tổng)", b3a: "3a. Được link", b3b: "3b. Gần nhất", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. Khối lần gọi 2", total: "Tổng lần 1" }[b]}</td>
+                  <td>{{ b1: "1. Hướng dẫn", b2: "2. Lịch", b3a: "3a. Được link", b3b: "3b. Ứng viên", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. Kiểm tra target (lần 2)", total: "Tổng lần 1" }[b]}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p50 ?? "—"}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p95 ?? "—"}</td>
                 </tr>

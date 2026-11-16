@@ -1,0 +1,141 @@
+conv ch_mkt group train
+member phuong Phương | chị Phương, Phuong
+member duc Đức | Duc
+member mai Mai | Mai Phạm, chị Mai
+member tram Trâm | Tram
+member hieu Hiếu | Hieu
+
+gold fb | Lên lịch đăng bài Facebook | assigned | duc | 2026-11-23 | active | reaction_accept,busy_channel_10,late_deadline,multi_message,long_running
+gold kol | Liên hệ 5 KOL cho campaign 12/12 | assigned | tram | 2026-11-18 | active | single_message,relative_deadline
+gold seo | Viết 3 bài SEO về ví điện tử | assigned | hieu | none | active | single_message
+gold email | Soạn email newsletter tháng 12 | assigned | mai | 2026-11-20 | active | name_collision,relative_deadline
+gold budget | Gửi budget Q4 cho sếp | self_commit | phuong | 2026-11-16 | active | self_commit
+gold video | Dựng video teaser 15s | open_ask | - | none | active | unanswered_ask,no_assignee
+gold survey | Làm survey khách hàng trên Google Form | assigned | duc | none | active | matched_far_no_reply,busy_channel_10,far_update_no_reply
+gold report | Tổng hợp báo cáo ads tuần trước | assigned | tram | 2026-11-17 | active | relative_deadline
+gold copy | Viết copy landing page 12/12 | assigned | hieu | 2026-11-20 | active | reply_link_old,later_update_approved
+gold tiktok | Viết kịch bản TikTok cho mascot | assigned | mai | none | active | reaction_link,implicit_ask
+gold carousel | Làm bộ ảnh carousel Facebook 12/12 | assigned | hieu | none | active | recreate_declined_hard,declined_not_recreated,recreate_declined_far
+gold press | Gửi thông cáo báo chí cho 3 báo | assigned | mai | 2026-11-19 | active | busy_channel_10,relative_deadline
+gold follower | Thống kê follower các kênh | assigned | - | none | active | no_assignee
+
+day 2026-11-16
+08:30 phuong: Chào team, tuần này chạy nước rút cho 12/12 nhé 💪
+08:31 tram: dạ chị
+08:31 duc: chào chị
+08:33 hieu: morning
+08:35 mai: hi mọi người
+08:50 phuong [fb]: @Đức lên lịch đăng bài Facebook cho cả tuần này nhé   ## fb:assign
+08:51 +duc like fb   ## fb:accept
+09:00 phuong [kol]: @Trâm liên hệ 5 KOL cho campaign 12/12, thứ 4 báo chị nhé   ## kol:assign kol:due
+09:01 tram ^kol: dạ em nhận   ## kol:accept
+09:10 phuong: @Hiếu viết 3 bài SEO về ví điện tử nhé, keyword chị gửi sau   ## seo:assign
+09:11 hieu: ok chị   ## seo:accept
+09:20 mai: Chị ơi tháng này mình có gửi newsletter không
+09:21 phuong [em]: có em, @Mai soạn email newsletter tháng 12 luôn nhé, thứ 6 chị duyệt   ## email:assign email:due
+09:22 mai ^em: dạ vâng   ## email:accept
+09:40 duc: Fanpage hôm qua reach giảm mạnh mọi người ạ
+09:41 tram: do thuật toán mới đó
+09:42 duc: chắc phải tăng video
+09:43 hieu: reels đang được đẩy
+09:45 phuong: Chiều nay chị gửi budget Q4 cho sếp, ai có số liệu ads thì gửi chị trước 2h   ## budget:self_commit budget:due
+09:46 tram: dạ em gửi liền
+10:00 phuong [vd]: Cần ai dựng video teaser 15s cho campaign, ai làm được không   ## video:assign
+10:02 hieu: em không rành dựng lắm
+10:03 duc: em cũng không ạ
+10:20 phuong [sv]: @Đức làm survey khách hàng trên Google Form nhé, 10 câu thôi   ## survey:assign
+10:21 duc: dạ   ## survey:accept
+10:35 tram: số liệu ads em gửi chị qua mail rồi
+10:36 phuong: thanks em
+10:50 phuong [rp]: @Trâm tổng hợp báo cáo ads tuần trước, mai gửi chị nhé   ## report:assign report:due
+10:51 tram: dạ   ## report:accept
+11:10 phuong [cp]: @Hiếu viết copy landing page 12/12 trước thứ 4 nhé   ## copy:assign copy:due
+11:11 hieu ^cp: ok chị   ## copy:accept
+13:20 phuong [tk]: Ai viết kịch bản TikTok cho mascot được không nhỉ   ## tiktok:assign
+13:22 duc: kịch bản kiểu hài hay kiểu review chị
+13:23 phuong: hài nhẹ nhàng thôi
+13:24 duc: dạ
+13:40 phuong [cr]: @Hiếu làm bộ ảnh carousel Facebook cho 12/12 nhé   ## carousel:assign
+13:41 hieu: chị ơi em đang ôm SEO với copy rồi
+13:42 phuong: ừ để chị xem
+14:30 mai: Mọi người có template email cũ không
+14:31 tram: trong drive Marketing/Email đó chị
+14:32 mai: thấy rồi, cảm ơn em
+15:00 phuong: Em làm giúp chị cái thống kê follower các kênh nhé   ## follower:assign
+15:10 duc: Lịch đăng bài em lên xong 3 ngày đầu rồi
+15:11 phuong: ok
+15:50 hieu: Keyword SEO chị gửi em chưa ạ
+15:52 phuong: chị gửi rồi đó, check mail
+15:53 hieu: dạ thấy rồi
+16:30 phuong: budget chị gửi sếp rồi nhé
+16:31 tram: 👍
+act 08:55 duc approve fb
+act 09:05 tram approve kol
+act 09:15 hieu approve seo
+act 09:25 mai approve email
+act 11:15 hieu approve copy
+act 13:50 hieu decline carousel
+
+day 2026-11-17
+08:40 tram: báo cáo ads em gửi chị rồi nhé
+08:45 phuong: ok em
+09:05 +mai like tk   ## tiktok:accept
+09:10 mai: Kịch bản TikTok em viết 3 phương án nhé
+09:11 phuong: ok Mai
+09:30 duc: Chị ơi survey nên gửi qua email hay Zalo
+09:31 phuong: cả hai em
+09:32 duc: dạ
+10:15 hieu: SEO bài 1 em viết xong rồi
+10:16 phuong: nhanh vậy
+10:16 hieu: em gửi rồi ạ   ## hn
+10:40 tram: KOL em liên hệ được 3 người rồi
+10:41 phuong: tốt
+11:00 mai: chị Phương ơi newsletter mình có chèn mã giảm giá không
+11:01 phuong: có em, mã XMAS12
+11:02 mai: dạ
+14:00 duc: reach hôm nay lên lại rồi
+14:01 tram: nhờ reels đó
+14:30 hieu: Mọi người góp ý giúp em headline landing page
+14:31 tram: cái thứ 2 hay
+14:32 duc: +1
+14:35 phuong: thứ 2 nhé
+16:00 phuong: Mai nghỉ lễ công ty nhé, mọi người đừng quên   ## hn
+16:01 duc: mai nghỉ thật hả chị
+16:02 phuong: đùa thôi 😆
+16:03 tram: hết hồn
+
+day 2026-11-18
+09:00 phuong: Hôm nay báo cáo KOL nhé Trâm
+09:05 tram: KOL đủ 5 người rồi chị, em gửi danh sách trong sheet
+09:06 phuong: tuyệt
+09:30 phuong [cpd] ^cp: lùi sang thứ 6 nhé, PM đổi offer   ## copy:due
+09:31 hieu: dạ ok chị
+10:00 phuong: Đức ơi survey khách hàng thêm 2 câu hỏi về giá nhé   ## survey:content
+10:01 duc: dạ em thêm
+10:30 mai: email newsletter em xong bản nháp
+10:31 phuong: chị đọc chiều nay
+11:00 hieu: Copy landing page em có thêm phần FAQ không chị
+11:01 phuong: có em
+14:20 tram: có KOL đòi giá gấp đôi chị ạ
+14:22 phuong: bỏ qua người đó
+14:23 tram: dạ
+act 09:40 hieu approve_change cpd
+
+day 2026-11-19
+08:50 phuong: Sáng nay họp với agency nhé
+09:30 phuong [pr]: @Mai gửi thông cáo báo chí cho 3 báo trước chiều nay nhé   ## press:assign press:due
+09:31 mai: dạ chị   ## press:accept
+10:00 phuong: @Hiếu làm bộ ảnh carousel Facebook cho 12/12 nhé, gấp lắm rồi   ## carousel:assign
+10:02 hieu: chị ơi em vẫn kín việc ạ
+10:03 phuong: ok để chị nhờ agency
+11:00 duc: survey em gửi đi rồi, có 40 phản hồi
+11:01 phuong: nhanh vậy
+13:00 mai: thông cáo gửi xong 3 báo rồi chị
+13:01 phuong: cảm ơn em
+14:00 tram: mọi người có ai biết chỗ in standee rẻ không
+14:01 duc: chỗ Láng Hạ đó
+14:02 tram: ok
+15:30 phuong [fbd]: @Đức lịch đăng bài Facebook đổi sang đăng sáng 8h nhé, lên xong trước thứ 2 tuần sau   ## fb:due
+15:31 duc: dạ
+act 09:35 mai approve press
+act 15:40 duc approve_change fbd

@@ -1,0 +1,99 @@
+conv ch_infra group dev
+member son Sơn | anh Sơn, Son
+member dat Đạt | Dat
+member tuan Tuấn | Tuan
+member khoa Khoa | Khoa Lê
+member yen Yến | Yen
+
+gold cdn | Chuyển static asset sang CDN mới | assigned | dat | none | active | recreate_declined_soft,declined_not_recreated
+gold certrot | Viết job tự động gia hạn cert | assigned | tuan | 2026-11-27 | active | llm_flag_fallback,far_reference
+gold logpipe | Dựng pipeline log sang Loki | assigned | khoa | none | active | reply_but_other_task
+gold costrpt | Làm báo cáo chi phí cloud tháng 11 | assigned | yen | 2026-11-30 | active | change_supersede,later_update_approved
+gold k8sup | Nâng cấp cluster k8s lên 1.30 | assigned | dat | none | active | reassign
+
+day 2026-11-23
+08:30 son: Chào anh em infra
+08:31 dat: chào anh
+08:31 tuan: morning
+08:32 khoa: hi
+08:33 yen: chào cả nhà
+08:45 tuan: cuối tuần không có sự cố gì
+08:46 son: tốt
+09:00 son [cd]: @Đạt chuyển static asset sang CDN mới nhé, CDN cũ hết hợp đồng tháng sau   ## cdn:assign
+09:02 dat: anh ơi em đang làm migration DB, chưa nhận thêm được ạ
+09:03 son: ừ để anh tính
+09:20 son [cr]: @Tuấn viết job tự động gia hạn cert nhé, thứ 4 xong   ## certrot:assign certrot:due
+09:21 tuan ^cr: dạ   ## certrot:accept
+09:40 khoa: Grafana Loki bản 3 ra rồi
+09:41 son: ổn không
+09:42 khoa: nhẹ hơn nhiều
+10:00 son [lg]: @Khoa dựng pipeline log sang Loki luôn nhé, bỏ ELK dần   ## logpipe:assign
+10:01 khoa: dạ   ## logpipe:accept
+10:30 yen: anh Sơn ơi tháng này bill AWS tăng 18%
+10:31 son: do đâu em
+10:32 yen: chủ yếu NAT gateway
+10:33 son: hmm
+10:40 son [co]: @Yến làm báo cáo chi phí cloud tháng 11 nhé, thứ 5 gửi anh   ## costrpt:assign costrpt:due
+10:41 yen ^co: dạ   ## costrpt:accept
+11:00 son [ku]: @Tuấn nâng cấp cluster k8s lên 1.30 nhé   ## k8sup:assign
+11:01 tuan: dạ   ## k8sup:accept
+13:30 tuan: cert rotate em dùng cert-manager được không anh
+13:31 son: được em
+13:32 tuan: dạ
+14:00 son: À thôi để Đạt làm nâng cấp k8s nhé, Tuấn tập trung cert   ## k8sup:assignee
+14:01 dat: dạ em làm, migration xong rồi ạ
+14:02 tuan: dạ
+14:30 khoa: Loki em dựng thử trên staging rồi
+14:31 son: nhanh vậy
+15:00 yen: NAT gateway có cách nào giảm không anh
+15:02 son: dùng VPC endpoint cho S3
+15:03 yen: dạ
+act 09:25 tuan approve certrot
+act 10:05 khoa approve logpipe
+act 10:45 yen approve costrpt
+act 09:10 dat decline cdn
+act 14:05 dat approve k8sup
+
+day 2026-11-24
+08:40 yen: NAT gateway giảm được 30% nhờ VPC endpoint
+08:41 son: tuyệt
+09:00 son [cs1]: Yến ơi báo cáo chi phí lùi sang thứ 6 nhé, anh muốn có số tuần này   ## costrpt:due
+09:01 yen: dạ
+09:30 son [cs2]: à không, thứ 2 tuần sau đi em, để có số cả tháng   ## costrpt:due
+09:31 yen: dạ thứ 2 ạ
+10:00 khoa: Loki staging nhận log được 2 tiếng rồi, ổn
+10:01 son: ok
+10:30 dat: k8s 1.30 có deprecate API nào mình đang dùng không
+10:32 tuan: PodSecurityPolicy bỏ lâu rồi, còn lại ổn
+10:33 dat: ok
+11:30 son [lgc] ^cr: Khoa ơi pipeline Loki giữ log 30 ngày thôi nhé, dung lượng có hạn   ## logpipe:content
+11:31 khoa: dạ
+13:00 tuan: cert-manager cài xong rồi
+13:01 son: tốt
+act 09:35 yen approve_change cs2
+act 11:35 khoa approve_change lgc
+
+day 2026-11-25
+08:30 son: Hôm nay họp với nhà cung cấp CDN
+08:31 dat: dạ
+09:30 son: Đạt ơi làm giúp anh vụ chuyển CDN nhé, nhà cung cấp mới giảm giá rồi   ## cdn:assign
+09:32 dat: anh ơi em đang nâng cấp k8s ạ
+09:33 son: ừ thôi để anh hỏi Khoa
+10:00 tuan: job gia hạn cert chạy thử ok
+10:01 son: ổn
+11:00 son [crd]: Tuấn ơi cái anh nhờ hôm thứ 2 lùi sang thứ 6 nhé, cần test thêm trên prod-like   ## certrot:due
+11:01 tuan: dạ
+13:30 dat: k8s staging nâng cấp xong
+13:31 son: tốt
+14:30 khoa: Loki prod cần thêm 200GB disk
+14:31 son: duyệt
+act 11:05 tuan approve_change crd
+
+day 2026-11-26
+09:00 dat: k8s prod nâng cấp tối nay nhé mọi người
+09:01 son: ok, nhớ backup etcd
+09:02 dat: dạ em backup rồi ạ   ## hn
+10:00 khoa: Loki prod chạy rồi
+10:01 son: tuyệt vời
+15:00 tuan: cuối tuần ai trực on-call
+15:01 khoa: em

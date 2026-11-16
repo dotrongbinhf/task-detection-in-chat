@@ -1,0 +1,117 @@
+conv ch_backend group train
+member hung Hưng | anh Hưng, Hung
+member nam Nam | Nam Trần
+member mai Mai | Mai Phạm, chị Mai
+member khoa Khoa | Khoa Lê
+member tuan Tuấn | Tuan
+
+gold apidoc | Cập nhật tài liệu API payment | assigned | nam | 2026-11-20 | active | single_message,later_update_approved,far_update_no_reply,far_reference,matched_far_no_reply
+gold cert | Xử lý lỗi cert trên staging | assigned | tuan | none | active | implicit_ask
+gold migr | Chạy migration bảng orders trên staging | self_commit | tuan | 2026-11-17 | active | self_commit,name_collision,relative_deadline
+gold pr231 | Review PR #231 | assigned | mai | 2026-11-20 | active | name_collision,relative_deadline
+gold webhook | Fix lỗi timeout webhook | assigned | nam | none | active | multi_task_message
+gold refund | Viết test cho module refund | assigned | khoa | none | cancelled | multi_task_message,cancel_approved,cancel_old_no_reply
+gold rollback | Chuẩn bị script rollback | assigned | tuan | event | active | event_deadline,reaction_accept
+gold sentry | Check log Sentry lỗi 502 | assigned | khoa | none | active | burst
+
+day 2026-11-16
+08:52 hung: Chào cả nhà, tuần này mình chốt bản release 2.4 nha
+08:53 mai: Dạ chào anh
+08:55 khoa: Morning mọi người
+08:58 nam: Hôm qua deploy staging lúc mấy giờ vậy mọi người
+09:00 tuan: 10h tối qua anh ạ, em deploy
+09:01 nam: ok cảm ơn
+09:10 hung [api]: @Nam cập nhật tài liệu API payment trước thứ 4 nhé, bên partner hỏi mãi   ## apidoc:assign apidoc:due
+09:12 nam ^api: Dạ em nhận anh   ## apidoc:accept
+09:14 mai: Partner nào hỏi vậy anh
+09:15 hung: Bên ví điện tử ấy em
+09:15 mai: à ok
+09:22 khoa: Mọi người ơi staging đang lỗi cert, vào không được
+09:23 tuan: ủa thật hả
+09:23 khoa: Chrome báo NET::ERR_CERT_DATE_INVALID
+09:24 hung [cert]: Cert hết hạn rồi, ai xử lý được không?   ## cert:assign
+09:26 nam: em đang dở cái webhook
+09:27 tuan ^cert: để em làm cho anh   ## cert:accept
+09:27 hung: ok thanks em
+09:40 tuan: Mai em chạy migration bảng orders trên staging nhé, hôm nay còn chờ review script   ## migr:self_commit migr:due
+09:41 hung: ok, nhớ backup trước
+09:41 tuan: dạ vâng
+09:55 mai: Có ai thấy query báo cáo doanh thu chậm không, em chạy mất 40s
+09:56 khoa: chậm từ tuần trước rồi chị
+09:57 mai: chắc do thiếu index
+09:58 hung: để anh xem đã   ## hn
+10:05 nam: Cert ổn chưa Tuấn
+10:07 tuan: chưa anh, đang chờ quyền DNS
+10:20 hung [pr]: @Mai review giúp anh PR #231 trước cuối tuần nhé   ## pr231:assign pr231:due
+10:21 mai ^pr: Dạ ok anh   ## pr231:accept
+10:30 khoa: PR #231 là cái refactor giỏ hàng hả anh
+10:31 hung: đúng rồi
+10:32 khoa: to phết
+10:45 hung [two]: Nam fix lỗi timeout webhook, Khoa viết test cho module refund nhé   ## webhook:assign refund:assign
+10:46 nam: dạ   ## webhook:accept
+10:47 khoa ^two: ok anh   ## refund:accept
+11:02 tuan: Cert xong rồi nhé mọi người, em renew qua certbot
+11:03 khoa: ngon, vào được rồi
+11:03 hung: 👍
+13:30 hung: Chiều nay 3h họp sprint review nhé, phòng họp tầng 5
+13:31 mai: dạ
+13:31 tuan: ok anh
+14:10 khoa: Webhook timeout hay xảy ra vào giờ nào vậy anh Nam
+14:12 nam: tầm 8-9h tối, lúc traffic cao
+14:13 khoa: chắc do pool connection
+14:14 nam: anh cũng nghĩ vậy
+15:00 hung: mọi người vào họp nhé
+16:05 hung [rb]: @Tuấn chuẩn bị script rollback trước buổi release nhé   ## rollback:assign rollback:due
+16:06 +tuan like rb   ## rollback:accept
+16:20 mai: Em đọc PR #231 được nửa rồi, khá ổn
+16:21 hung: ok em
+16:40 nam: Tài liệu API em làm được phần auth rồi
+16:41 hung: ok
+act 09:30 nam approve apidoc
+act 10:50 khoa approve refund
+act 10:25 mai approve pr231
+
+day 2026-11-17
+08:45 tuan: Migration bảng orders em chạy xong trên staging rồi ạ
+08:46 hung: tốt
+08:50 nam: hôm nay em làm tiếp webhook
+09:05 hung: Hôm qua mọi người thấy lỗi 502 không
+09:05:02 hung: lúc 9h tối
+09:05:03 hung [s1]: @Khoa check log Sentry cho lỗi 502 hôm qua giúp anh   ## sentry:assign
+09:05:05 hung: chắc lại do gateway
+09:07 khoa ^s1: dạ để em check   ## sentry:accept
+09:20 mai: lỗi 502 đó em cũng bị khi test thanh toán
+09:21 khoa: chị gửi em request id được không
+09:22 mai: rq_8f2a91 nhé
+09:23 khoa: ok chị
+09:50 nam: Webhook có retry rồi mà vẫn timeout là sao nhỉ
+09:52 tuan: retry 3 lần mỗi lần 30s thì lâu quá
+09:53 nam: ừ chắc phải giảm timeout
+10:30 khoa: Log Sentry thấy gateway trả 502 do upstream reset
+10:31 hung: ok để mai bàn tiếp   ## hn
+10:40 mai: anh Hưng ơi PR #231 có chỗ đổi schema, mình có cần migration không
+10:42 hung: có em, Tuấn viết rồi
+10:43 mai: dạ
+11:15 hung [apidue]: @Nam tài liệu API payment lùi sang thứ 6 nhé, partner dời lịch tích hợp   ## apidoc:due
+11:16 nam: dạ vâng anh
+11:40 tuan: Script rollback em viết xong bản nháp rồi
+11:41 hung: ok em
+11:41 tuan: em gửi rồi ạ   ## hn
+act 11:30 nam approve_change apidue
+
+day 2026-11-18
+09:00 hung: Hôm nay ai có lịch nghỉ không
+09:30 khoa: Em đang viết test refund được 5 case
+09:40 nam: Webhook fix xong, đang chờ review
+09:41 hung: ok
+10:15 hung [rfc]: @Khoa thôi khỏi viết test cho module refund nhé, tuần sau team QA lo phần đó   ## refund:cancel
+10:16 khoa: dạ ok anh
+10:30 mai: Review PR #231 em comment 12 chỗ rồi nhé
+10:31 hung: cảm ơn em
+11:00 tuan: release 2.4 chốt ngày nào anh
+11:01 hung: thứ 2 tuần sau
+11:02 tuan: dạ
+14:00 nam: mọi người có ai dùng thử Bruno chưa, thay Postman được không
+14:02 khoa: em dùng rồi, ổn
+14:03 nam: để em thử
+act 10:20 khoa approve_change rfc

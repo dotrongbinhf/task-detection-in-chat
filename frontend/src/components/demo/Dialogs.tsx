@@ -40,7 +40,7 @@ export function PromptDialog({ turn, instructions, onClose }: { turn: TurnRecord
     <Shell title={`Prompt gửi bộ trích — lượt #${turn.turn}`} onClose={onClose} wide>
       <div className="flex gap-1 border-b border-line px-4 py-2 text-xs">
         {([
-          ["user", `Khối 2–5 (đổi theo lượt) · ${ctx.tokens.b2 + ctx.tokens.b3 + ctx.tokens.b4 + ctx.tokens.b5} tok`],
+          ["user", `Khối 2–5 (đổi theo lượt) · ${ctx.tokens.b2 + ctx.tokens.b3a + ctx.tokens.b3b + ctx.tokens.b4 + ctx.tokens.b5} tok`],
           ["system", `Khối 1 — hướng dẫn cố định · ${ctx.tokens.b1} tok`],
           ["gate", "Ngữ cảnh rút gọn của cổng"],
         ] as const).map(([k, l]) => (
@@ -68,7 +68,7 @@ export function ConfigDialog({ engine, onClose }: { engine: Engine; onClose: () 
   };
   return (
     <Shell
-      title={<span className="inline-flex items-center gap-2"><Settings2 size={16} /> Tham số (config.yaml, mục 6)</span>}
+      title={<span className="inline-flex items-center gap-2"><Settings2 size={16} /> Tham số (config.yaml)</span>}
       onClose={onClose}
       footer={
         <>
@@ -80,7 +80,7 @@ export function ConfigDialog({ engine, onClose }: { engine: Engine; onClose: () 
       <div className="grid gap-x-4 gap-y-3 p-4 sm:grid-cols-2">
         {keys.map((k) => {
           const v = draft[k];
-          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : k === "gate_mode" ? ["none", "shadow", "llm"] : k === "context_mode" ? ["retrieve_first", "linked_recent_search", "scored"] : k === "search_mode" ? ["hybrid", "keyword", "semantic"] : null;
+          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : k === "gate_mode" ? ["none", "shadow", "llm"] : null;
           return (
             <div key={k}>
               <label htmlFor={`cfg-${k}`} className="block font-mono text-[11.5px] font-medium text-ink">{k}</label>

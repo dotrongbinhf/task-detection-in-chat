@@ -1,0 +1,27 @@
+{
+ "train": [
+  "ch_backend",
+  "ch_design",
+  "ch_mkt",
+  "ch_ops",
+  "ch_platform",
+  "ch_product",
+  "ch_hr",
+  "ch_cs",
+  "ch_arch"
+ ],
+ "dev": [
+  "ch_app",
+  "ch_data",
+  "ch_qa",
+  "ch_infra"
+ ],
+ "test": [
+  "ch_web",
+  "ch_sales",
+  "ch_pm",
+  "ch_growth",
+  "ch_event",
+  "ch_release"
+ ]
+}

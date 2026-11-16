@@ -8,12 +8,7 @@ import yaml
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
-PROMPT_VERSION = "v5"  # prompt của context_mode = retrieve_first; linked_recent_search dùng v4, scored dùng v3
-ContextMode = Literal["scored", "linked_recent_search", "retrieve_first"]
-
-
-def prompt_version(mode: str) -> str:
-    return {"scored": "v3", "linked_recent_search": "v4"}.get(mode, PROMPT_VERSION)
+PROMPT_VERSION = "v5.1"  # prompts/extract.txt
 
 
 class Config(BaseModel):
@@ -23,10 +18,7 @@ class Config(BaseModel):
     gate_window_k: int = 5
     window_k: int = 10
     reply_chain_max: int = 3
-    open_tasks_max: int = 5
     evidence_per_task: int = 1
-    closed_lookup_days: int = 30
-    closed_tasks_max: int = 2
     context_token_budget: int = 3000
     message_max_tokens: int = 80
     coalesce_seconds: float = 5
@@ -36,33 +28,20 @@ class Config(BaseModel):
     undated_open_days: float = 14
     declined_suppress_days: float = 7
     llm_max_retries: int = 2
-    # ---- ngữ cảnh mới (tài liệu "Ngữ cảnh mới - task được link, 3 task gần nhất, tìm task") ----
-    context_mode: ContextMode = "retrieve_first"
+    # ---- ngữ cảnh: task được link + task khớp nội dung TIN MỚI + task gần nhất ----
     linked_tasks_max: int = 3
     linked_evidence_per_task: int = 3
-    recent_tasks_max: int = 3
-    search_enabled: bool = True
     search_max_results: int = 5
     search_lookup_days: float = 30
-    extract_max_calls_per_turn: int = 2
-    dedup_check_on_create: bool = True
-    dedup_min_keyword_overlap: int = 2
-    target_check_on_update: bool = True
-    search_mode: Literal["keyword", "semantic", "hybrid"] = "hybrid"
+    target_check_on_update: bool = True    # UPDATE/CANCEL nhắm nhầm → code tìm task khớp hơn → gọi lần 2
     semantic_min_similarity: Optional[float] = None  # kiểm tra target; None = mặc định embedder (OpenAI 0.45)
-    dedup_semantic_min_similarity: Optional[float] = None  # kiểm trùng; None = mặc định embedder (OpenAI 0.55)
-    target_check_max_candidates: int = 3  # kiểm tra target: số ứng viên NGỮ NGHĨA tối đa đưa vào lần 2 (DECISIONS #44)
-    semantic_floor: float = 0.35                     # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
+    target_check_max_candidates: int = 3  # kiểm tra target: số ứng viên gần nghĩa tối đa (DECISIONS #44)
+    semantic_floor: float = 0.35  # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
     rrf_k: int = 10
     prompt_cache_key: Optional[str] = "ai_reminder_extract"
-    # ---- v5: code tìm trước, LLM phán sau (context_mode = retrieve_first) ----
-    candidate_tasks_max: int = 5            # tổng task ở khối B (matched + recent)
+    candidate_tasks_max: int = 5            # tổng task ở khối CANDIDATE_TASKS (matched + recent)
     matched_tasks_max: int = 3              # task khớp nội dung TIN MỚI tối đa
-    matched_min_keyword_overlap: int = 1    # vào B1 khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
-    llm_flag_search: bool = True            # message_type = old_task_not_in_prompt → code tìm → lần 2
-    dedup_hard_block: bool = True           # bỏ CREATE trùng mạnh task declined cùng người (không hỏi LLM)
-    dedup_hard_keyword_overlap: int = 3
-    dedup_hard_similarity: Optional[float] = None  # None = không dùng ngữ nghĩa cho luật cứng
+    matched_min_keyword_overlap: int = 1    # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
     pricing: dict[str, dict[str, float]] = {}
 
 
@@ -73,10 +52,7 @@ CONFIG_HELP: dict[str, str] = {
     "gate_window_k": "Số tin trước trong ngữ cảnh của cổng",
     "window_k": "Số tin trước trong ngữ cảnh bộ trích (K)",
     "reply_chain_max": "Số tin tối đa lần ngược theo chuỗi reply",
-    "open_tasks_max": "(scored) Task đang mở tối đa đưa vào prompt",
     "evidence_per_task": "Tin bằng chứng gần nhất kèm mỗi task",
-    "closed_lookup_days": "(scored) Phạm vi truy vấn task cũ trong DB (ngày)",
-    "closed_tasks_max": "(scored) Task cũ tối đa đưa vào prompt",
     "context_token_budget": "Trần token input của bộ trích",
     "message_max_tokens": "Cắt tin dài hơn số token này",
     "coalesce_seconds": "Gộp tin đến dồn (giây)",
@@ -84,33 +60,21 @@ CONFIG_HELP: dict[str, str] = {
     "draft_ttl_days": "Nháp không được chạm tới thì stale (ngày)",
     "approved_grace_days": "Task đã duyệt còn mở sau hạn (ngày)",
     "undated_open_days": "Task đã duyệt không hạn còn mở kể từ lần chạm cuối (ngày)",
-    "declined_suppress_days": "Task/đề xuất bị từ chối còn dùng để chặn tạo lại (ngày)",
+    "declined_suppress_days": "Đề xuất bị từ chối không được đề xuất lại; task bị từ chối chuyển closed sau (ngày)",
     "llm_max_retries": "Retry khi lỗi parse hoặc mạng",
-    "context_mode": "scored = v3 (bảng điểm, top 5) | linked_recent_search = v4 (task được link + 3 task gần nhất + LLM tìm task) | retrieve_first = v5 (task được link + task khớp nội dung TIN MỚI do code tìm + task gần nhất)",
     "linked_tasks_max": "Task được link (reply/reaction) tối đa",
     "linked_evidence_per_task": "Tin bằng chứng kèm mỗi task được link",
-    "recent_tasks_max": "(linked_recent_search) Task được nhắc gần nhất đưa vào prompt",
-    "search_enabled": "(linked_recent_search) Cho phép LLM yêu cầu tìm task trong kho",
     "search_max_results": "Số kết quả tìm kiếm trả về LLM",
     "search_lookup_days": "Phạm vi thời gian tìm task / task được link (ngày)",
-    "extract_max_calls_per_turn": "Số lần gọi bộ trích tối đa mỗi lượt",
-    "dedup_check_on_create": "Kiểm trùng trong kho trước khi CREATE",
-    "dedup_min_keyword_overlap": "Số từ khoá chung tối thiểu để coi là có thể trùng",
     "target_check_on_update": "UPDATE/CANCEL nhắm task không được link mà khớp TIN MỚI kém hơn một task ngoài prompt (hoặc T<n> không tồn tại) → code tìm và hỏi lại LLM",
-    "search_mode": "keyword = BM25 | semantic = embedding | hybrid = trộn BM25 + embedding (RRF)",
-    "semantic_min_similarity": "Kiểm tra target: cosine tối thiểu của task gần nghĩa nhất; trống = mặc định embedder",
-    "dedup_semantic_min_similarity": "Kiểm trùng: cosine tối thiểu để coi là có thể trùng; trống = mặc định embedder",
+    "semantic_min_similarity": "Kiểm tra target: cosine tối thiểu để task gần nghĩa được đưa vào lần 2; trống = mặc định embedder",
     "target_check_max_candidates": "Kiểm tra target: số ứng viên gần nghĩa nhất tối đa đưa cho LLM chọn ở lần 2",
     "semantic_floor": "Cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa",
     "rrf_k": "Hằng số k của Reciprocal Rank Fusion",
     "prompt_cache_key": "prompt_cache_key gửi OpenAI (null = không gửi)",
-    "candidate_tasks_max": "(retrieve_first) Tổng task ở khối CANDIDATE_TASKS (khớp nội dung + gần nhất)",
-    "matched_tasks_max": "(retrieve_first) Task khớp nội dung TIN MỚI tối đa",
-    "matched_min_keyword_overlap": "(retrieve_first) Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",
-    "llm_flag_search": "(retrieve_first) LLM báo old_task_not_in_prompt → code tìm bằng TIN MỚI → gọi lần 2",
-    "dedup_hard_block": "(retrieve_first) Bỏ CREATE trùng mạnh task đã bị từ chối của cùng người, không hỏi LLM",
-    "dedup_hard_keyword_overlap": "Luật cứng: số từ khoá chung tối thiểu",
-    "dedup_hard_similarity": "Luật cứng: cosine tối thiểu (trống = không dùng ngữ nghĩa)",
+    "candidate_tasks_max": "Tổng task ở khối CANDIDATE_TASKS (khớp nội dung + gần nhất)",
+    "matched_tasks_max": "Task khớp nội dung TIN MỚI tối đa",
+    "matched_min_keyword_overlap": "Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",
 }
 
 

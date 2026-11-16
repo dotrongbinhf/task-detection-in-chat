@@ -1,0 +1,119 @@
+conv ch_cs group train
+member hoa Hoa | chị Hoa, Hoa CS
+member tu Tú | Tu
+member vinh Vinh | Vinh Lê
+member my My | My Trần
+member an An | An Vũ
+
+gold macro | Cập nhật macro trả lời hoàn tiền | assigned | tu | 2026-11-17 | active | informal_text,relative_deadline
+gold policy | Viết lại tài liệu chính sách đổi trả | assigned | vinh | 2026-11-23 | active | change_supersede,later_update_approved
+gold callback | Gọi lại khách khiếu nại đơn 8812 | assigned | my | none | cancelled | cancel
+gold escal | Tổng hợp ca escalation tuần này | self_commit | an | 2026-11-20 | active | self_commit,relative_deadline
+gold faq | Bổ sung FAQ về phí vận chuyển | assigned | my,tu | 2026-11-19 | active | multi_assignee,relative_deadline
+gold bot | Viết kịch bản chatbot chào khách mới | assigned | vinh | none | active | implicit_ask
+
+day 2026-11-16
+08:15 hoa: Chào team CS, tuần sale nên ticket sẽ đông nhé
+08:16 tu: dạ chị
+08:16 my: chào chị
+08:17 vinh: morning
+08:18 an: hi mọi người
+08:30 tu: cuối tuần ticket tồn 140 cái
+08:31 hoa: ưu tiên ticket hoàn tiền trước
+08:32 tu: dạ
+08:40 my: khách hỏi phí ship nhiều quá chị ạ
+08:41 hoa: ừ đợt này đổi phí
+08:50 hoa [mc]: Tu cap nhat macro tra loi hoan tien giup c nhe, mai ap dung   ## macro:assign macro:due
+08:51 tu: ok c   ## macro:accept
+09:10 vinh: hệ thống ticket hôm nay chậm quá
+09:11 an: em cũng thấy
+09:12 vinh: chắc do đông
+09:30 hoa [pl]: @Vinh viết lại tài liệu chính sách đổi trả nhé, thứ 4 chị cần   ## policy:assign policy:due
+09:31 vinh ^pl: dạ em nhận   ## policy:accept
+10:00 an: khách đơn 7721 chửi quá chị ơi
+10:01 hoa: chuyển chị xử lý
+10:02 an: dạ em chuyển rồi
+10:30 my: ticket hoàn tiền em xử lý được 30 cái
+10:31 hoa: giỏi
+11:00 hoa [cb]: @My gọi lại khách khiếu nại đơn 8812 nhé   ## callback:assign
+11:01 my: dạ   ## callback:accept
+13:20 an: Tuần này em tổng hợp các ca escalation gửi chị vào thứ 6 nhé   ## escal:self_commit escal:due
+13:21 hoa: ok em
+14:00 hoa [fq]: @My với @Tú bổ sung FAQ về phí vận chuyển trước thứ 5 nhé   ## faq:assign faq:due
+14:01 my ^fq: dạ   ## faq:accept
+14:02 tu ^fq: ok chị   ## faq:accept
+14:30 vinh: mọi người thấy tool ticket mới thế nào
+14:31 my: dễ dùng hơn
+14:32 an: tìm kiếm còn chậm
+15:00 tu: macro hoàn tiền em sửa được 3 mẫu rồi
+15:01 hoa: ok
+15:30 my: khách đơn 8812 em gọi không nghe máy
+15:31 hoa: ừ thử lại sau
+act 08:55 tu approve macro
+act 09:35 vinh approve policy
+act 14:05 my approve faq
+act 14:06 tu approve faq
+act 11:05 my approve callback
+
+day 2026-11-17
+08:20 tu: macro mới áp dụng rồi nhé mọi người
+08:21 my: cảm ơn Tú
+08:40 hoa: Hôm nay CSAT hôm qua có 4.2
+08:41 vinh: thấp hơn tuần trước
+08:42 hoa: do ticket tồn
+09:00 hoa [pl2]: Vinh ơi tài liệu đổi trả lùi sang thứ 6 nhé, pháp chế còn sửa điều khoản   ## policy:due
+09:01 vinh: dạ
+09:25 hoa [pl3]: à thôi thứ 2 tuần sau đi em, pháp chế bảo cần thêm 2 ngày   ## policy:due
+09:26 vinh: dạ thứ 2 ạ
+10:00 hoa [cbc]: @My thôi khỏi gọi lại khách đơn 8812 nhé, khách tự huỷ đơn rồi   ## callback:cancel
+10:01 my: dạ vâng
+10:30 an: khách hỏi bao giờ có hàng iPhone mới
+10:31 hoa: chưa có lịch em
+10:32 an: dạ
+11:00 hoa [bt]: Chatbot chưa có kịch bản chào khách mới, ai viết được không   ## bot:assign
+11:02 tu: em đang làm FAQ
+11:05 vinh ^bt: để em viết cho chị   ## bot:accept
+11:06 hoa: cảm ơn Vinh
+13:30 an: ticket tồn còn 60 cái
+13:31 hoa: tốt quá
+14:00 vinh: kịch bản chatbot mình xưng hô thế nào chị
+14:01 hoa: mình - bạn em
+14:02 vinh: dạ
+15:20 my: FAQ phí ship em viết xong phần nội thành
+15:21 tu: tớ làm phần tỉnh nhé
+15:22 my: ok
+16:30 tu: mai em đến muộn 30 phút nhé chị
+16:31 hoa: ok em
+act 09:30 vinh approve_change pl3
+act 10:05 my approve_change cbc
+
+day 2026-11-18
+08:30 hoa: hôm qua CSAT lên 4.5 rồi
+08:31 an: yeah
+08:32 my: 🎉
+09:00 vinh: kịch bản chatbot em xong bản nháp
+09:01 hoa: để chị đọc   ## hn
+09:30 tu: khách hỏi chương trình thành viên nhiều quá
+09:31 an: mình có tài liệu chưa
+09:32 hoa: chưa, để chị hỏi marketing đã   ## hn
+10:30 my: hệ thống ticket lỗi đăng nhập
+10:31 vinh: em cũng bị
+10:40 my: ổn rồi
+14:00 an: ca escalation tuần này có 7 ca
+14:01 hoa: ok em
+
+day 2026-11-19
+08:40 tu: FAQ phí ship em với My xong rồi chị
+08:41 hoa: nhanh vậy, cảm ơn hai em
+09:30 an: khách khen tổng đài viên mới nhiệt tình
+09:31 hoa: ai vậy
+09:32 an: bạn Tú đó chị
+09:33 tu: hihi
+14:00 hoa: tuần này mọi người vất vả rồi
+14:01 tu: 💪
+
+day 2026-11-20
+10:00 an: tổng hợp escalation em gửi chị rồi nhé
+10:01 hoa: cảm ơn em
+15:00 vinh: tài liệu đổi trả em làm được 70% rồi
+15:01 hoa: ok

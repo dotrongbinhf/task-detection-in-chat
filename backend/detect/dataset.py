@@ -30,15 +30,17 @@ def resolve_dir(name: str) -> Path:
     return DATA / re.sub(r"[^a-zA-Z0-9_-]", "", name)
 
 
-def load_dataset(name: str) -> dict[str, Any]:
-    """'empty' = cùng thành viên với sample nhưng không có tin nào — để người dùng tự nhập chat."""
+def load_dataset(name: str, split: str | None = None) -> dict[str, Any]:
+    """'empty' = cùng thành viên với sample nhưng không có tin nào — để người dùng tự nhập chat.
+
+    split: tên một phần trong `<dataset>/split.json` (train / dev / test) → chỉ giữ các hội thoại của phần đó."""
     d = resolve_dir("sample" if name == "empty" else name)
     members = {k: [Member(**m) for m in v] for k, v in json.loads((d / "members.json").read_text(encoding="utf-8")).items()}
     if name == "empty":
         return dict(name=name, messages=[], members=members, gold=None, hard_negatives=[], user_actions=[])
     hn = d / "hard_negatives.txt"
     gold = [GoldTask(**g) for g in _jsonl(d / "gold.jsonl")]
-    return dict(
+    ds = dict(
         name=Path(name).name,
         messages=[Message(**m) for m in _jsonl(d / "messages.jsonl")],
         members=members,
@@ -46,17 +48,28 @@ def load_dataset(name: str) -> dict[str, Any]:
         hard_negatives=[l.strip() for l in hn.read_text(encoding="utf-8").splitlines() if l.strip()] if hn.exists() else [],
         user_actions=[UserAction(**a) for a in _jsonl(d / "user_actions.jsonl")],
     )
+    return subset(ds, d, split) if split else ds
+
+
+def subset(ds: dict[str, Any], d: Path, split: str) -> dict[str, Any]:
+    """Chỉ giữ hội thoại thuộc `split` (tin, nhãn, hard negative, thao tác duyệt)."""
+    p = d / "split.json"
+    if not p.exists():
+        raise SystemExit(f"{d} không có split.json")
+    parts = json.loads(p.read_text(encoding="utf-8"))
+    if split not in parts:
+        raise SystemExit(f"split.json không có phần '{split}' (có: {', '.join(parts)})")
+    keys = set(parts[split])
+    msgs = [m for m in ds["messages"] if m.conversation_id in keys]
+    ids = {m.id for m in msgs}
+    return {**ds, "name": f"{ds['name']}:{split}", "messages": msgs,
+            "members": {k: v for k, v in ds["members"].items() if k in keys},
+            "gold": [g for g in ds["gold"] or [] if g.conversation_key.split(";")[0] in keys] or None,
+            "hard_negatives": [h for h in ds["hard_negatives"] if h.split("#")[0] in ids],
+            "user_actions": [a for a in ds["user_actions"] if a.message_id.split("#")[0] in ids]}
 
 
 def load_prompts() -> dict[str, str]:
-    extract = (ROOT / "prompts" / "extract_v3.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
-    v4 = (ROOT / "prompts" / "extract_v4.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
-    v5 = (ROOT / "prompts" / "extract_v5.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
-    gate = (ROOT / "prompts" / "gate_v3.txt").read_text(encoding="utf-8")
-    return {"extract": extract.strip(), "extract_v4": v4.strip(), "extract_v5": v5.strip(), "gate": gate.strip()}
-
-
-def instructions_for(prompts: dict[str, str], mode: str) -> str:
-    """Khối 1 theo chế độ ngữ cảnh: scored → v3, linked_recent_search → v4, retrieve_first → v5."""
-    key = {"scored": "extract", "linked_recent_search": "extract_v4"}.get(mode, "extract_v5")
-    return prompts.get(key, prompts["extract"])
+    extract = (ROOT / "prompts" / "extract.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
+    gate = (ROOT / "prompts" / "gate.txt").read_text(encoding="utf-8")
+    return {"extract": extract.strip(), "gate": gate.strip()}

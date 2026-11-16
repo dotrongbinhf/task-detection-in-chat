@@ -17,16 +17,6 @@ from detect.timeexpr import resolve_due
 PROMPTS = load_prompts()
 
 
-@pytest.fixture(autouse=True, params=["scored", "linked_recent_search", "retrieve_first"])
-def context_mode(request):
-    """Mọi test v3 chạy ở cả hai chế độ: `scored` phải giữ nguyên hành vi v3; `linked_recent_search` không được
-    làm hỏng luật sổ cái / Validate / hàng đợi (đổi giá trị mặc định của Config trong lúc chạy test)."""
-    old = Config.model_fields["context_mode"].default
-    Config.model_fields["context_mode"].default = request.param
-    Config.model_rebuild(force=True)
-    yield request.param
-    Config.model_fields["context_mode"].default = old
-    Config.model_rebuild(force=True)
 MEMBERS = {
     "g": [Member(user_id="u_hung", display_name="Hưng"), Member(user_id="u_linh", display_name="Linh"),
           Member(user_id="u_nam", display_name="Nam"), Member(user_id="u_nam2", display_name="Nam")],
@@ -130,23 +120,6 @@ def test_reply_chain_and_maps():
     assert ctx.new_msgs[0].id == "new"
 
 
-def test_budget_trim_order(context_mode):
-    if context_mode != "scored":
-        pytest.skip("thứ tự cắt của v3; chế độ linked có test riêng (test_context_v4.py::test_budget_never_cuts_linked)")
-    ms = [msg(f"m{i}", f"08:{i:02d}", "u_hung", ("Linh làm việc số %d nhé " % i) * 8, mentions=[{"user_id": "u_linh", "name": "Linh"}]) for i in range(20)]
-    fake = FakeLLM({f"m{i}": {"ops": [create(f"m{i}", ["u_linh"], title=f"Việc {i}")]} for i in range(20)})
-    s = state_of(ms)
-    turns = run_all(s, fake, Config(context_token_budget=1700, message_max_tokens=80))
-    trims = [t for tr in turns for t in (tr["context"] or {}).get("trims", [])]
-    assert trims, "phải có budget_trim"
-    kinds = [t.split(" ")[0] for t in trims]
-    order = ["drop_db_task", "drop_evidence", "drop_open_task", "reduce_k"]
-    first_turn_trims = [t.split(" ")[0] for t in turns[-1]["context"]["trims"]]
-    assert first_turn_trims == sorted(first_turn_trims, key=order.index)
-    assert all(k in order for k in kinds)
-    assert len(turns[-1]["context"]["selected"]) >= 3
-
-
 # ---------------- validate ----------------
 
 def test_validate_rules():
@@ -231,8 +204,8 @@ def _approved_task_state(extra_msgs, fake_extra, actions=()):
     return s
 
 
-DUE_FRI = {"due_text": "thứ 6", "due_kind": "weekday", "due_weekday": 5}
-DUE_SAT = {"due_text": "thứ 7", "due_kind": "weekday", "due_weekday": 6}
+DUE_FRI = {"due_text": "thứ 6", "due_kind": "weekday", "due_weekday": 6}  # model ghi số như trong chữ
+DUE_SAT = {"due_text": "thứ 7", "due_kind": "weekday", "due_weekday": 7}
 
 
 def test_change_proposal_supersede_and_approve():
@@ -292,8 +265,10 @@ def test_resolve_assignees():
     assert ids == ["u_linh", "u_hung"]
     ids, det = resolve_assignees(["Nam"], ctx, "a")  # hai người tên Nam → không gán
     assert ids == [] and "trùng" in det[0]["how"]
-    ids, det = resolve_assignees(["ADDRESSEE"], ctx, "a")  # nhóm → không hợp lệ
-    assert ids == []
+    # nhóm: ADDRESSEE = người được @mention duy nhất trong tin anchor; không có @mention → không gán
+    assert resolve_assignees(["ADDRESSEE"], ctx, "a")[0] == ["u_linh"]
+    ids, det = resolve_assignees(["ADDRESSEE"], ctx, "b")
+    assert ids == [] and "0 người" in det[0]["how"]
 
 
 def test_addressee_in_dm():

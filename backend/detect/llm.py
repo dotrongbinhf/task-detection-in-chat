@@ -11,7 +11,6 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
 from dotenv import load_dotenv
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from .config import ROOT
 from .context import BuiltContext
 from .heuristic import heuristic_extract, heuristic_gate
-from .models import EXTRACT_JSON_SCHEMA, extract_schema
+from .models import EXTRACT_JSON_SCHEMA
 
 load_dotenv(ROOT / ".env")
 # Biến để trống trong .env (vd. OPENAI_BASE_URL=) sẽ bị SDK hiểu là URL rỗng → bỏ đi.
@@ -131,13 +130,11 @@ class OpenAILLM:
         return GateResult(py / (py + pn), v["content"], int((time.time() - t0) * 1000), hit)
 
     def extract(self, ctx: BuiltContext, attempt: int) -> ExtractResult:
-        """response_format json_schema strict; temperature=0, seed cố định; khối 1 đứng đầu để tận dụng prompt caching.
-
-        Chế độ scored gửi đúng request v3 (schema v3, không prompt_cache_key) để so sánh và để cache đĩa cũ còn trúng."""
+        """response_format json_schema strict; temperature=0, seed cố định; khối 1 đứng đầu để tận dụng prompt caching."""
         t0 = time.time()
         req = dict(model=self.extract_model, messages=[{"role": "system", "content": ctx.system},
                                                        {"role": "user", "content": ctx.user}],
-                   temperature=0, seed=7 + attempt, response_format={"type": "json_schema", "json_schema": extract_schema(ctx.mode)})
+                   temperature=0, seed=7 + attempt, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
         if ctx.cache_key:
             req["prompt_cache_key"] = ctx.cache_key  # định tuyến các lời gọi có cùng tiền tố tới cùng máy cache
 
@@ -182,8 +179,7 @@ class HeuristicLLM:
 class FakeLLM:
     """Cho unit test: trả kết quả định sẵn theo id TIN MỚI (message_id thật → được ánh xạ sang #n).
 
-    `by_message[id]` = {"ops": [...], "search": ..., "message_type": ...} cho mọi lần gọi, hoặc [lần1, lần2] theo lần gọi
-    trong lượt. Chế độ retrieve_first (schema v5) không trả `search`."""
+    `by_message[id]` = {"ops": [...], "message_type": ...} cho mọi lần gọi, hoặc [lần1, lần2] theo lần gọi trong lượt."""
 
     by_message: dict[str, Any] = field(default_factory=dict)  # message_id -> {"ops": [...]} (tham chiếu bằng message_id / task_id)
     p_by_message: dict[str, float] = field(default_factory=dict)
@@ -200,7 +196,7 @@ class FakeLLM:
 
     def extract(self, ctx: BuiltContext, attempt: int) -> ExtractResult:
         out: dict[str, Any] = {"ops": []}
-        self.calls.append({"call": ctx.call, "new": [m.id for m in ctx.new_msgs], "extra_kind": ctx.extra_kind,
+        self.calls.append({"call": ctx.call, "new": [m.id for m in ctx.new_msgs],
                            "task_map": dict(ctx.task_map), "user": ctx.user})
         for m in ctx.new_msgs:
             v = self.by_message.get(m.id)
@@ -211,12 +207,8 @@ class FakeLLM:
             if v:
                 loc = json.loads(_localize(json.dumps(v, ensure_ascii=False), ctx))
                 out["ops"] += loc.get("ops", [])
-                if loc.get("search") is not None and ctx.mode == "linked_recent_search":
-                    out["search"] = loc["search"]
-                if loc.get("message_type") is not None and ctx.mode != "scored":
+                if loc.get("message_type") is not None:
                     out["message_type"] = loc["message_type"]
-        if ctx.mode == "linked_recent_search":
-            out.setdefault("search", None)
         return ExtractResult(json.dumps(out, ensure_ascii=False))
 
 

@@ -19,7 +19,7 @@ from .run import (add_user_message, add_user_reaction, advance_time, flush_actio
                   process_turn, ui_user_action)
 from .tokens import set_model
 
-app = FastAPI(title="AI Reminder — task detection v3")
+app = FastAPI(title="AI Reminder — task detection")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

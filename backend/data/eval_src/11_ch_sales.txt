@@ -1,0 +1,127 @@
+conv ch_sales group test
+member khanh Khánh | anh Khánh, Khanh
+member mai Mai | Mai Phạm, chị Mai
+member duc Đức | Duc
+member hieu Hiếu | Hieu
+member yen Yến | Yen
+
+gold quote | Gửi báo giá cho khách Hoàng Phát | assigned | mai | 2026-12-01 | active | name_collision,relative_deadline
+gold contract | Soạn hợp đồng khung cho khách ABC | assigned | duc | 2026-12-07 | active | busy_channel_10,late_deadline,far_update_no_reply,matched_far_no_reply
+gold crm | Cập nhật pipeline CRM | assigned | yen | 2026-12-04 | active | single_message,relative_deadline
+gold visit | Đi gặp khách Minh Long | self_commit | khanh | 2026-12-03 | active | self_commit,relative_deadline
+gold deck | Làm sales deck mới cho sản phẩm B2B | assigned | hieu | none | active | recreate_declined_hard,declined_not_recreated,recreate_declined_far
+gold poster | In poster cho hội chợ | assigned | mai | none | active | reaction_link,implicit_ask,name_collision
+gold survey1 | Làm khảo sát hài lòng khách hàng | assigned | yen | none | cancelled | cancel
+gold survey2 | Làm khảo sát hài lòng khách hàng (giao lại) | assigned | yen | none | active | cancelled_then_reassigned
+gold weekly | Làm báo cáo doanh số tuần | assigned | mai | 2026-12-07 | active | paraphrase,matched_paraphrase,later_update_approved,busy_channel_10,far_reference,long_running
+gold catalogue | Gửi catalogue cho khách Sao Mai | self_commit | hieu | none | active | interleaved_topics,name_collision
+gold callback | Gọi lại khách Tân Á | self_commit | duc | 2026-11-30 | active | interleaved_topics,self_commit
+
+day 2026-11-30
+08:30 khanh: Chào team sales, tháng cuối năm chạy chỉ tiêu nhé 💰
+08:31 mai: dạ anh
+08:31 duc: chào anh
+08:32 hieu: morning
+08:33 yen: hi mọi người
+08:40 duc: tháng 11 mình đạt bao nhiêu % anh
+08:41 khanh: 94%, thiếu chút xíu
+08:41 hieu: tiếc ghê
+09:00 khanh [qt]: @Mai gửi báo giá cho khách Hoàng Phát trước thứ 3 nhé   ## quote:assign quote:due
+09:01 mai ^qt: dạ em nhận   ## quote:accept
+09:10 khanh [ct]: @Đức soạn hợp đồng khung cho khách ABC nhé   ## contract:assign
+09:11 duc: dạ   ## contract:accept
+09:20 khanh: @Yến cập nhật pipeline CRM trước cuối tuần nhé, nhiều deal chưa đổi stage   ## crm:assign crm:due
+09:21 yen: dạ vâng   ## crm:accept
+09:40 khanh: Thứ 5 anh đi gặp khách Minh Long nhé, ai cần gửi gì thì báo anh   ## visit:self_commit visit:due
+09:41 duc: dạ
+10:00 khanh [dk]: @Hiếu làm sales deck mới cho sản phẩm B2B nhé   ## deck:assign
+10:02 hieu: anh ơi em đang chạy 3 khách lớn
+10:03 khanh: ừ để anh xem   ## hn
+10:20 duc [sm]: Hiếu ơi khách Sao Mai hỏi catalogue đó
+10:21 hieu: ờ để tớ gửi catalogue cho họ   ## catalogue:self_commit
+10:22 duc: còn khách Tân Á thì sáng nay tớ gọi lại   ## callback:self_commit callback:due
+10:23 hieu: Sao Mai lấy bản 2025 hay 2026
+10:24 duc: 2026 nhé
+10:25 hieu: ok
+10:26 duc: Tân Á chắc chốt được 200 triệu
+10:27 hieu: ngon
+11:00 khanh [ps]: Ai in poster cho hội chợ được không, thứ 6 hội chợ rồi   ## poster:assign
+11:02 yen: em không biết chỗ in
+13:30 khanh [sv]: @Yến làm khảo sát hài lòng khách hàng quý 4 nhé   ## survey1:assign
+13:31 yen: dạ   ## survey1:accept
+14:00 hieu: catalogue gửi Sao Mai rồi nha
+14:01 duc: thanks
+14:30 khanh [wk]: @Mai làm báo cáo doanh số tuần, thứ 6 gửi anh nhé   ## weekly:assign weekly:due
+14:31 mai ^wk: dạ   ## weekly:accept
+15:00 duc: Tân Á em gọi rồi, họ hẹn tuần sau ký
+15:01 khanh: tốt lắm
+15:30 yen: anh Khánh ơi khảo sát làm Google Form hay Typeform
+15:31 khanh: Google Form em
+16:00 khanh: @Yến thôi khỏi làm khảo sát nhé, marketing làm rồi   ## survey1:cancel
+16:01 yen: dạ vâng ạ
+16:30 hieu: mai em đi gặp khách cả ngày nhé
+16:31 khanh: ok em
+act 09:05 mai approve quote
+act 09:15 duc approve contract
+act 09:25 yen approve crm
+act 10:10 hieu decline deck
+act 14:35 mai approve weekly
+
+day 2026-12-01
+08:40 mai: báo giá Hoàng Phát em gửi rồi anh nhé
+08:41 khanh: cảm ơn em
+09:00 +mai like ps   ## poster:accept
+09:01 mai: poster em in cho, chỗ quen   ## poster:accept
+09:02 khanh: ok Mai
+09:30 duc: hợp đồng ABC em làm được nửa rồi
+09:31 khanh: ok
+10:00 yen: pipeline em cập nhật được 20 deal
+10:01 khanh: tốt
+10:30 duc: Có ai thấy CRM chậm không
+10:31 yen: chậm lắm
+10:32 duc: chắc do update bản mới
+11:00 khanh: Mai hạn nộp báo cáo chi phí đó mọi người   ## hn
+11:01 duc: mai là thứ 4 hả anh
+11:02 khanh: ừ
+14:00 yen: hội chợ có cần standee không anh
+14:01 khanh: 2 cái em
+14:02 yen: dạ
+15:00 hieu: khách lớn số 2 chốt rồi anh ơi
+15:01 khanh: tuyệt vời 🎉
+15:01 duc: giỏi
+act 09:05 mai approve poster
+
+day 2026-12-02
+08:50 khanh: Sáng nay họp review pipeline lúc 10h
+08:51 yen: dạ
+09:30 khanh: @Yến làm khảo sát hài lòng khách hàng quý 4 nhé, sếp vẫn cần bản riêng của sales   ## survey2:assign
+09:31 yen: dạ em làm   ## survey2:accept
+10:00 khanh: vào họp nhé
+11:30 khanh: @Hiếu làm sales deck mới cho sản phẩm B2B nhé, tuần sau có khách hỏi   ## deck:assign
+11:32 hieu: anh ơi em vẫn kín lịch, nhờ Đức được không ạ
+11:33 khanh: ừ để anh hỏi
+13:30 duc: mọi người ơi máy in tầng 3 hết mực
+13:31 yen: em báo hành chính rồi nha
+14:30 mai: poster in xong, mai lấy
+14:31 khanh: ok
+15:00 hieu: deal Phú Thái đang treo, khách chưa trả lời
+15:01 khanh: để anh xem đã   ## hn
+act 09:35 yen approve survey2
+
+day 2026-12-03
+08:30 khanh: Hôm nay anh đi Minh Long nhé
+08:31 duc: anh đi may mắn
+09:00 mai [wkd]: Anh Khánh ơi weekly sales report em xin lùi sang thứ 2 nhé, số liệu kho chưa chốt   ## weekly:due
+09:01 khanh: ok em
+09:30 duc: chị Mai ơi standee in luôn chưa
+09:31 mai: in rồi nha
+10:00 khanh [ctd]: @Đức hợp đồng khung ABC xong trước thứ 2 tuần sau nhé, khách hẹn ký   ## contract:due
+10:01 duc: dạ anh
+11:00 yen: pipeline xong 45 deal rồi
+11:01 khanh: ok
+14:00 khanh: Minh Long chốt rồi nhé mọi người
+14:01 hieu: 🎉🎉
+14:01 mai: quá đỉnh
+14:02 yen: anh giỏi quá
+act 09:05 mai approve_change wkd
+act 10:05 duc approve_change ctd

@@ -1,14 +1,11 @@
-# Tham số mục 6 (docs v3). Ghi đè bằng --set key=value. Giá trị là điểm khởi đầu, chưa đo.
+# Tham số engine. Ghi đè bằng --set key=value. Giá trị là điểm khởi đầu; chỗ nào đã đo thì ghi số DECISIONS.
 draft_min: assignee            # assignee | assignee_due
-gate_mode: none                # none (trần chất lượng) | shadow (chấm p, không chặn) | llm (chặn khi p < ngưỡng)
+gate_mode: none                # none (không lọc) | shadow (chấm p, không chặn) | llm (chặn khi p < ngưỡng)
 gate_threshold: 0.20
 gate_window_k: 5
-window_k: 10
+window_k: 10                   # số tin trước trong LỊCH SỬ GẦN
 reply_chain_max: 3
-open_tasks_max: 5
-evidence_per_task: 1
-closed_lookup_days: 30
-closed_tasks_max: 2
+evidence_per_task: 1           # tin bằng chứng kèm mỗi task ở CANDIDATE_TASKS
 context_token_budget: 3000
 message_max_tokens: 80
 coalesce_seconds: 5
@@ -19,36 +16,22 @@ undated_open_days: 14
 declined_suppress_days: 7
 llm_max_retries: 2
 
-# Ngữ cảnh mới (tài liệu "Ngữ cảnh mới - task được link, 3 task gần nhất, tìm task").
-# scored = v3 (bảng điểm, dùng open_tasks_max / closed_tasks_max / closed_lookup_days ở trên) — giữ để so sánh.
-context_mode: retrieve_first         # scored (v3) | linked_recent_search (v4) | retrieve_first (v5)
+# Ngữ cảnh: code tìm task trước, LLM phán sau.
 linked_tasks_max: 3                  # task được link (reply / reaction vào tin bằng chứng)
-linked_evidence_per_task: 3          # tin bằng chứng kèm mỗi task được link
-recent_tasks_max: 3                  # task được nhắc gần nhất (theo last_mentioned_at)
-search_enabled: true                 # LLM được yêu cầu tìm task trong kho
-search_max_results: 5
-search_lookup_days: 30               # phạm vi tìm / task được link
-extract_max_calls_per_turn: 2        # lần 2 = sau tìm task, kiểm tra target hoặc kiểm trùng
-dedup_check_on_create: true
-dedup_min_keyword_overlap: 2
-target_check_on_update: true         # thêm ngoài tài liệu — DECISIONS #31
-search_mode: hybrid                  # keyword | semantic | hybrid (BM25 + embedding, RRF) — DECISIONS #41
-semantic_min_similarity:             # kiểm tra target; trống = mặc định embedder (text-embedding-3-small: 0.45)
-dedup_semantic_min_similarity:       # kiểm trùng; trống = mặc định embedder (text-embedding-3-small: 0.55)
-target_check_max_candidates: 3       # DECISIONS #44
-semantic_floor: 0.35
-rrf_k: 10
-prompt_cache_key: ai_reminder_extract
-
-# v5 — code tìm trước, LLM phán sau (tài liệu "Prototype detection task v5", mục 9). recent_tasks_max / search_enabled
-# ở trên chỉ dùng cho linked_recent_search.
-candidate_tasks_max: 5               # tổng task ở khối CANDIDATE_TASKS (matched + recent)
+linked_evidence_per_task: 3
+candidate_tasks_max: 5               # tổng task ở CANDIDATE_TASKS (matched + recent)
 matched_tasks_max: 3                 # task khớp nội dung TIN MỚI (BM25 + embedding)
 matched_min_keyword_overlap: 1       # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
-llm_flag_search: true                # message_type = old_task_not_in_prompt → code tìm → lần 2
-dedup_hard_block: true               # CREATE trùng mạnh task declined cùng người → bỏ, không hỏi LLM
-dedup_hard_keyword_overlap: 3
-dedup_hard_similarity:               # trống = tắt phần ngữ nghĩa (text-embedding-3-small: task sai tới 0.58)
+search_lookup_days: 30               # phạm vi tìm / task được link
+search_max_results: 5
+semantic_floor: 0.35
+rrf_k: 10
+
+# Lần gọi 2 duy nhất: kiểm tra target của UPDATE / CANCEL (DECISIONS #31, #44).
+target_check_on_update: true
+semantic_min_similarity:             # trống = mặc định embedder (text-embedding-3-small: 0.45)
+target_check_max_candidates: 3
+prompt_cache_key: ai_reminder_extract
 
 # Bảng giá USD / 1M token để ước tính chi phí (input, input được cache, output).
 pricing:

@@ -1,0 +1,129 @@
+conv ch_product group train
+member minh Minh | anh Minh, Minh Hoàng
+member ha Hà | Ha
+member nam Nam | Nam Trần
+member quan Quân | Quan
+member nhi Nhi | Nhi Hồ
+
+gold spec | Viết spec tính năng đổi điểm thưởng | assigned | ha | none | active | recreate_declined_soft,declined_not_recreated
+gold txhist | Làm màn hình lịch sử giao dịch | assigned | nam | 2026-11-20 | active | llm_flag_fallback,far_reference,later_update_approved
+gold onboard | Làm onboarding flow mới | assigned | quan | none | active | reply_but_other_task
+gold proto | Làm prototype màn ví | assigned | nhi,quan | 2026-11-19 | active | multi_assignee,relative_deadline
+gold feedback | Tổng hợp feedback user từ App Store | assigned | ha | none | active | burst
+gold compet | Làm bản so sánh tính năng với đối thủ | open_ask | - | none | active | unanswered_ask,no_assignee
+gold intv1 | Lên kịch bản phỏng vấn user | assigned | nhi | none | cancelled | cancel
+gold intv2 | Lên kịch bản phỏng vấn user (giao lại) | assigned | nhi | none | active | cancelled_then_reassigned
+
+day 2026-11-16
+08:30 minh: Chào team product
+08:31 ha: chào anh
+08:31 nhi: hi anh
+08:32 nam: morning
+08:33 quan: chào mọi người
+08:40 minh: Q1 năm sau mình tập trung vào loyalty nhé
+08:41 ha: tích điểm hả anh
+08:42 minh: tích điểm, đổi quà, hạng thành viên
+08:43 nhi: nghe hay
+09:00 minh [sp]: @Hà viết spec tính năng đổi điểm thưởng nhé   ## spec:assign
+09:02 ha: anh ơi tuần này em kín lịch phỏng vấn rồi
+09:03 minh: ừ để anh tính
+09:20 minh [tx]: @Nam làm màn hình lịch sử giao dịch nhé, thứ 4 có bản demo   ## txhist:assign txhist:due
+09:21 nam ^tx: dạ em nhận   ## txhist:accept
+09:40 quan: Mọi người thấy app đối thủ mới ra tính năng gì chưa
+09:41 nhi: thấy rồi, mini game
+09:42 quan: đẹp ghê
+09:43 nam: cũng thường
+10:00 minh [ob]: @Quân làm onboarding flow mới nhé, flow cũ drop 40%   ## onboard:assign
+10:01 quan: dạ   ## onboard:accept
+10:30 ha: tỉ lệ drop ở bước nào anh
+10:31 minh: bước nhập CMND
+10:32 ha: hiểu rồi
+11:00 minh [pv]: @Nhi với @Quân làm prototype màn ví trước thứ 5 nhé   ## proto:assign proto:due
+11:01 nhi ^pv: dạ ok anh   ## proto:accept
+11:02 quan ^pv: dạ   ## proto:accept
+13:30 minh: Có ai làm được bản so sánh tính năng với đối thủ không, sếp muốn xem   ## compet:assign
+13:32 nam: em đang làm màn giao dịch
+13:33 ha: em kín rồi anh
+13:34 minh: ừ thôi để sau
+14:00 quan: Figma file onboarding cũ ở đâu anh
+14:01 minh: trong project Growth
+14:02 quan: dạ thấy rồi
+14:30 nhi: prototype mình làm bằng Figma hay ProtoPie
+14:31 minh: Figma thôi em
+14:32 nhi: dạ
+15:10 minh [iv]: @Nhi lên kịch bản phỏng vấn user cho loyalty nhé   ## intv1:assign
+15:11 nhi: dạ   ## intv1:accept
+15:40 ha: mọi người có ai biết công cụ nào record phỏng vấn tốt không
+15:41 nam: Otter
+15:42 ha: tiếng Việt được không
+15:43 nam: không chắc
+act 09:25 nam approve txhist
+act 10:05 quan approve onboard
+act 11:05 nhi approve proto
+act 11:06 quan approve proto
+act 09:10 ha decline spec
+
+day 2026-11-17
+08:30 minh: Hôm qua có 200 review mới trên App Store
+08:30:02 minh: nhiều bạn phàn nàn đăng nhập
+08:30:03 minh: @Hà tổng hợp feedback user từ App Store tuần này giúp anh   ## feedback:assign
+08:30:05 minh: lọc theo 1-2 sao trước
+08:32 ha: dạ em làm   ## feedback:accept
+09:00 nam: màn lịch sử giao dịch em làm xong filter rồi
+09:01 minh: ok
+09:30 nhi: anh Minh ơi kịch bản phỏng vấn tập trung vào đổi quà hay hạng thành viên
+09:31 minh: đổi quà trước em
+09:32 nhi: dạ
+10:00 minh [obd] ^tx: Quân ơi onboarding flow thêm bước xác thực OTP nhé, bên bảo mật yêu cầu   ## onboard:content
+10:01 quan: dạ em thêm
+10:40 quan: prototype màn ví em làm phần nạp tiền rồi
+10:41 nhi: tớ làm phần rút
+10:42 quan: ok
+11:30 minh: @Nhi thôi khỏi lên kịch bản phỏng vấn nhé, team research làm rồi   ## intv1:cancel
+11:31 nhi: dạ vâng anh
+13:20 ha: feedback App Store chủ yếu về đăng nhập với chậm
+13:21 minh: ok
+14:00 nam: mọi người có ai thấy API giao dịch trả về chậm không
+14:01 quan: chậm lúc tải 100 bản ghi
+14:02 nam: phải phân trang thôi
+14:03 quan: ừ
+15:00 minh: chiều nay họp roadmap lúc 4h nhé
+15:01 nhi: dạ
+15:01 ha: ok anh
+16:00 minh: vào họp nhé
+act 10:05 quan approve_change obd
+
+day 2026-11-18
+08:40 nam: Demo màn giao dịch lúc mấy giờ anh
+08:41 minh: 3h chiều
+08:42 nam: dạ
+09:30 minh: Hà ơi làm giúp anh tài liệu đổi điểm nhé, sếp hỏi rồi   ## spec:assign
+09:32 ha: anh ơi em vẫn đang phỏng vấn ứng viên ạ
+09:33 minh: à ừ anh quên
+10:00 nhi: prototype màn ví gần xong rồi
+10:01 minh: tốt
+11:00 quan: OTP mình dùng SMS hay Zalo ZNS anh
+11:02 minh: ZNS cho rẻ
+11:03 quan: dạ
+13:30 ha: feedback em tổng hợp xong, để trong sheet nhé
+13:31 minh: cảm ơn Hà
+14:00 minh [txd]: Nam ơi cái anh nhờ hôm thứ 2 lùi sang thứ 6 nhé, chiều nay sếp bận không xem demo được   ## txhist:due
+14:01 nam: dạ vâng anh
+16:30 ha: mai em đi phỏng vấn ở ngoài cả ngày nhé
+16:31 minh: ok em
+
+day 2026-11-19
+08:40 minh: Research xong rồi, kết quả không đủ sâu
+08:41 nhi: vậy hả anh
+08:45 minh: @Nhi lên kịch bản phỏng vấn user cho loyalty nhé, mình tự làm thêm 5 buổi   ## intv2:assign
+08:46 nhi: dạ em làm   ## intv2:accept
+09:30 nhi: prototype màn ví xong rồi anh
+09:31 minh: đẹp lắm
+10:30 quan: onboarding flow có OTP rồi nhé
+10:31 minh: ok
+14:00 nam: màn giao dịch em thêm export CSV được không anh
+14:02 minh: chưa cần em
+14:03 nam: dạ
+16:00 minh: Cảm ơn mọi người tuần này
+16:01 ha: 💪
+act 14:05 nam approve_change txd

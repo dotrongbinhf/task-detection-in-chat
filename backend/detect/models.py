@@ -93,7 +93,6 @@ DueKind = Literal["none", "event", "relative_day", "weekday", "week_part", "abso
 ChangeField = Literal["title", "notes", "kind", "assignee_refs", "due", "status"]
 
 OPEN_STATUSES = ("candidate", "draft", "approved", "declined")
-DB_STATUSES = ("expired", "stale", "closed", "cancelled")
 DUE_FIELDS = ("due_text", "due_kind", "due_day_offset", "due_weekday", "due_week_offset",
               "due_week_part", "due_abs_day", "due_abs_month")
 
@@ -227,37 +226,11 @@ class Op(BaseModel):
     changes: Optional[list[Change]]
 
 
-# LLM yêu cầu tìm task trong kho khi TIN MỚI nói về việc cũ không có trong ngữ cảnh.
-# (Không dùng docstring: pydantic đưa docstring vào JSON schema → tốn token mỗi lần gọi.)
-class SearchRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    query: str
-    people: Optional[list[str]]
-    reason: str
-
-
-# Schema v3 (chế độ scored) — giữ nguyên từng byte để so sánh và để cache đĩa của các lần chạy cũ còn trúng.
-class ExtractOutputV3(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    ops: list[Op]
-
-
-# Thứ tự trường = thứ tự model sinh: phân loại TIN MỚI trước, rồi search, rồi ops (đo được: model quyết định
-# "việc cũ ngoài prompt → search" tốt hơn khi phải phân loại trước — xem DECISIONS).
-ExtractKind = Literal["no_change", "new_task", "task_in_prompt", "old_task_not_in_prompt"]
+# Thứ tự trường = thứ tự model sinh: phân loại TIN MỚI trước rồi mới ops (đã thử ops trước: recall 82% → 71%, DECISIONS #56).
+ExtractKind = Literal["no_change", "new_task", "task_in_prompt"]
 
 
 class ExtractOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    message_type: Optional[ExtractKind] = None
-    search: Optional[SearchRequest] = None
-    ops: list[Op]
-
-
-# Schema v5 (chế độ retrieve_first): không có `search` — code tìm ứng viên trước lần gọi 1; khi model báo
-# old_task_not_in_prompt thì code tự tìm bằng nội dung TIN MỚI.
-# Thứ tự: message_type TRƯỚC ops (như v4). Đã thử ops trước (DECISIONS #56): recall 82% → 71%, không sửa được ca nào → bỏ.
-class ExtractOutputV5(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message_type: Optional[ExtractKind] = None
     ops: list[Op]
@@ -296,11 +269,4 @@ def _strict(schema: dict[str, Any]) -> dict[str, Any]:
     return fix(schema)
 
 
-EXTRACT_JSON_SCHEMA_V3 = {"name": "ledger_ops", "strict": True, "schema": _strict(ExtractOutputV3.model_json_schema())}
-EXTRACT_JSON_SCHEMA = {"name": "ledger_ops_v4", "strict": True, "schema": _strict(ExtractOutput.model_json_schema())}
-EXTRACT_JSON_SCHEMA_V5 = {"name": "ledger_ops_v5", "strict": True, "schema": _strict(ExtractOutputV5.model_json_schema())}
-
-
-def extract_schema(mode: str) -> dict[str, Any]:
-    """scored → v3, linked_recent_search → v4 (giữ từng byte để cache đĩa cũ còn trúng), retrieve_first → v5."""
-    return {"scored": EXTRACT_JSON_SCHEMA_V3, "linked_recent_search": EXTRACT_JSON_SCHEMA}.get(mode, EXTRACT_JSON_SCHEMA_V5)
+EXTRACT_JSON_SCHEMA = {"name": "ledger_ops", "strict": True, "schema": _strict(ExtractOutput.model_json_schema())}

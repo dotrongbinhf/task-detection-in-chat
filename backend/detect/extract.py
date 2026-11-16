@@ -3,17 +3,18 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, timedelta
 from typing import Any, Callable, Optional
 
 from pydantic import ValidationError
 
-from .config import Config, prompt_version
+from .config import PROMPT_VERSION, Config
 from .context import BuiltContext
 from .ledger import (apply_field_value, display_due, log, meets_draft_min, pending_for, propose_change, set_status,
                      sync_approvals, task_due_display)
 from .models import DUE_FIELDS, EngineState, Evidence, ExtractOutput, FieldHistory, Task
 from .text import HONORIFICS, norm, terms
-from .timeexpr import DATE_FIELDS, resolve_due, ts
+from .timeexpr import DATE_FIELDS, local_date, resolve_due, ts
 
 
 def parse_extract(raw: str) -> tuple[Optional[ExtractOutput], Optional[str]]:
@@ -25,15 +26,15 @@ def parse_extract(raw: str) -> tuple[Optional[ExtractOutput], Optional[str]]:
 
 def resolve_assignees(refs: list[str], ctx: BuiltContext, anchor_id: Optional[str],
                       self_commit: bool = False) -> tuple[list[str], list[dict]]:
-    """mention user_id | SPEAKER:#n | ADDRESSEE (chỉ DM) | tên (bỏ dấu, bỏ xưng hô, khớp đúng một người).
+    """mention user_id | SPEAKER:#n | ADDRESSEE (DM: người còn lại; nhóm: người được @mention duy nhất) | tên (bỏ dấu, bỏ xưng hô, khớp đúng một người).
 
-    v5 (`retrieve_first`): SPEAKER:#n trỏ vào tin có @mention NGƯỜI KHÁC (và việc không phải self_commit) → người gửi
-    là người giao, không phải người làm (quy tắc 8 của prompt, model hay vi phạm) → dùng người được @mention (DECISIONS #57)."""
+    SPEAKER:#n trỏ vào tin có @mention NGƯỜI KHÁC (và việc không phải self_commit) → người gửi là người giao, không phải
+    người làm (quy tắc 8 của prompt, model hay vi phạm) → dùng người được @mention (DECISIONS #57)."""
     details: list[dict] = []
     member_ids = {m.user_id for m in ctx.members}
     mentioned = {x["user_id"] for m in ctx.messages for x in m.mentions}
     by_local = {m.local: m for m in ctx.messages}
-    guard = ctx.mode == "retrieve_first" and not self_commit
+    guard = not self_commit
     for ref in refs:
         r = ref.strip()
         if r.startswith("SPEAKER:"):
@@ -49,7 +50,12 @@ def resolve_assignees(refs: list[str], ctx: BuiltContext, anchor_id: Optional[st
             continue
         if r == "ADDRESSEE":
             if ctx.conv_type != "dm":
-                details.append({"ref": r, "id": None, "how": "ADDRESSEE chỉ hợp lệ trong DM"})
+                # model nhỏ hay dùng ADDRESSEE trong nhóm cho "@Đạt viết script…": người được @mention duy nhất
+                # trong tin anchor (UPDATE: trong TIN MỚI) chính là người được nói tới (DECISIONS #71)
+                src = [m for m in ctx.messages if m.id == anchor_id] if anchor_id else ctx.new_msgs
+                one = list({x["user_id"]: x for m in src if m.kind == "message" for x in m.mentions if x["user_id"] != m.author_id}.values())
+                details.append({"ref": r, "id": one[0]["user_id"], "how": f"ADDRESSEE trong nhóm → người được @mention duy nhất ({one[0]['name']})"}
+                               if len(one) == 1 else {"ref": r, "id": None, "how": f"ADDRESSEE trong nhóm, {len(one)} người được @mention"})
                 continue
             speaker = next((m.author_id for m in ctx.messages if m.id == anchor_id), None) or (ctx.new_msgs[0].author_id if ctx.new_msgs else None)
             other = [m for m in ctx.members if m.user_id != speaker]
@@ -69,9 +75,39 @@ def resolve_assignees(refs: list[str], ctx: BuiltContext, anchor_id: Optional[st
     return ids, details
 
 
+_COPIED_SUFFIX = re.compile(r"(\s*\(@[^()]*=[^()]*\))?(\s*↩\S*)?\s*$")
+
+
+def resolve_msg(local: Optional[str], ctx: BuiltContext) -> Optional[str]:
+    """'#12' → message_id. Chấp nhận hai kiểu model chép nhầm (DECISIONS #37, #71):
+    - cả dòng tin '#12 [thứ 2 …] Linh: …' → lấy id ở đầu;
+    - chỉ nội dung tin '@Đạt viết script backup…' (không có #n) → tin có nội dung đúng như vậy trong prompt; nhiều tin
+      trùng nội dung thì ưu tiên TIN MỚI, vẫn còn nhiều → không đoán."""
+    if not local:
+        return None
+    hit = ctx.id_map.get(local.strip())
+    if hit is None and (m := re.match(r"\s*(#\d+)(?!\d)", local)):
+        hit = ctx.id_map.get(m.group(1))
+    if hit is not None or local.lstrip().startswith("#"):
+        return hit
+    text = _COPIED_SUFFIX.sub("", local).strip()
+    if not text:
+        return None
+    same = [m for m in ctx.messages if m.kind == "message" and m.text.strip() == text]
+    if not same and len(text) >= 15:  # tin dài bị cắt trong prompt ("…[cắt]")
+        same = [m for m in ctx.messages if m.kind == "message" and m.text.startswith(text.removesuffix("…[cắt]"))]
+    new = {m.id for m in ctx.new_msgs}
+    pick = [m for m in same if m.id in new] or same
+    return pick[0].id if len({m.id for m in pick}) == 1 else None
+
+
 def _due_fields(o: dict[str, Any]) -> dict[str, Any]:
+    """Trường hạn của model → dạng nội bộ. Model ghi `due_weekday` đúng số trong chữ ("thứ 5" → 5, chủ nhật → 8);
+    nội bộ dùng thứ ISO (thứ 2 = 1 … chủ nhật = 7). Quy ước "N − 1" cũ làm model nhỏ hay lệch một ngày (DECISIONS #72)."""
     d = {k: o.get(k) for k in DUE_FIELDS}
     d["due_kind"] = d["due_kind"] or "none"
+    if isinstance(d["due_weekday"], int):
+        d["due_weekday"] = d["due_weekday"] - 1 if 2 <= d["due_weekday"] <= 8 else None
     return d
 
 
@@ -100,28 +136,24 @@ def _show_draft(state: EngineState, t: Task, at: str, turn: int, events: list[di
     log(state, events, {"type": "draft_shown", "at": at, "turn": turn, "task_id": t.task_id, "to": t.assignee_ids, "title": t.title})
 
 
-def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, turn: int, model: str,
-                       blocked: Optional[dict[int, dict[str, Any]]] = None) -> tuple[list[dict], list[dict]]:
-    """blocked: {chỉ số op trong out.ops: chi tiết} — op bị luật cứng trong code loại trước Validate (v5 `dedup_hard_block`)."""
+def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, turn: int,
+                       model: str) -> tuple[list[dict], list[dict]]:
     at = ctx.turn_at
-    blocked = blocked or {}
     results: list[dict] = []
     events: list[dict] = []
     new_ids = {m.id for m in ctx.new_msgs}
     msg_at = lambda i: next((m.at for m in ctx.messages if m.id == i), at)  # noqa: E731
     name_of = lambda u: next((m.display_name for m in ctx.members if m.user_id == u), u)  # noqa: E731
     created_now: set[str] = set()
+    author = {e.id: e.message.author_id for e in state.events if e.kind == "message" and e.message}
+
+    def anchor_author(t: Task) -> Optional[str]:
+        return author.get(t.anchor_message_id)
 
     def resolve(local: Optional[str]) -> Optional[str]:
-        """'#12' → message_id. Chấp nhận '#12 [thứ 2 …] Linh: …' (model chép cả dòng tin) — chỉ lấy id ở đầu."""
-        if not local:
-            return None
-        hit = ctx.id_map.get(local.strip())
-        if hit is None and (m := re.match(r"\s*(#\d+)(?!\d)", local)):
-            hit = ctx.id_map.get(m.group(1))
-        return hit
+        return resolve_msg(local, ctx)
 
-    for op_i, op in enumerate(out.ops):
+    for op in out.ops:
         res: dict[str, Any] = {"op": op.op, "target": op.target, "task_id": None, "accepted": False, "notes": [],
                                "raw": op.model_dump(), "reason": None, "effect": None}
 
@@ -129,14 +161,6 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             res["reason"] = reason
             log(state, events, {"type": "op_rejected", "at": at, "turn": turn, "op": op.op, "target": op.target, "reason": reason})
             results.append(res)
-
-        # 0. luật cứng trong code (v5): CREATE trùng mạnh task đã bị từ chối của cùng người → bỏ, không hỏi LLM
-        if op_i in blocked:
-            hb = blocked[op_i]
-            res["notes"].append(f"trùng {hb['task_id']} [{hb['status']}] \"{hb['title']}\" — {hb['why']}")
-            res["hard_block"] = hb
-            reject("dedup_hard_block")
-            continue
 
         # 1. id hợp lệ
         ev_ids: list[tuple[str, str]] = []
@@ -186,7 +210,7 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
                 **df, task_id=f"K{state.counters.task}", conversation_key=ctx.key, status="candidate", kind=kind,
                 title=(op.title or "").strip() or "(chưa có tiêu đề)", notes=op.notes, assignee_refs_raw=op.assignee_refs or [],
                 assignee_ids=ids, assigner_id=assigner, due_type=due.due_type, due_date=due.due_date, anchor_message_id=anchor_id,
-                created_at=at, created_turn=turn, last_touched_at=at, status_changed_at=at, prompt_version=prompt_version(ctx.mode), model=model,
+                created_at=at, created_turn=turn, last_touched_at=at, status_changed_at=at, prompt_version=PROMPT_VERSION, model=model,
             )
             _add_evidence(t, ev_list, at, msg_at)
             state.tasks.append(t)
@@ -202,7 +226,7 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             results.append(res)
             continue
 
-        # 4. UPDATE / CANCEL phải nhắm vào task có trong prompt (TASK LIÊN QUAN | 3a/3b/khối 6)
+        # 4. UPDATE / CANCEL phải nhắm vào task có trong prompt (LINKED / CANDIDATE / kết quả kiểm tra target)
         task_id = ctx.task_map.get((op.target or "").strip())
         if not task_id:
             reject(f"unknown_task {op.target} (không có trong prompt)")
@@ -252,15 +276,29 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
                 break
             if c.field == "assignee_refs":
                 refs = [str(x) for x in v] if isinstance(v, list) else [str(v)]
+                # vai trò của tin làm bằng chứng cho thay đổi này (không ghi riêng → vai trò của cả op)
+                roles = {e.role for e in op.evidence if resolve(e.msg) == ev} or {e.role for e in op.evidence}
+                if not roles & {"accept", "assignee"}:
+                    # tin báo tiến độ / review / nhắc việc không đổi người nhận (model nhỏ hay gắn SPEAKER vào mọi UPDATE)
+                    res["notes"].append(f"assignee_change_dropped: bằng chứng là {', '.join(sorted(roles)) or '—'}, "
+                                        "không phải accept / assignee (DECISIONS #72)")
+                    continue
                 ids, details = resolve_assignees(refs, ctx, None, t.kind == "self_commit")
                 for d in details:
                     res["notes"].append(f"assignee: {d['ref']} → {name_of(d['id'])} ({d['how']})" if d["id"]
                                         else f"assignee_unresolved: {d['ref']} — {d['how']}")
-                # v5: "nhận việc" (chỉ SPEAKER, vai trò accept) THÊM người nhận, không thay người đã có —
+                giver = {t.assigner_id, anchor_author(t)} - {None}
+                if ("assignee" not in roles and t.kind != "self_commit" and ids and set(ids) <= giver
+                        and t.assignee_ids and not set(t.assignee_ids) & set(ids)):
+                    # người giao "nhận" việc mình đã giao cho người khác ("ổn rồi em") → bỏ; tự nhận làm thì model
+                    # ghi vai trò assignee ("để anh làm") và vẫn được áp (DECISIONS #72)
+                    res["notes"].append(f"assignee_change_dropped: {', '.join(map(name_of, ids))} là người giao, vai trò accept")
+                    continue
+                # "nhận việc" (chỉ SPEAKER, vai trò accept) THÊM người nhận, không thay người đã có —
                 # "Linh với Nam chuẩn bị slide…" + Nam 👍 + Linh "ok anh" phải ra cả hai (DECISIONS #58)
                 # không áp cho self_commit: người khác "nhận" một việc tự hứa = model đã đọc nhầm lời nhờ thành tự hứa
                 # (DM d001 "em làm giúp anh…" → SPEAKER = Hưng) — giữ hành vi thay như cũ để lời nhận sửa lại
-                accept_only = (ctx.mode == "retrieve_first" and t.kind != "self_commit" and refs
+                accept_only = (t.kind != "self_commit" and refs
                                and all(x.strip().startswith("SPEAKER:") for x in refs)
                                and any(e.role == "accept" for e in op.evidence))
                 if accept_only and ids and t.assignee_ids:
@@ -274,6 +312,12 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             elif c.field == "due":
                 df = _due_fields(v if isinstance(v, dict) else {})
                 due = resolve_due(df, msg_at(ev))
+                if (df["due_kind"] == "weekday" and due.due_date
+                        and date.fromisoformat(due.due_date) <= local_date(msg_at(ev))):
+                    # đổi hạn về hôm nay / ngày đã qua ("lùi sang thứ 2" nói vào thứ 2) → lần tới của thứ đó (DECISIONS #72)
+                    nd = (date.fromisoformat(due.due_date) + timedelta(days=7)).isoformat()
+                    due.notes.append(f"due_rolled_forward: {due.due_date} → {nd}")
+                    due.due_date = nd
                 res["notes"] += due.notes + [f"due: {df['due_kind']}{' “' + df['due_text'] + '”' if df['due_text'] else ''} → {due.due_date or due.due_type} ({due.explain})"]
                 if "fabricated_date_blocked" in due.notes:
                     for k in DATE_FIELDS:
@@ -366,146 +410,19 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
     return results, events
 
 
-# ---------- kiểm trùng khi CREATE (mục 7 tài liệu "Ngữ cảnh mới") ----------
+# ---------- kiểm tra target của UPDATE / CANCEL (DECISIONS #31, #44) ----------
 
-def dedup_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, embedder: Any = None) -> list[dict[str, Any]]:
-    """Mỗi CREATE đủ điều kiện cơ bản → tìm task gần giống trong kho (mọi trạng thái, kể cả declined).
+TARGET_MIN_KEYWORD_OVERLAP = 2
 
-    Ứng viên = giống nội dung (≥ dedup_min_keyword_overlap từ khoá chung, HOẶC cosine ≥ ngưỡng ngữ nghĩa khi
-    search_mode ≠ keyword) VÀ (trùng người nhận / người được nhắc hoặc trùng người giao) VÀ không nằm trong prompt.
-    Trả về một mục cho mỗi CREATE (kể cả khi không có ứng viên) để ghi trace.
-
-    v5 (`retrieve_first` + `dedup_hard_block`): luật cứng chạy TRƯỚC — hit `declined` (bị từ chối trong
-    `declined_suppress_days`), cùng người, trùng mạnh (≥ `dedup_hard_keyword_overlap` từ khoá chung hoặc cosine ≥
-    `dedup_hard_similarity`) → `hard_block` = chi tiết hit; CREATE đó không đi đường hỏi lại LLM (`_hits` rỗng).
-    Không áp cho cancelled / closed: việc đã huỷ rồi được giao lại là ca hợp lệ."""
-    from .context import to_iso_days_before
-    from .store import TaskStore
-
-    store = TaskStore(state, cfg, embedder)
-    thr = store.threshold("dedup")
-    new_ids = {m.id for m in ctx.new_msgs}
-    in_prompt = set(ctx.task_map.values())
-    since = to_iso_days_before(ctx.turn_at, cfg.search_lookup_days)
-    hard_on = cfg.dedup_hard_block and ctx.mode == "retrieve_first"
-    checks: list[dict[str, Any]] = []
-    for op_i, op in enumerate(out.ops):
-        if op.op != "CREATE":
-            continue
-        anchor_id = ctx.id_map.get((op.anchor or "").strip())
-        if not anchor_id:
-            continue
-        ev = [ctx.id_map.get(e.msg.strip()) for e in op.evidence]
-        if anchor_id not in new_ids and not any(i in new_ids for i in ev if i):
-            continue  # Validate sẽ loại (not_from_new_message)
-        if any(t.anchor_message_id == anchor_id for t in state.tasks):
-            continue  # Validate sẽ loại (duplicate_anchor)
-        ids, _ = resolve_assignees(op.assignee_refs or [], ctx, anchor_id, op.kind == "self_commit")
-        anchor_msg = next((m for m in ctx.messages if m.id == anchor_id), None)
-        assigner = (anchor_msg.author_id if anchor_msg and op.kind != "self_commit" and anchor_msg.author_id not in ids else None)
-        query = f"{op.title or ''} {anchor_msg.text if anchor_msg else ''}".strip()
-        # người được nhắc trong tin anchor (@mention hoặc gọi tên viết hoa "Mai ơi…") cũng tính là "cùng người":
-        # LLM có thể gán sai người nhận (vd. SPEAKER) nhưng việc vẫn là của người được gọi tên → vẫn phải bắt trùng
-        named = [x["user_id"] for x in (anchor_msg.mentions if anchor_msg else [])]
-        named += store.names_in_query(ctx.key, anchor_msg.text) if anchor_msg and anchor_msg.kind == "message" else []
-        named = [u for u in dict.fromkeys(named) if u not in ids and u != (anchor_msg.author_id if anchor_msg else None)]
-        people = [*ids, *named]
-        hits = store.search(ctx.key, query, people, since, cfg.search_max_results, now=ctx.turn_at, lookup_days=cfg.search_lookup_days)
-        rows, cands = [], []
-        hard: Optional[dict[str, Any]] = None
-        name_terms = {w for m in ctx.members for n in [m.display_name, *m.aliases] for w in terms(n)}
-        title_terms = {w for w in terms(op.title or "") if w not in name_terms}
-        for h in hits:
-            t = h.task
-            same_people = bool(set(people) & set(t.assignee_ids)) or bool(assigner and t.assigner_id == assigner)
-            if hard_on and hard is None and same_people and t.status == "declined" \
-                    and ts(ctx.turn_at) - ts(t.status_changed_at) <= cfg.declined_suppress_days * 86400:
-                # đếm trên TIÊU ĐỀ của CREATE, không gồm tin anchor: tin giao hai việc ("banner BF…, @Linh slide…")
-                # làm CREATE thứ hai cũng "trùng" việc đã từ chối nếu tính cả tin anchor (DECISIONS #47)
-                words = sorted(title_terms & set(terms(store.document(t))))
-                kw = len(words) >= cfg.dedup_hard_keyword_overlap
-                sem = (cfg.dedup_hard_similarity is not None and h.similarity is not None
-                       and h.similarity >= cfg.dedup_hard_similarity)
-                if kw or sem:
-                    hard = {"task_id": t.task_id, "title": t.title, "status": t.status, "score": h.score, "anchor": anchor_id,
-                            "overlap": len(words), "similarity": h.similarity, "matched": words,
-                            "why": (f"{len(words)} từ khoá chung với tiêu đề: {', '.join(words)}" if kw
-                                    else f"ngữ nghĩa {h.similarity:.2f} ≥ {cfg.dedup_hard_similarity}")}
-            why = None
-            semantic = h.similarity is not None and h.similarity >= thr
-            if h.keyword_overlap < cfg.dedup_min_keyword_overlap and not semantic:
-                why = (f"chỉ {h.keyword_overlap} từ khoá chung" + (f", ngữ nghĩa {h.similarity:.2f} < {thr:.2f}" if h.similarity is not None else ""))
-            elif not same_people:
-                why = "khác người nhận và người giao"
-            elif t.task_id in in_prompt:
-                why = "đã có trong prompt"
-            elif ctx.mode == "retrieve_first" and t.status in ("cancelled", "closed", "expired", "stale"):
-                # UPDATE lên task này bị Validate loại (target_not_open) → hỏi lại chỉ có thể dẫn tới bỏ CREATE;
-                # việc đã huỷ / đã đóng được giao lại là task mới hợp lệ (DECISIONS #59)
-                why = f"task đã {t.status} — giao lại là việc mới"
-            rows.append({"task_id": t.task_id, "title": t.title, "status": t.status, "score": h.score,
-                         "matched": h.matched, "overlap": h.keyword_overlap, "similarity": h.similarity,
-                         "same_people": same_people, "candidate": why is None, "why_not": why})
-            if why is None:
-                cands.append(h)
-        if hard:
-            cands = []  # op bị bỏ bằng luật cứng → không hỏi lại LLM về op này
-            for r in rows:
-                if r["candidate"]:
-                    r["candidate"], r["why_not"] = False, f"op đã bị chặn cứng (trùng {hard['task_id']})"
-        checks.append({"op_index": op_i, "title": op.title, "anchor": anchor_id, "query": query, "people": ids, "named": named,
-                       "assigner": assigner, "results": rows, "candidates": [h.task.task_id for h in cands],
-                       "hard_block": hard, "_hits": cands})
-    return checks
-
-
-# ---------- v5: op lệch task được link (chỉ ghi nhận, không sửa) ----------
-
-def target_not_linked(ctx: BuiltContext, out: ExtractOutput) -> list[dict[str, Any]]:
-    """Lượt có ĐÚNG một task được link mà LLM UPDATE/CANCEL một task KHÁC (không được link), với bằng chứng là chính tin
-    reply/reaction trong TIN MỚI → một mục cho mỗi op như vậy (task link, task nhắm, từ khoá chung của TIN MỚI với mỗi bên).
-    Không tự sửa op — chỉ đếm để quyết định ở v6 có nên code ép target hay không (tài liệu v5 mục 4.2)."""
-    from .text import terms
-
-    linked = [p for p in ctx.tasks if p.source == "linked"]
-    if len(linked) != 1:
-        return []
-    lt = linked[0].task
-    lt_ev = {e.message_id for e in lt.evidence}
-    replies = {m.id for m in ctx.new_msgs if (m.reply_to_id if m.kind == "message" else m.target_id)}
-    by_id = {p.task.task_id: p.task for p in ctx.tasks}
-    q = set(terms(" ".join(m.text for m in ctx.new_msgs if m.kind == "message")))
-
-    def kw(t: Any) -> list[str]:
-        return sorted(q & set(terms(f"{t.title} {t.notes or ''}")))
-
-    out_rows: list[dict[str, Any]] = []
-    for op in out.ops:
-        if op.op not in ("UPDATE", "CANCEL"):
-            continue
-        tid = ctx.task_map.get((op.target or "").strip())
-        if not tid or tid == lt.task_id:
-            continue
-        ev = {ctx.id_map.get(e.msg.strip()) for e in op.evidence} | {ctx.id_map.get(c.evidence_msg.strip()) for c in op.changes or []}
-        if not (ev & replies):
-            continue
-        tt = by_id.get(tid)
-        out_rows.append({"op": op.op, "linked_task": lt.task_id, "linked_title": lt.title, "target": op.target, "target_task": tid,
-                         "target_title": tt.title if tt else None, "reply_ids": sorted(ev & replies),
-                         "linked_via_evidence": bool(lt_ev), "kw_linked": kw(lt), "kw_target": kw(tt) if tt else []})
-    return out_rows
-
-
-# ---------- kiểm tra target của UPDATE / CANCEL (bổ sung ngoài tài liệu — xem DECISIONS) ----------
 
 def target_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, embedder: Any = None) -> list[dict[str, Any]]:
     """Đo được: gpt-4.1-mini hay UPDATE/CANCEL nhầm sang một task gần nhất (hoặc bịa T<n>) thay vì search.
 
     Với mỗi UPDATE/CANCEL nhắm task KHÔNG được link: tìm trong kho bằng nội dung TIN MỚI; nếu có task ngoài prompt
-    khớp ≥ dedup_min_keyword_overlap từ khoá VÀ khớp nhiều hơn task đang nhắm (hoặc T<n> không tồn tại) → ứng viên."""
+    khớp ≥ TARGET_MIN_KEYWORD_OVERLAP từ khoá VÀ khớp nhiều hơn task đang nhắm (hoặc T<n> không tồn tại), hoặc gần nghĩa
+    hơn task đang nhắm → ứng viên. Code chỉ đưa ứng viên vào lần gọi 2; LLM vẫn là bên quyết định."""
     from .context import to_iso_days_before
     from .store import TaskStore
-    from .text import terms
 
     store = TaskStore(state, cfg, embedder)
     thr = store.threshold()
@@ -539,7 +456,7 @@ def target_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg:
                      key=lambda h: -h.similarity)
         sem_ids = {h.task.task_id for h in sem[: max(0, cfg.target_check_max_candidates)]}
         cands = [h for h in hits
-                 if (h.keyword_overlap >= cfg.dedup_min_keyword_overlap and h.keyword_overlap > t_overlap)
+                 if (h.keyword_overlap >= TARGET_MIN_KEYWORD_OVERLAP and h.keyword_overlap > t_overlap)
                  or h.task.task_id in sem_ids]
         cands.sort(key=lambda h: -(h.similarity if h.similarity is not None else -1))
         checks.append({"op": op.op, "target": op.target, "task_id": tid, "target_title": target.title if target else None,

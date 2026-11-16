@@ -1,0 +1,135 @@
+conv ch_ops group train
+member son Sơn | anh Sơn, Son
+member tuan Tuấn | Tuan
+member khoa Khoa | Khoa Lê
+member nhi Nhi | Nhi Hồ
+member dat Đạt | Dat
+
+gold backup | Viết script backup DB hằng ngày | assigned | dat | 2026-11-20 | active | long_running,later_update_approved
+gold alert | Setup alert Grafana cho CPU | assigned | nhi | 2026-11-20 | active | late_deadline
+gold vpn1 | Cấu hình VPN cho văn phòng mới | assigned | khoa | none | cancelled | cancel_approved
+gold vpn2 | Cấu hình VPN cho văn phòng mới (giao lại) | assigned | khoa | none | active | cancelled_then_reassigned
+gold port | Mở port 8443 cho service mới | assigned | tuan | 2026-11-23 | active | reply_but_other_task
+gold dr | Chuẩn bị checklist diễn tập DR | assigned | tuan | event | active | event_deadline
+gold disk | Kiểm tra disk server log | assigned | khoa | none | active | informal_text
+
+day 2026-11-16
+08:20 son: Chào anh em ops
+08:21 tuan: chào anh
+08:22 nhi: morning
+08:25 dat: hi all
+08:30 khoa: cuối tuần có ai bị gọi on-call không
+08:31 tuan: em bị 1 lần, Redis đầy RAM
+08:32 khoa: lại Redis
+08:33 tuan: ừ, em tăng maxmemory rồi
+08:40 son: Tuần này ưu tiên ổn định hệ thống trước đợt sale 12/12
+08:41 nhi: dạ
+08:55 son [bk]: @Đạt viết script backup DB hằng ngày nhé, thứ 4 xong   ## backup:assign backup:due
+08:56 dat ^bk: ok anh   ## backup:accept
+09:10 nhi: Grafana dashboard mới em dựng xong rồi, mọi người xem thử
+09:11 khoa: đẹp đấy
+09:12 tuan: thêm panel latency p99 được không
+09:13 nhi: được, để chiều
+09:20 son [al]: @Nhi setup alert Grafana cho CPU luôn nhé, ngưỡng 80%   ## alert:assign
+09:21 nhi: dạ   ## alert:accept
+09:40 tuan: k8s node 3 lại NotReady
+09:41 khoa: kubelet chết à
+09:42 tuan: không, disk pressure
+09:43 khoa: dọn image cũ đi
+09:44 tuan: đang dọn
+10:00 tuan: ổn rồi
+10:15 son [ald]: Nhi ơi alert Grafana thứ 6 xong nhé, không gấp   ## alert:due
+10:16 nhi: dạ anh
+10:30 dat: anh Sơn ơi backup giữ bao nhiêu bản
+10:31 son: 7 bản daily, 4 bản weekly
+10:32 dat: dạ
+11:00 khoa: Hôm nay ai trực trưa
+11:01 nhi: em
+13:15 dat: backup đẩy lên S3 hay MinIO anh
+13:16 son: MinIO nội bộ em
+13:17 dat: ok
+14:00 son: Chiều nay họp capacity planning lúc 3h
+14:01 tuan: dạ
+14:01 khoa: ok
+15:45 nhi: panel latency p99 thêm rồi nha
+15:46 tuan: cảm ơn
+16:30 khoa: mọi người có dùng k9s không, tiện lắm
+16:31 dat: dùng lâu rồi
+16:32 nhi: em mới dùng
+act 09:00 dat approve backup
+act 09:25 nhi approve alert
+
+day 2026-11-17
+08:30 son [vp]: @Khoa cấu hình VPN cho văn phòng mới tầng 7 nhé   ## vpn1:assign
+08:31 khoa: dạ em nhận   ## vpn1:accept
+08:50 dat: script backup em viết xong phần dump rồi
+08:51 son: ok
+09:10 son [pt]: @Tuấn mở port 8443 cho service mới trên firewall nhé   ## port:assign
+09:11 tuan: dạ   ## port:accept
+09:30 nhi: CPU node 2 lên 85% từ sáng
+09:31 tuan: job batch đang chạy đó
+09:32 nhi: à ok
+10:00 khoa: VPN văn phòng mới dùng WireGuard được không anh
+10:02 son: được em
+10:40 tuan: port mở rồi nhưng chưa test được
+10:41 son: chiều test
+11:20 son [vc]: @Khoa thôi khỏi cấu hình VPN nhé, IT tòa nhà lo phần đó   ## vpn1:cancel
+11:21 khoa: dạ vâng
+13:20 khoa: Có ai biết sao log rotate không chạy không
+13:22 tuan: cron chết hả
+13:23 khoa: không, config sai path
+13:24 tuan: thế sửa path là được
+13:25 khoa: ừ sửa rồi
+14:30 son [dr]: @Tuấn chuẩn bị checklist trước buổi diễn tập DR nhé   ## dr:assign dr:due
+14:31 tuan ^dr: ok anh   ## dr:accept
+15:00 nhi: Diễn tập DR ngày nào anh
+15:01 son: chưa chốt, chắc tuần sau
+15:02 nhi: dạ
+16:20 dat: mai em xin đi muộn 1 tiếng nhé
+16:21 son: ok em
+act 08:35 khoa approve vpn1
+act 09:15 tuan approve port
+act 11:30 khoa approve_change vc
+
+day 2026-11-18
+08:40 son: Hôm nay mọi người check lại cảnh báo đêm qua nhé
+08:41 nhi: đêm qua không có cảnh báo gì anh
+08:42 son: tốt
+09:00 son [dk]: @Khoa ktra giup a disk server log nhe, gan day roi   ## disk:assign
+09:01 khoa: ok a   ## disk:accept
+09:30 dat [bkd]: anh Sơn ơi script backup em xin lùi sang thứ 6 nhé, đang vướng quyền MinIO   ## backup:due
+09:31 son: ok em
+10:00 khoa: disk server log còn 8% thôi anh
+10:02 son: xoá log cũ hơn 30 ngày đi
+10:03 khoa: dạ em xoá rồi ạ   ## hn
+10:30 tuan: Có ai thấy DNS nội bộ chậm không
+10:31 nhi: em thấy
+10:32 tuan: để em xem đã   ## hn
+11:00 tuan: DNS do cache bị flush, ổn rồi
+13:30 nhi: alert CPU em làm xong rồi, test bắn Slack ok
+13:31 son: tốt lắm
+14:00 dat: quyền MinIO có rồi, cảm ơn anh Khoa
+14:01 khoa: 👍
+15:00 nhi: mọi người có muốn thêm alert RAM không
+15:01 tuan: nên có
+15:02 son: tuần sau tính
+act 09:35 dat approve_change bkd
+act 09:05 khoa approve disk
+
+day 2026-11-19
+08:30 son: Sáng nay họp với IT tòa nhà, họ không làm được VPN
+08:31 khoa: thế hả anh
+08:35 son: @Khoa cấu hình VPN cho văn phòng mới tầng 7 nhé, IT tòa nhà không làm được   ## vpn2:assign
+08:36 khoa: dạ em làm   ## vpn2:accept
+09:10 son [ptd] ^al: Tuấn ơi mở port 8443 lùi sang thứ 2 tuần sau nhé, service mới chưa deploy   ## port:due
+09:11 tuan: dạ
+09:40 dat: backup chạy thử ok rồi, mất 12 phút
+09:41 son: ổn
+10:20 nhi: dashboard có thêm panel disk rồi
+10:21 khoa: cảm ơn Nhi
+11:00 tuan: checklist DR em viết được nửa rồi
+11:01 son: ok
+14:00 khoa: VPN WireGuard em dựng xong, đang test
+14:01 son: tốt
+act 09:15 tuan approve_change ptd
+act 10:20 nhi approve_change ald

@@ -1,0 +1,102 @@
+conv ch_event group test
+member phuong Phương | chị Phương, Phuong
+member quan Quân | Quan
+member yen Yến | Yen
+member tram Trâm | Tram
+member ha Hà | Ha
+
+gold booth | Thiết kế gian hàng hội chợ | assigned | quan | 2026-12-02 | active | change_supersede,later_update_approved
+gold invite | Gửi thư mời khách VIP | assigned | yen | 2026-12-01 | active | informal_text,relative_deadline
+gold gift | Đặt quà tặng cho khách tham dự | assigned | tram | none | cancelled | cancel
+gold mc | Liên hệ MC cho sự kiện | assigned | ha | none | active | implicit_ask
+gold checklist | Làm checklist hậu cần sự kiện | self_commit | phuong | 2026-12-01 | active | self_commit,relative_deadline
+gold photo | Thuê thợ chụp ảnh sự kiện | assigned | tram | event | active | event_deadline,informal_text
+
+day 2026-11-30
+08:20 phuong: Chào team event, thứ 6 hội chợ rồi nhé
+08:21 quan: dạ chị
+08:21 yen: chào chị
+08:22 tram: morning
+08:23 ha: hi mọi người
+08:30 quan: hội chợ ở Giảng Võ hả chị
+08:31 phuong: đúng rồi em, gian số 12
+08:32 quan: dạ
+08:40 phuong [bt]: @Quân thiết kế gian hàng hội chợ nhé, thứ 3 chị cần bản vẽ   ## booth:assign booth:due
+08:41 quan ^bt: dạ em nhận   ## booth:accept
+09:00 phuong: Yen gui thu moi khach VIP giup c nhe, mai gui xong   ## invite:assign invite:due
+09:01 yen: ok c   ## invite:accept
+09:20 tram: gian hàng năm ngoái mình có backdrop không chị
+09:21 phuong: có em, nhưng cũ rồi
+09:22 tram: dạ
+09:40 phuong [gf]: @Trâm đặt quà tặng cho khách tham dự nhé, 200 phần   ## gift:assign
+09:41 tram: dạ   ## gift:accept
+10:00 ha: chị ơi năm nay mình có MC không
+10:01 phuong [mcq]: có em, mà chưa ai liên hệ MC, ai làm được không   ## mc:assign
+10:03 quan: em đang vẽ gian hàng
+10:04 ha ^mcq: để em liên hệ MC cho chị   ## mc:accept
+10:05 phuong: ok Hà
+10:30 phuong: Mai chị làm checklist hậu cần sự kiện gửi cả team nhé   ## checklist:self_commit checklist:due
+10:31 yen: dạ
+11:00 quan: mọi người thích tông xanh hay cam cho gian hàng
+11:01 tram: cam
+11:02 ha: cam nổi hơn
+11:03 phuong: cam nhé
+13:30 phuong: Tram thue tho chup anh cho su kien truoc ngay hoi cho nhe   ## photo:assign photo:due
+13:31 tram: dạ c   ## photo:accept
+14:00 ha: MC em liên hệ được 2 người, chị chọn nhé
+14:01 phuong: để chị xem profile đã   ## hn
+14:30 yen: danh sách VIP có 45 người chị nhỉ
+14:31 phuong: 48 em, chị gửi lại file
+14:32 yen: dạ
+15:30 quan: gian hàng em vẽ được phần mặt tiền
+15:31 phuong: ok
+act 08:45 quan approve booth
+act 09:05 yen approve invite
+act 09:45 tram approve gift
+act 13:35 tram approve photo
+act 10:10 ha approve mc
+
+day 2026-12-01
+08:20 yen: thư mời VIP em gửi rồi chị nhé
+08:21 phuong: cảm ơn em
+08:30 phuong: checklist hậu cần chị gửi lên Drive rồi, mọi người xem
+08:31 tram: dạ
+09:00 phuong [bt2]: Quân ơi bản vẽ gian hàng lùi sang thứ 4 nhé, ban tổ chức đổi kích thước gian   ## booth:due
+09:01 quan: dạ
+09:30 phuong [bt3]: à không, vẫn thứ 3 em ạ, ban tổ chức giữ kích thước cũ   ## booth:due
+09:31 quan: dạ ok chị
+10:00 phuong [gfc]: @Trâm thôi khỏi đặt quà tặng nhé, nhà tài trợ gửi quà rồi   ## gift:cancel
+10:01 tram: dạ vâng chị
+10:30 ha: MC chị chọn ai ạ
+10:31 phuong: bạn thứ 2 em
+10:32 ha: dạ
+14:00 tram: thợ ảnh em book được rồi chị
+14:01 phuong: tốt
+15:00 quan: bản vẽ gian hàng xong rồi chị
+15:01 phuong: đẹp lắm em
+act 09:35 quan approve_change bt3
+act 10:05 tram approve_change gfc
+
+day 2026-12-02
+08:30 phuong: hôm nay mình đi khảo sát địa điểm lúc 2h nhé
+08:31 quan: dạ
+08:32 tram: ok chị
+10:00 yen: có 30 khách VIP xác nhận rồi
+10:01 phuong: tốt quá
+11:00 ha: MC em chốt hợp đồng rồi
+11:01 phuong: cảm ơn Hà
+14:00 phuong: mọi người xuống sảnh đi khảo sát nhé
+17:00 tram: địa điểm đẹp lắm
+17:01 yen: bãi đỗ xe hơi nhỏ
+17:02 phuong: để chị hỏi ban tổ chức đã   ## hn
+
+day 2026-12-03
+09:00 quan: gian hàng nhà thầu dựng tối mai nhé
+09:01 phuong: ok em
+10:30 yen: khách VIP xác nhận 40 người rồi
+10:31 phuong: tuyệt
+14:00 tram: mọi người nhớ mặc áo đồng phục thứ 6 nha
+14:01 ha: dạ
+16:00 phuong: mai cố lên cả team 💪
+16:01 quan: 💪
+16:01 yen: 💪

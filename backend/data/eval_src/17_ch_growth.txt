@@ -1,0 +1,104 @@
+conv ch_growth group test
+member phuong Phương | chị Phương, Phuong
+member hieu Hiếu | Hieu
+member tram Trâm | Tram
+member nam Nam | Nam Trần
+member ha Hà | Ha
+
+gold referral | Thiết kế chương trình giới thiệu bạn bè | assigned | hieu | none | active | recreate_declined_soft,declined_not_recreated
+gold abtest | Chạy A/B test màn đăng ký | assigned | nam | 2026-12-04 | active | llm_flag_fallback,far_reference,later_update_approved
+gold push | Lên lịch push notification tháng 12 | assigned | tram | 2026-12-03 | active | reply_link_old,later_update_approved
+gold coupon | Tạo mã giảm giá cho đối tác | assigned | ha | none | cancelled | cancel_old_no_reply,cancel_approved
+gold cohort | Phân tích cohort retention | assigned | ha | none | active | reply_but_other_task
+
+day 2026-11-30
+08:30 phuong: Chào team growth, tháng 12 mục tiêu 50k user mới 🚀
+08:31 tram: dạ chị
+08:31 hieu: chào chị
+08:32 nam: morning
+08:33 ha: hi mọi người
+08:50 nam: tháng 11 mình được bao nhiêu user mới chị
+08:51 phuong: 38k
+08:52 ha: tăng 12% so với tháng 10
+09:00 phuong [rf]: @Hiếu thiết kế chương trình giới thiệu bạn bè nhé, thưởng cả hai bên   ## referral:assign
+09:02 hieu: chị ơi em đang dồn hết cho campaign 12/12 ạ
+09:03 phuong: ừ để chị tính
+09:20 phuong [ab]: @Nam chạy A/B test màn đăng ký nhé, thứ 4 có kết quả sơ bộ   ## abtest:assign abtest:due
+09:21 nam ^ab: dạ em nhận   ## abtest:accept
+09:40 tram: Push tháng trước CTR có 2.1%
+09:41 phuong: thấp
+09:42 tram: do gửi giờ hành chính
+10:00 phuong [ps]: @Trâm lên lịch push notification tháng 12 nhé, thứ 3 gửi chị   ## push:assign push:due
+10:01 tram ^ps: dạ   ## push:accept
+10:20 ha: chị Phương ơi đối tác ví bên kia hỏi mã giảm giá
+10:21 phuong [cp]: @Hà tạo mã giảm giá cho đối tác luôn nhé, 50k mỗi mã   ## coupon:assign
+10:22 ha: dạ   ## coupon:accept
+10:40 phuong [ch]: @Hà phân tích cohort retention 3 tháng gần đây nữa nhé   ## cohort:assign
+10:41 ha: dạ em làm   ## cohort:accept
+13:30 nam: A/B test em chia 50/50 nhé chị
+13:31 phuong: ok
+14:00 hieu: campaign 12/12 em chốt KOL rồi
+14:01 phuong: tốt
+14:30 tram: push mình nên gửi buổi tối 8h
+14:31 phuong: thử xem
+15:00 ha: mã giảm giá em tạo 200 mã rồi
+15:01 phuong: ok
+act 09:25 nam approve abtest
+act 10:05 tram approve push
+act 10:25 ha approve coupon
+act 10:45 ha approve cohort
+act 09:10 hieu decline referral
+
+day 2026-12-01
+08:40 tram: lịch push em làm được 2 tuần đầu
+08:41 phuong: ok
+09:00 phuong [psd] ^ps: lùi sang thứ 4 nhé Trâm, chị muốn thêm push cho Giáng sinh   ## push:due
+09:01 tram: dạ
+09:30 nam: A/B test có 3k user vào rồi
+09:31 phuong: nhanh nhỉ
+10:00 ha: cohort tháng 9 retention D30 có 18%
+10:01 phuong: thấp quá
+10:02 ha: tháng 10 lên 22%
+11:00 hieu: KOL đầu tiên đăng bài rồi mọi người
+11:01 tram: view nhiều không
+11:02 hieu: 50k sau 1 tiếng
+11:03 nam: ghê
+13:30 phuong: Hiếu ơi làm giúp chị vụ thưởng giới thiệu nhé, sếp nhắc rồi   ## referral:assign
+13:32 hieu: chị ơi em vẫn đang chạy 12/12 ạ
+13:33 phuong: ừ thôi để sau 12/12
+14:00 tram: mọi người góp ý giúp em tiêu đề push Giáng sinh
+14:01 ha: cái số 2 dễ thương
+14:02 nam: +1
+15:30 ha: mai em đi gặp đối tác ví nhé
+15:31 phuong: ok em
+act 09:05 tram approve_change psd
+
+day 2026-12-02
+08:40 phuong: Sáng nay họp với sếp về target
+09:00 nam: A/B test bản B đang tốt hơn 8%
+09:01 phuong: tuyệt
+09:30 phuong [abd]: Nam ơi cái chị nhờ hôm thứ 2 lùi sang thứ 6 nhé, đợi đủ mẫu rồi kết luận   ## abtest:due
+09:31 nam: dạ chị
+10:00 phuong [chc] ^ab: Hà ơi cohort retention tách riêng user từ referral nhé   ## cohort:content
+10:01 ha: dạ
+11:00 tram: lịch push xong rồi chị
+11:01 phuong: cảm ơn em
+14:00 hieu: 12/12 em dồn hết budget vào TikTok được không chị
+14:02 phuong: 70% thôi em
+14:03 hieu: dạ
+16:00 ha: đối tác ví họp vui lắm chị
+16:01 phuong: tốt
+act 09:35 nam approve_change abd
+act 10:05 ha approve_change chc
+
+day 2026-12-03
+09:00 hieu: KOL thứ 2 đăng bài rồi
+09:01 phuong: ok
+10:00 phuong [cpc]: @Hà thôi khỏi tạo mã giảm giá cho đối tác nhé, họ đổi sang cashback   ## coupon:cancel
+10:01 ha: dạ vâng chị
+11:00 nam: A/B test 10k user rồi
+11:01 phuong: ok
+14:00 tram: push Giáng sinh lên lịch ngày 24 rồi nha
+14:01 phuong: 👍
+16:00 phuong: cảm ơn team tuần này
+act 10:05 ha approve_change cpc

@@ -1,4 +1,4 @@
-"""Embedding cho tìm kiếm ngữ nghĩa trong kho task (tìm task, kiểm tra target, kiểm trùng).
+"""Embedding cho tìm kiếm ngữ nghĩa trong kho task (tìm task matched, kiểm tra target).
 
 - `OpenAIEmbedder` — `text-embedding-3-small` (đa ngôn ngữ), cache đĩa `.cache/emb/` theo hash(model + văn bản).
 - `HashEmbedder` — n-gram ký tự (bỏ dấu) băm vào vector cố định. Chạy offline cho chế độ giả lập và unit test.
@@ -31,7 +31,7 @@ CACHE_DIR = ROOT / ".cache" / "emb"
 
 class Embedder(Protocol):
     name: str
-    default_threshold: float  # cosine tối thiểu để coi là "gần nghĩa" khi config không đặt
+    default_threshold: float  # cosine tối thiểu để kiểm tra target coi là "gần nghĩa" khi config không đặt
     tokens_used: int
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
@@ -51,10 +51,9 @@ def _key(model: str, text: str) -> str:
 class OpenAIEmbedder:
     name: str = "text-embedding-3-small"
     # Đo trên data/sample (bỏ @mention cả hai phía): task đúng 0.41–0.77 (trung vị 0.54), task sai cao nhất 0.58 —
-    # ngưỡng tuyệt đối không tách được; xếp hạng thì tốt (task đúng hạng 1 ở 11/14 tin). Nên kiểm tra target dùng
-    # "gần nghĩa nhất + hơn target", kiểm trùng dùng ngưỡng cao hơn kèm điều kiện cùng người.
+    # ngưỡng tuyệt đối không tách được; xếp hạng thì tốt (task đúng hạng 1 ở 11/14 tin). Nên chỉ dùng embedding để
+    # XẾP HẠNG ứng viên cho LLM chọn, không dùng ngưỡng cosine để quyết định thay LLM.
     default_threshold: float = 0.45
-    default_dedup_threshold: float = 0.55
     tokens_used: int = 0           # token gửi đi thật (không tính cache trúng)
     no_cache: bool = False
     _mem: dict[str, list[float]] = field(default_factory=dict)
@@ -92,7 +91,6 @@ class HashEmbedder:
 
     name: str = "hash-ngram"
     default_threshold: float = 0.45
-    default_dedup_threshold: float = 0.5
     tokens_used: int = 0
     dim: int = 512
 
@@ -117,7 +115,6 @@ class FakeEmbedder:
     concepts: dict[str, list[str]] = field(default_factory=dict)  # tên khái niệm -> các cụm (bỏ dấu, chữ thường)
     name: str = "fake"
     default_threshold: float = 0.5
-    default_dedup_threshold: float = 0.5
     tokens_used: int = 0
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -128,9 +125,3 @@ class FakeEmbedder:
             v = [1.0 if any(p in n for p in self.concepts[c]) else 0.0 for c in names]
             out.append(v + [0.01])  # tránh vector 0
         return out
-
-
-def make_embedder(llm_mode: str, no_cache: bool = False) -> Embedder:
-    if llm_mode == "openai":
-        return OpenAIEmbedder(name=os.environ.get("EMBED_MODEL") or "text-embedding-3-small", no_cache=no_cache)
-    return HashEmbedder()

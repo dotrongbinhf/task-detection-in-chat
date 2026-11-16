@@ -42,8 +42,6 @@ ASK_RE = re.compile(r"\b(nhe|nha|giup|gium|nho|di|pls|please)\b")
 DUECHANGE_RE = re.compile(r"\b(lui|doi (han|sang|lai)|chuyen sang|gia han|hoan|day (len|lui)|doi thanh|thoi .*nhe|sang .*nhe|han (moi|la))\b")
 
 WD = {"hai": 1, "ba": 2, "tu": 3, "nam": 4, "sau": 5, "bay": 6}
-DUE_WORDS = {"lui", "doi", "dot", "han", "chuyen", "gia", "hoan", "day", "thanh", "eod", "asap", "khoi", "thoi", "huy",
-             "cancel", "sang", "nhe", "nha", "hai", "ba", "tu", "nam", "sau", "bay", "cn", "chu", "nhat", "toi"}
 
 
 def _due(**kw: Any) -> dict[str, Any]:
@@ -75,7 +73,7 @@ def detect_due(orig: str, members: list[Member]) -> Optional[dict[str, Any]]:
             wd, wk = 7, m.group(7)
         else:
             raw = m.group(2)
-            wd, wk = (int(raw) - 1 if raw.isdigit() else WD[raw]), m.group(4)
+            wd, wk = (int(raw) if raw.isdigit() else WD[raw] + 1), m.group(4)  # số như trong chữ: thứ 5 → 5
         off = None if not wk else (0 if wk == "nay" else 1)
         return _due(due_text=take(m), due_kind="weekday", due_weekday=wd, due_week_offset=off)
     if m := re.search(r"\b(\d{1,2})/(\d{1,2})\b", n):
@@ -159,15 +157,14 @@ def pick_task(ctx: BuiltContext, m: PromptMsg, people: list[str] | None = None, 
     prev = next((h for h in reversed(ctx.history) if h.kind == "message" and h.author_id != m.author_id), None)
     best, best_s = None, -1
     for t in open_:
-        s = t.score + 15 * len(kw & keywords(f"{t.task.title} {t.task.notes or ''}"))
+        s = (100 if t.source == "linked" else 0) + 15 * len(kw & keywords(f"{t.task.title} {t.task.notes or ''}"))
         if people and any(p in t.task.assignee_ids for p in people):
             s += 15
         hit_prev = bool(prev and any(e.message_id == prev.id for e in t.task.evidence))
         if hit_prev:
             s += 40  # trả lời ngay tin trước
-        # chế độ linked: task không được link phải khớp nội dung (từ khoá) hoặc vừa được nhắc ở tin trước,
-        # nếu không thì để LLM giả lập yêu cầu tìm task thay vì đoán bừa theo người
-        if (ctx.mode != "scored" and t.source != "linked" and not prefer_unassigned and not hit_prev
+        # task không được link phải khớp nội dung (từ khoá) hoặc vừa được nhắc ở tin trước, không đoán bừa theo người
+        if (t.source != "linked" and not prefer_unassigned and not hit_prev
                 and not (kw - VERB_WORDS) & keywords(f"{t.task.title} {t.task.notes or ''}")):
             continue
         anchor_author = next((x.author_id for x in ctx.messages if x.id == t.task.anchor_message_id), None)
@@ -179,13 +176,13 @@ def pick_task(ctx: BuiltContext, m: PromptMsg, people: list[str] | None = None, 
     return best if best and best_s >= min_score else None
 
 
-LIVE_SOURCES = ("open", "linked", "recent", "matched", "search", "dedup")
+LIVE_SOURCES = ("linked", "recent", "matched", "target_check")
 
 
 def _declined_similar(ctx: BuiltContext, text: str) -> bool:
-    """scored: task declined trong TASK LIÊN QUAN. linked: ứng viên trùng do code đưa vào <POSSIBLE_DUPLICATES>."""
+    """Task declined có trong prompt (chỉ qua LINKED_TASKS) trùng ≥ 2 từ khoá → không tạo lại (quy tắc 5 của prompt)."""
     kw = keywords(text)
-    return any((t.task.status == "declined" or t.source == "dedup") and len(kw & keywords(t.task.title)) >= 2 for t in ctx.tasks)
+    return any(t.task.status == "declined" and len(kw & keywords(t.task.title)) >= 2 for t in ctx.tasks)
 
 
 def _ev(msg: str, role: str) -> dict[str, str]:
@@ -198,19 +195,6 @@ def _change(field: str, value: Any, msg: str) -> dict[str, str]:
 
 def heuristic_extract(ctx: BuiltContext) -> dict[str, Any]:
     ops: list[dict[str, Any]] = []
-    search: Optional[dict[str, Any]] = None
-
-    def want_search(m: PromptMsg, people: list[str], due: Optional[dict]) -> None:
-        """Tin nói về việc cũ (huỷ / đổi hạn / nhận) nhưng không thấy task nào trong ngữ cảnh → yêu cầu tìm."""
-        nonlocal search
-        if ctx.mode == "scored" or ctx.final_call or search is not None:
-            return
-        text = m.text.replace((due or {}).get("due_text") or "\0", " ")
-        for x in m.mentions:
-            text = text.replace("@" + x["name"], " ")
-        kw = [w for w in keywords(text) if w not in DUE_WORDS and not CANCEL_RE.search(w) and not DUECHANGE_RE.search(w)]
-        if kw:
-            search = {"query": " ".join(sorted(kw)), "people": list(dict.fromkeys(people)) or None, "reason": "earlier task not in context (simulated)"}
 
     for m in ctx.new_msgs:
         if m.kind == "reaction":
@@ -249,8 +233,6 @@ def heuristic_extract(ctx: BuiltContext) -> dict[str, Any]:
             t = pick_task(ctx, m, people)
             if t:
                 ops.append(empty_op("CANCEL", target=t.local, evidence=[_ev(m.local, "cancel")]))
-            else:
-                want_search(m, people, due)
             continue
 
         # ---- đổi người nhận ----
@@ -275,7 +257,6 @@ def heuristic_extract(ctx: BuiltContext) -> dict[str, Any]:
                 ops.append(empty_op("UPDATE", target=t.local, evidence=[_ev(m.local, "due")], changes=ch))
                 continue
             if DUECHANGE_RE.search(n):
-                want_search(m, people, due)
                 continue
 
         # ---- nhận việc ----
@@ -345,14 +326,8 @@ def heuristic_extract(ctx: BuiltContext) -> dict[str, Any]:
         return next((x.text for x in ctx.messages if x.local == o.get("anchor")), "")
 
     ops = [o for o in ops if o["op"] != "CREATE" or not _declined_similar(ctx, anchor_text(o))]
-    if ctx.mode == "scored":
-        return {"ops": ops}
-    if ctx.mode == "retrieve_first":
-        # v5: không có search — tin dạng huỷ / đổi hạn không khớp task nào trong prompt → báo việc cũ ngoài prompt
-        mt = "old_task_not_in_prompt" if search is not None and not ops else (
-            "no_change" if not ops else "new_task" if all(o["op"] == "CREATE" for o in ops) else "task_in_prompt")
-        return {"message_type": mt, "ops": ops}
-    return {"ops": ops, "search": None if ops else search}
+    mt = "no_change" if not ops else "new_task" if all(o["op"] == "CREATE" for o in ops) else "task_in_prompt"
+    return {"message_type": mt, "ops": ops}
 
 
 def heuristic_gate(ctx: BuiltContext) -> float:

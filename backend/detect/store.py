@@ -1,6 +1,6 @@
-"""Kho task (mục 2, 3, 6 tài liệu "Ngữ cảnh mới").
+"""Kho task: task được link, task gần nhất, tìm task theo nội dung (BM25 + embedding).
 
-Mọi truy cập ĐỌC kho task của chế độ `linked_recent_search` đi qua lớp này, để sau này thay `state.tasks`
+Mọi truy cập ĐỌC kho task đi qua lớp này, để sau này thay `state.tasks`
 (trong bộ nhớ) bằng SQLite FTS5 / Postgres full-text mà không sửa chỗ khác. Kho to bao nhiêu cũng không tốn
 token — chỉ phần được đưa vào prompt mới tốn.
 """
@@ -40,7 +40,7 @@ def mentioned_at(t: Task) -> str:
 
 class TaskStore:
     def __init__(self, state: EngineState, cfg: Any = None, embedder: Any = None):
-        """cfg: Config (search_mode, rrf_k, semantic_floor…); embedder: detect.embed.Embedder. Thiếu → chỉ BM25."""
+        """cfg: Config (rrf_k, semantic_floor…); embedder: detect.embed.Embedder. Thiếu → chỉ BM25."""
         self.state = state
         self.cfg = cfg
         self.embedder = embedder
@@ -48,15 +48,13 @@ class TaskStore:
 
     @property
     def mode(self) -> str:
-        m = getattr(self.cfg, "search_mode", "keyword") if self.cfg is not None else "keyword"
-        return m if self.embedder is not None else "keyword"
+        """hybrid = BM25 + embedding (RRF) khi có embedder; keyword = chỉ BM25 (unit test, không có embedder)."""
+        return "hybrid" if self.embedder is not None else "keyword"
 
-    def threshold(self, kind: str = "target") -> float:
-        """Ngưỡng cosine: kind = "target" (kiểm tra target) | "dedup" (kiểm trùng)."""
-        key, dflt = (("dedup_semantic_min_similarity", "default_dedup_threshold") if kind == "dedup"
-                     else ("semantic_min_similarity", "default_threshold"))
-        v = getattr(self.cfg, key, None) if self.cfg is not None else None
-        return v if v is not None else getattr(self.embedder, dflt, 0.5)
+    def threshold(self) -> float:
+        """Cosine tối thiểu để kiểm tra target coi một task là gần nghĩa: config, không có thì mặc định của embedder."""
+        v = getattr(self.cfg, "semantic_min_similarity", None) if self.cfg is not None else None
+        return v if v is not None else getattr(self.embedder, "default_threshold", 0.5)
 
     def query_text(self, key: str, text: str) -> str:
         """Bỏ @mention khỏi truy vấn trước khi embedding (văn bản task cũng bỏ) — tránh hai bên giống nhau chỉ vì cùng @Tên."""
@@ -161,8 +159,9 @@ class TaskStore:
         """Tìm task trong kho (mọi trạng thái).
 
         keyword: BM25 trên token bỏ dấu + điểm cộng khi trùng người + cộng nhẹ theo độ mới.
-        semantic / hybrid: Reciprocal Rank Fusion của các danh sách xếp hạng — BM25 (chỉ hybrid), cosine embedding
-        (task có cosine ≥ semantic_floor) và trùng người (theo độ mới); score = Σ 1/(rrf_k + hạng)."""
+        hybrid: Reciprocal Rank Fusion của ba danh sách xếp hạng — BM25, cosine embedding (task có cosine ≥ semantic_floor)
+        và trùng người (theo độ mới); score = Σ 1/(rrf_k + hạng). BM25 giữ đúng mã/số ("PR #482"), embedding bắt cách
+        diễn đạt khác ("weekly report" ↔ "báo cáo tuần")."""
         docs = [t for t in self.state.tasks if self._in_scope(t, key, since)]
         if not docs:
             return []
@@ -214,14 +213,13 @@ class TaskStore:
                 for i, r in enumerate(lst):
                     ranks[r[0].task_id] = ranks.get(r[0].task_id, 0.0) + 1.0 / (k + i + 1)
 
-            if mode == "hybrid":
-                add(sorted([r for r in rows if r[1] > 0], key=lambda r: -r[1]))
+            add(sorted([r for r in rows if r[1] > 0], key=lambda r: -r[1]))
             add(sorted([r for r in rows if r[5] is not None and r[5] >= floor], key=lambda r: -r[5]))
             add(sorted([r for r in rows if r[3]], key=lambda r: -r[4]))
             for t, bm25, matched, pm, fresh, sim in rows:
                 if t.task_id not in ranks:
                     continue
-                m = list(matched) if mode == "hybrid" else []
+                m = list(matched)
                 if pm:
                     m.append("người: " + ", ".join(names.get(u, u) for u in sorted(pids & (set(t.assignee_ids) | {t.assigner_id}))))
                 if sim is not None and sim >= floor:
@@ -229,22 +227,22 @@ class TaskStore:
                 semantic = sim is not None and sim >= floor
                 hits.append(SearchHit(t, round(ranks[t.task_id] + 0.001 * fresh, 4), m, len(matched), pm,
                                       None if sim is None else round(sim, 3),
-                                      people_only=pm and not (matched and mode == "hybrid") and not semantic))
+                                      people_only=pm and not matched and not semantic))
         hits.sort(key=lambda h: (-h.score, -ts(mentioned_at(h.task))))
         return hits[: max(0, limit)]
 
-    # ---------- v5: ứng viên trước lần gọi 1 (context_mode = retrieve_first) ----------
+    # ---------- ứng viên trước lần gọi 1 ----------
     def is_matched(self, h: SearchHit) -> bool:
         """Hit vào nhóm B1 (khớp nội dung): ≥ matched_min_keyword_overlap từ khoá chung HOẶC cosine ≥ semantic_floor.
         Hit chỉ trùng người không tính (mọi việc của cùng người đều "trùng người")."""
         min_kw = getattr(self.cfg, "matched_min_keyword_overlap", 1)
         floor = getattr(self.cfg, "semantic_floor", 0.35)
-        kw_ok = self.mode != "semantic" and h.keyword_overlap >= max(1, min_kw)
+        kw_ok = h.keyword_overlap >= max(1, min_kw)
         return not h.people_only and (kw_ok or (h.similarity is not None and h.similarity >= floor))
 
     def candidates(self, key: str, query: str, people: Optional[list[str]], since: Optional[str], exclude: set[str],
                    now: Optional[str] = None) -> tuple[list[SearchHit], list[Task]]:
-        """(matched, recent) cho khối CANDIDATE_TASKS (tài liệu v5 mục 3.2).
+        """(matched, recent) cho khối CANDIDATE_TASKS.
 
         matched: task khớp nội dung TIN MỚI, trạng thái candidate / draft / approved hoặc có đề xuất pending, không nằm
         trong `exclude` (task đã ở khối được link), tối đa `matched_tasks_max`, theo điểm giảm dần.
