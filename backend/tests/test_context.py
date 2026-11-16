@@ -65,14 +65,14 @@ def cands(turn):
 
 
 def create(anchor: str, refs: list[str], title: str, kind="assigned", **kw):
-    return empty_op("CREATE", kind=kind, anchor=f"@{anchor}", title=title, assignee_refs=refs, due_kind="none",
+    return empty_op("CREATE", kind=kind, anchor=f"@{anchor}", title=title, assignees=refs, due_kind="none",
                     evidence=[{"msg": f"@{anchor}", "role": "assign"}], **kw)
 
 
 def update_due(task: str, ev: str, weekday: int):
-    due = {"due_text": f"thứ {weekday + 1}", "due_kind": "weekday", "due_weekday": weekday + 1}  # model ghi số như trong chữ
+    """UPDATE phẳng đổi hạn sang thứ (weekday ISO + 1 = số như trong chữ)."""
     return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": "due"}],
-                    changes=[{"field": "due", "value": json.dumps(due, ensure_ascii=False), "evidence_msg": f"@{ev}"}])
+                    due_text=f"thứ {weekday + 1}", due_kind="weekday", due_weekday=weekday + 1)
 
 
 def fillers(start_min: int, n: int, day: int = 9, hour: int = 10) -> list[Message]:
@@ -349,7 +349,7 @@ def test_evidence_msg_with_copied_line_is_accepted():
     """Model đôi khi chép cả dòng tin vào evidence.msg ('#1 [thứ 2 …] Hưng: …') — chỉ lấy id ở đầu."""
     ms = [msg("a", "09:00", "u_hung", "@Linh gửi báo cáo tuần nhé", mentions=mention("u_linh"))]
     op = create("a", ["u_linh"], "Gửi báo cáo tuần")
-    op["evidence"] = [{"msg": "#1 [thứ 2 09/11 09:00] Hưng: @Linh gửi báo cáo tuần nhé", "role": "assign"}]
+    op["evidence"] = [{"msg": "#1 [thứ 2 09/11 09:00] Hưng (u_hung): @Linh gửi báo cáo tuần nhé", "role": "assign"}]
     t = turn_of(run_all(state_of(ms), FakeLLM({"a": {"ops": [op]}}), Config()), "a")
     assert t["ops"][0]["accepted"]
 
@@ -361,7 +361,7 @@ def test_message_text_instead_of_id_is_mapped():
           msg("b", "09:05", "u_nam", "ok anh", reply_to_id="a")]
     op = create("a", ["u_nam"], "Làm màn hình lịch sử giao dịch")
     op["anchor"] = op["evidence"][0]["msg"] = "@Nam làm màn hình lịch sử giao dịch nhé (@Nam=u_nam)"
-    acc = empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "ok anh", "role": "accept"}], changes=None)
+    acc = empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "ok anh", "role": "accept"}])
     s = state_of(ms)
     turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [acc]}}), Config())
     assert turn_of(turns, "a")["ops"][0]["accepted"] and s.tasks[0].anchor_message_id == "a"
@@ -392,79 +392,67 @@ def test_schema_and_prompt():
     assert {t.prompt_version for t in s.tasks} == {PROMPT_VERSION}
 
 
-# ---------------- chốt chặn trong code (DECISIONS #57, #58) ----------------
+# ---------------- v6 mục 5, 7: người nhận bằng user_id, UPDATE phẳng ----------------
 
-def test_speaker_on_assigner_message_uses_mentioned_person():
-    """"@Nam viết script backup nhé" của Hưng mà model ghi SPEAKER → người nhận là Nam, không phải Hưng."""
-    ms = [msg("a", "09:00", "u_hung", "@Nam viết script backup database nhé", mentions=mention("u_nam"))]
-    by = {"a": {"ops": [create("a", ["SPEAKER:@a"], "Viết script backup database")]}}
-    s = state_of(ms)
-    t = turn_of(run_all(s, FakeLLM(by), Config()), "a")
-    assert s.tasks[0].assignee_ids == ["u_nam"] and any("speaker_is_assigner" in n for n in t["ops"][0]["notes"])
-    # tự hứa kèm @mention người được báo → vẫn là người nói
-    ms = [msg("b", "09:00", "u_tuan", "@Hưng em gửi bản thiết kế trước thứ 6 nhé", mentions=mention("u_hung"))]
-    by = {"b": {"ops": [create("b", ["SPEAKER:@b"], "Gửi bản thiết kế", kind="self_commit")]}}
-    s = state_of(ms)
-    run_all(s, FakeLLM(by), Config())
-    assert s.tasks[0].assignee_ids == ["u_tuan"]
+def _upd(task: str, ev: str, role: str = "accept", **fields):
+    return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": role}], **fields)
 
 
-def _accept(task: str, ev: str):
-    return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": "accept"}],
-                    changes=[{"field": "assignee_refs", "value": f'["SPEAKER:@{ev}"]', "evidence_msg": f"@{ev}"}])
-
-
-def test_accept_adds_to_existing_assignees():
-    ms = [msg("a", "09:00", "u_hung", "Linh với Nam chuẩn bị slide demo cho khách hàng nhé"),
+def test_assignees_add_and_remove():
+    ms = [msg("a", "09:00", "u_hung", "Linh với Nam chuẩn bị slide demo cho khách hàng"),
           msg("b", "09:05", "u_nam", "ok anh", reply_to_id="a"),
-          msg("c", "09:06", "u_linh", "dạ em nhận", reply_to_id="a")]
-    by = {"a": {"ops": [create("a", ["Linh"], "Chuẩn bị slide demo cho khách hàng")]},
-          "b": {"ops": [_accept("K1.1", "b")]}, "c": {"ops": [_accept("K1.1", "c")]}}
+          msg("c", "09:10", "u_hung", "thôi Linh để Tuấn làm thay nhé", reply_to_id="a")]
+    by = {"a": {"ops": [create("a", ["u_linh"], "Chuẩn bị slide demo cho khách hàng")]},
+          "b": {"ops": [_upd("K1.1", "b", assignees_add=["u_nam"])]},
+          "c": {"ops": [_upd("K1.1", "c", "assignee", assignees_add=["Tuấn"], assignees_remove=["u_linh"])]}}
     s = state_of(ms)
     turns = run_all(s, FakeLLM(by), Config())
-    assert sorted(s.tasks[0].assignee_ids) == ["u_linh", "u_nam"]
-    assert turn_of(turns, "c")["ops"][0]["accepted"]  # Linh đã có → không đổi, chỉ thêm bằng chứng
-    # đổi người nhận bằng tên / @mention vẫn THAY như cũ
-    ms2 = ms[:1] + [msg("d", "09:10", "u_hung", "thôi để Tuấn làm nhé", reply_to_id="a")]
-    by2 = {"a": by["a"], "d": {"ops": [empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "@d", "role": "assignee"}],
-                                                 changes=[{"field": "assignee_refs", "value": '["Tuấn"]', "evidence_msg": "@d"}])]}}
-    s = state_of(ms2)
-    run_all(s, FakeLLM(by2), Config())
-    assert s.tasks[0].assignee_ids == ["u_tuan"]
+    assert s.tasks[0].assignee_ids == ["u_nam", "u_tuan"]          # tên → khớp thành viên
+    assert turn_of(turns, "c")["ops"][0]["fields"] == ["assignee_refs"]
 
 
-def test_accept_on_self_commit_replaces():
-    """Model đọc nhầm lời nhờ thành tự hứa (người nhận = người nhờ); người kia nhận việc → THAY, không gộp."""
-    ms = [msg("a", "09:00", "u_hung", "em làm giúp anh bảng so sánh giá nhé"),
-          msg("b", "09:05", "u_linh", "Dạ vâng anh", reply_to_id="a")]
-    by = {"a": {"ops": [create("a", ["SPEAKER:@a"], "Làm bảng so sánh giá", kind="self_commit")]},
-          "b": {"ops": [_accept("K1.1", "b")]}}
+def test_unknown_user_id_is_dropped():
+    ms = [msg("a", "09:00", "u_hung", "@Linh gửi báo cáo tuần nhé", mentions=mention("u_linh"))]
+    s = state_of(ms)
+    t = turn_of(run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh", "u_khach"], "Gửi báo cáo tuần")]}}), Config()), "a")
+    assert s.tasks[0].assignee_ids == ["u_linh"] and any(n.startswith("assignee_unknown") for n in t["ops"][0]["notes"])
+
+
+def test_notes_add_appends_and_notes_replaces():
+    ms = [msg("a", "09:00", "u_hung", "@Linh làm banner Black Friday", mentions=mention("u_linh")),
+          msg("b", "09:30", "u_hung", "banner thêm bản dọc cho story nhé", reply_to_id="a"),
+          msg("c", "10:00", "u_hung", "bỏ hết yêu cầu cũ, chỉ cần bản ngang", reply_to_id="a")]
+    by = {"a": {"ops": [create("a", ["u_linh"], "Làm banner Black Friday", notes="3 kích thước")]},
+          "b": {"ops": [_upd("K1.1", "b", "content", notes_add="thêm bản dọc cho story")]}}
     s = state_of(ms)
     run_all(s, FakeLLM(by), Config())
-    assert s.tasks[0].assignee_ids == ["u_linh"]
+    assert s.tasks[0].notes == "3 kích thước; thêm bản dọc cho story"
+    by["c"] = {"ops": [_upd("K1.1", "c", "content", notes="chỉ cần bản ngang")]}
+    s = state_of(ms)
+    run_all(s, FakeLLM(by), Config())
+    assert s.tasks[0].notes == "chỉ cần bản ngang"
 
 
-# ---------------- DECISIONS #72: đổi người nhận theo vai trò, số thứ như trong chữ, đẩy hạn đã qua ----------------
-
-def _set_assignee(task: str, ev: str, ref: str, role: str):
-    return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": role}],
-                    changes=[{"field": "assignee_refs", "value": f'["{ref}"]', "evidence_msg": f"@{ev}"}])
-
-
-def test_assignee_change_needs_accept_or_assignee_role():
-    ms = [msg("a", "09:00", "u_hung", "@Nam fix crash màn đăng nhập nhé", mentions=mention("u_nam")),
-          msg("b", "09:30", "u_hung", "fix nhanh được không", reply_to_id="a"),        # nhắc việc của người giao
-          msg("c", "10:00", "u_hung", "ổn rồi em", reply_to_id="a"),                   # người giao, model ghi accept
-          msg("d", "10:30", "u_hung", "thôi để anh làm cho", reply_to_id="a")]         # người giao tự nhận làm
-    by = {"a": {"ops": [create("a", ["u_nam"], "Fix crash màn đăng nhập")]},
-          "b": {"ops": [_set_assignee("K1.1", "b", "SPEAKER:@b", "content")]},
-          "c": {"ops": [_set_assignee("K1.1", "c", "SPEAKER:@c", "accept")]},
-          "d": {"ops": [_set_assignee("K1.1", "d", "SPEAKER:@d", "assignee")]}}
+def test_due_kind_null_none_and_shift():
+    ms = [msg("a", "09:00", "u_hung", "@Nam làm báo cáo, thứ 5 gửi anh nhé", day=16, mentions=mention("u_nam")),
+          msg("b", "10:00", "u_hung", "thêm phần chi phí nữa", day=16, reply_to_id="a"),
+          msg("c", "11:00", "u_hung", "lùi thêm 2 ngày nhé", day=16, reply_to_id="a"),
+          msg("d", "12:00", "u_hung", "thôi không cần hạn nữa", day=16, reply_to_id="a"),
+          msg("e", "13:00", "u_hung", "lùi thêm 1 ngày", day=16, reply_to_id="a")]
+    op = create("a", ["u_nam"], "Làm báo cáo")
+    op.update(due_text="thứ 5", due_kind="weekday", due_weekday=5)
+    by = {"a": {"ops": [op]},
+          "b": {"ops": [_upd("K1.1", "b", "content", notes_add="thêm phần chi phí")]},       # due_kind null → hạn giữ nguyên
+          "c": {"ops": [_upd("K1.1", "c", "due", due_text="lùi thêm 2 ngày", due_shift_days=2)]},
+          "d": {"ops": [_upd("K1.1", "d", "due", due_kind="none")]},
+          "e": {"ops": [_upd("K1.1", "e", "due", due_shift_days=1)]}}
     s = state_of(ms)
     turns = run_all(s, FakeLLM(by), Config())
-    assert any("assignee_change_dropped" in n for n in turn_of(turns, "b")["ops"][0]["notes"])
-    assert any("là người giao" in n for n in turn_of(turns, "c")["ops"][0]["notes"])
-    assert s.tasks[0].assignee_ids == ["u_hung"]  # chỉ lời tự nhận (vai trò assignee) được áp
+    hist = [(h.field, h.new) for h in s.tasks[0].field_history]
+    assert ("due", "thứ 7 (21/11)") in hist                                  # 19/11 + 2 ngày
+    assert s.tasks[0].due_type == "none" and s.tasks[0].due_date is None      # "none" = bỏ hạn
+    assert any(n.startswith("due_shift_no_base") for n in turn_of(turns, "e")["ops"][0]["notes"])
+    assert turn_of(turns, "b")["ops"][0]["fields"] == ["notes"]
 
 
 def test_weekday_written_number_and_roll_forward():
@@ -474,8 +462,7 @@ def test_weekday_written_number_and_roll_forward():
           msg("b", "15:00", "u_nam", "anh ơi em xin lùi sang thứ 2 nhé", day=16, reply_to_id="a")]
     op = create("a", ["u_nam"], "Làm báo cáo")
     op.update(due_text="thứ 5", due_kind="weekday", due_weekday=5)
-    lui = update_due("K1.1", "b", 1)
-    lui["changes"][0]["value"] = '{"due_text": "thứ 2", "due_kind": "weekday", "due_weekday": 2, "due_week_offset": 0}'
+    lui = _upd("K1.1", "b", "due", due_text="thứ 2", due_kind="weekday", due_weekday=2, due_week_offset=0)
     s = state_of(ms)
     turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [lui]}}), Config())
     assert any("2026-11-19" in n for n in turn_of(turns, "a")["ops"][0]["notes"])

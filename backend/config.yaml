@@ -29,6 +29,7 @@ target_check_on_update: true
 semantic_min_similarity:             # trống = mặc định embedder (text-embedding-3-small: 0.45)
 target_check_max_candidates: 3
 prompt_cache_key: ai_reminder_extract
+members_max: 30                      # <MEMBERS>: hội thoại đông hơn chỉ liệt kê người có mặt trong prompt
 
 # Bảng giá USD / 1M token để ước tính chi phí (input, input được cache, output).
 pricing:

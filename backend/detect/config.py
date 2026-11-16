@@ -39,6 +39,7 @@ class Config(BaseModel):
     semantic_floor: float = 0.35  # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
     rrf_k: int = 10
     prompt_cache_key: Optional[str] = "ai_reminder_extract"
+    members_max: int = 30  # hội thoại đông hơn: <MEMBERS> chỉ liệt kê người xuất hiện trong prompt (v6 mục 5.1)
     candidate_tasks_max: int = 5            # tổng task ở khối CANDIDATE_TASKS (matched + recent)
     matched_tasks_max: int = 3              # task khớp nội dung TIN MỚI tối đa
     matched_min_keyword_overlap: int = 1    # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
@@ -69,6 +70,7 @@ CONFIG_HELP: dict[str, str] = {
     "semantic_floor": "Cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa",
     "rrf_k": "Hằng số k của Reciprocal Rank Fusion",
     "prompt_cache_key": "prompt_cache_key gửi OpenAI (null = không gửi)",
+    "members_max": "Hội thoại có nhiều thành viên hơn số này: <MEMBERS> chỉ gồm tác giả tin, người được @mention, người nhận / người giao của task trong prompt",
     "candidate_tasks_max": "Tổng task ở khối CANDIDATE_TASKS (khớp nội dung + gần nhất)",
     "matched_tasks_max": "Task khớp nội dung TIN MỚI tối đa",
     "matched_min_keyword_overlap": "Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",

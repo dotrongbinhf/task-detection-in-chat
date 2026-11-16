@@ -110,7 +110,7 @@ def _to_prompt_msg(e: StreamEvent, section: str, until: Optional[str] = None,
 def _fmt_msg(m: PromptMsg, prev_at: Optional[str], rev_map: dict[str, str], max_tokens: int) -> str:
     full = not prev_at or local_date(prev_at) != local_date(m.at) or ts(m.at) - ts(prev_at) > 3600
     stamp = fmt_day_time(m.at) if full else fmt_time(m.at)
-    line = f"{m.local} [{stamp}] {m.author_name}: {truncate_tokens(m.text, max_tokens)}"
+    line = f"{m.local} [{stamp}] {m.author_name} ({m.author_id}): {truncate_tokens(m.text, max_tokens)}"
     if m.mentions:
         line += " (" + ", ".join(f"@{x['name']}={x['user_id']}" for x in m.mentions) + ")"
     if m.reply_to_id:
@@ -141,7 +141,7 @@ def _task_head(state: EngineState, t: Task, local: str, members: list[Member]) -
     """`T1 [status | kind] "title" — assignee: … — due: …` (+ thay đổi đang chờ duyệt)."""
     name_of = lambda u: next((m.display_name for m in members if m.user_id == u), u)  # noqa: E731
     pend = pending_for(state, t.task_id)
-    who = ", ".join(name_of(u) for u in t.assignee_ids) or "(none)"
+    who = ", ".join(f"{name_of(u)} ({u})" for u in t.assignee_ids) or "(none)"
     p_as = next((p for p in pend if p.field == "assignee_refs"), None)
     if p_as:
         who += f", PENDING APPROVAL: {p_as.new_display}"
@@ -152,6 +152,13 @@ def _task_head(state: EngineState, t: Task, local: str, members: list[Member]) -
         due += f", PENDING APPROVAL: {_due_en(nv.get('due_type', 'none'), nv.get('due_date'), nv.get('due_text'))}"
     extra = " — PENDING APPROVAL: cancel" if any(p.field == "status" for p in pend) else ""
     return f'{local} [{t.status} | {t.kind}] "{t.title}" — assignee: {who} — due: {due}{extra}', pend
+
+
+def members_block(members: list[Member], include: Optional[set[str]], max_n: int) -> str:
+    """`<MEMBERS>` — một dòng một người: `u_minh Minh (anh Minh, Minh Hoàng)`. Hội thoại đông hơn `max_n`: chỉ người trong `include`."""
+    rows = members if len(members) <= max_n or include is None else [m for m in members if m.user_id in include]
+    lines = [f"{m.user_id} {m.display_name}" + (f" ({', '.join(m.aliases)})" if m.aliases else "") for m in rows]
+    return "<MEMBERS>\n" + ("\n".join(lines) or "(none)") + "\n</MEMBERS>"
 
 
 def _ev_refs(t: Task, rev_map: dict[str, str]) -> str:
@@ -336,7 +343,10 @@ def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: C
 
         history = [m for m in all_msgs if m.section in ("window", "reply")]
         new_msgs = [m for m in all_msgs if m.section == "new"]
-        head = f"Conversation type: {conv_type}."
+        # người có mặt trong prompt: tác giả, người được @mention, người nhận / người giao của task trong prompt
+        present = ({m.author_id for m in all_msgs} | {x["user_id"] for m in all_msgs for x in m.mentions}
+                   | {u for p in prompt_tasks for u in [*p.task.assignee_ids, p.task.assigner_id] if u})
+        head = f"Conversation type: {conv_type}.\n" + members_block(members, present, cfg.members_max)
         b = {
             "b1": instructions,
             "b2": f"<CALENDAR>\n{calendar14(turn_at).replace('← hôm nay', '← today')}\n</CALENDAR>",

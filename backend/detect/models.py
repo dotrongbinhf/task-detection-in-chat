@@ -210,22 +210,21 @@ class EvidenceRef(BaseModel):
     role: EvidenceRole
 
 
-class Change(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    field: Literal["title", "notes", "kind", "assignee_refs", "due"]
-    value: str  # luôn là chuỗi JSON
-    evidence_msg: str
-
-
 class Op(BaseModel):
+    """Op phẳng (v6 mục 7.1): UPDATE dùng cùng trường như CREATE, trường khác null = thay đổi; danh sách dùng `_add` / `_remove`.
+    Người nhận là `user_id` lấy từ <MEMBERS> hoặc dòng tin (v6 mục 5)."""
+
     model_config = ConfigDict(extra="forbid")
     op: Literal["CREATE", "UPDATE", "CANCEL"]
     target: Optional[str]
-    kind: Optional[TaskKind]
     anchor: Optional[str]
+    kind: Optional[TaskKind]
     title: Optional[str]
     notes: Optional[str]
-    assignee_refs: Optional[list[str]]
+    notes_add: Optional[str]
+    assignees: Optional[list[str]]
+    assignees_add: Optional[list[str]]
+    assignees_remove: Optional[list[str]]
     due_text: Optional[str]
     due_kind: Optional[DueKind]
     due_day_offset: Optional[int]
@@ -234,8 +233,8 @@ class Op(BaseModel):
     due_week_part: Optional[Literal["end", "start"]]
     due_abs_day: Optional[int]
     due_abs_month: Optional[int]
+    due_shift_days: Optional[int]
     evidence: list[EvidenceRef]
-    changes: Optional[list[Change]]
 
 
 # Thứ tự trường = thứ tự model sinh: phân loại TIN MỚI trước rồi mới ops (đã thử ops trước: recall 82% → 71%, DECISIONS #56).
@@ -251,7 +250,7 @@ class ExtractOutput(BaseModel):
 def empty_op(op: str, due: dict[str, Any] | None = None, **kw: Any) -> dict[str, Any]:
     """Op phẳng với mọi trường = null (dùng cho FakeLLM)."""
     base: dict[str, Any] = {k: None for k in Op.model_fields}
-    base.update(op=op, evidence=[], changes=None)
+    base.update(op=op, evidence=[])
     base.update(due or {})
     base.update(kw)
     return base
