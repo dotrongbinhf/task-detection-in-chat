@@ -83,6 +83,8 @@ class GoldTask(BaseModel):
     due_date: Optional[str] = None
     final_status: Literal["active", "cancelled"] = "active"
     scenario_tags: list[str] = Field(default_factory=list)
+    # tin xác nhận KHÔNG đổi sổ cái ("dạ" khi task đã giao đúng người đó) — không thuộc supporting (v6 mục 10.4)
+    confirm_message_ids: list[str] = Field(default_factory=list)
 
 
 # ---------- Sổ cái ----------

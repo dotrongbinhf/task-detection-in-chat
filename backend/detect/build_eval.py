@@ -4,21 +4,24 @@
 
 Định dạng một file = một hội thoại:
 
-    conv ch_backend group train          # id, group|dm, split (train|dev|test)
+    conv ch_backend group dev            # id, group|dm, split (dev|test)
     member hung Hưng | anh Hưng, Hung    # khoá ngắn, tên hiển thị | alias
     gold bc | Gửi báo cáo tuần | assigned | linh | 2026-11-19 | active | single_message,relative_deadline
                                          # khoá | tiêu đề | kind | người nhận (a,b hoặc -) | ngày|event|none | active|cancelled | tags
     day 2026-11-16
     09:05 hung: Chào mọi người
     09:06 hung [x1]: @Linh gửi báo cáo tuần trước thứ 5 nhé   ## bc:assign
-    09:07 linh ^x1: Dạ ok anh                                ## bc:accept
-    09:07:30 +nam like x1                                    ## bc:accept
-    09:08 linh: để em xem đã                                 ## hn
+    09:07 linh ^x1: Dạ ok anh                                ## bc:confirm
+    09:07:30 +nam like x1
+    09:08 linh: để em xem đã                                 ## hn:defer
     act 09:20 linh approve bc
 
-Reaction `+người loại [nhãn]` (bỏ nhãn = tin ngay trước). `act ... <đích>`: đích = nhãn tin `[x]` (dùng cho approve_change) hoặc khoá gold (= tin anchor). Dòng bắt đầu `#` = chú thích.
+Reaction `+người loại [nhãn]` (bỏ nhãn = tin ngay trước); reaction KHÔNG được mang nhãn (v6: reaction không đổi sổ cái).
+`act ... <đích>`: đích = nhãn tin `[x]` (dùng cho approve_change) hoặc khoá gold (= tin anchor). Dòng bắt đầu `#` = chú thích.
 
-`[nhãn]` đặt tên tin; `^nhãn` = reply. `@Tên` khớp tên hiển thị → mentions. Sau `##`: `<gold>:<kind>` (kind ∈ label.KINDS) và/hoặc `hn`.
+`[nhãn]` đặt tên tin; `^nhãn` = reply. `@Tên` khớp tên hiển thị → mentions. Sau `##`: `<gold>:<kind>` (kind ∈ label.KINDS)
+và/hoặc `hn:<tag>` (tag ∈ HN_TAGS). `confirm` = tin xác nhận không đổi sổ cái ("dạ" khi task đã giao đúng người đó) — không vào
+`supporting_message_ids` mà vào `confirm_message_ids`; `accept` chỉ dùng khi tin đó LÀM ĐỔI người nhận (v6 mục 10.4).
 Nhãn lượt của người viết ghi ra `labels_author.jsonl`, rồi gộp như người gán thứ nhất (`label.merge`).
 """
 from __future__ import annotations
@@ -31,7 +34,7 @@ from typing import Any
 
 from .config import load_config
 from .dataset import load_dataset
-from .label import KINDS, derive, merge, stats, write_jsonl
+from .label import HN_TAGS, KINDS, data_stats, derive, merge, stats, write_jsonl
 
 LINE = re.compile(r"^(\d\d:\d\d(?::\d\d)?)\s+(.*)$")
 
@@ -79,6 +82,8 @@ def parse_file(path: Path) -> dict[str, Any]:
             if body.startswith("+"):  # reaction
                 p = body[1:].split()
                 user, typ = p[0], p[1]
+                if notes:
+                    raise err("reaction không được mang nhãn (v6 mục 10.4: reaction không làm đổi sổ cái)")
                 tgt = labels[p[2]] if len(p) > 2 else conv["msgs"][-1]["id"]
                 msg = next(x for x in conv["msgs"] if x["id"] == tgt)
                 eid = f"{tgt}#r{len(msg['reactions']) + 1}"
@@ -111,8 +116,11 @@ def parse_file(path: Path) -> dict[str, Any]:
                                      "author_name": conv["members"][user]["display_name"], "text": text,
                                      "mentions": mentions, "reply_to_id": reply, "reactions": []})
             for x in notes:
-                if x == "hn":
-                    conv["hn"].append(eid)
+                if x.startswith("hn"):
+                    tag = x.partition(":")[2]
+                    if tag not in HN_TAGS:
+                        raise err(f"hard negative cần tag ∈ {', '.join(HN_TAGS)}: {x}")
+                    conv["hn"].append((eid, tag))
                     continue
                 g, _, role = x.partition(":")
                 if g not in conv["gold"] or role not in KINDS:
@@ -123,7 +131,7 @@ def parse_file(path: Path) -> dict[str, Any]:
 
 
 def build(src: Path) -> tuple[dict[str, Any], dict[str, list[str]], dict[str, list[str]]]:
-    msgs, members, gold, hn, acts, split = [], {}, [], [], [], {"train": [], "dev": [], "test": []}
+    msgs, members, gold, hn, acts, split = [], {}, [], [], [], {"dev": [], "test": []}
     roles: dict[str, list[str]] = {}
     for path in sorted(src.glob("*.txt")):
         c = parse_file(path)
@@ -133,9 +141,10 @@ def build(src: Path) -> tuple[dict[str, Any], dict[str, list[str]], dict[str, li
         msgs += c["msgs"]
         hn += c["hn"]
         sup: dict[str, list[str]] = {}
+        conf: dict[str, list[str]] = {}
         for eid, rs in c["roles"].items():
             for g, role in rs:
-                sup.setdefault(g, []).append(eid)
+                (conf if role == "confirm" else sup).setdefault(g, []).append(eid)
                 roles.setdefault(eid, []).append(role)
         for g, d in c["gold"].items():
             if g not in sup:
@@ -147,7 +156,7 @@ def build(src: Path) -> tuple[dict[str, Any], dict[str, list[str]], dict[str, li
                          "supporting_message_ids": ids, "title": d["title"], "kind": d["kind"],
                          "assignee_ids": [f"u_{a}" for a in d["assignees"]], "due_type": due_type,
                          "due_date": d["due"] if due_type == "calendar" else None, "final_status": d["status"],
-                         "scenario_tags": d["tags"]})
+                         "scenario_tags": d["tags"], "confirm_message_ids": sorted(conf.get(g, []), key=lambda i: pos[i])})
         anchor = {g["gold_id"].split(":", 1)[1]: g["anchor_message_id"] for g in gold if g["conversation_key"] == cid}
         for at, user, action, g in c["acts"]:
             mid = c["labels"].get(g) or anchor.get(g)
@@ -168,7 +177,7 @@ def main() -> None:
     write_jsonl(out / "messages.jsonl", sorted(d["messages"], key=lambda m: (m["created_at"], m["id"])))
     (out / "members.json").write_text(json.dumps(d["members"], ensure_ascii=False, indent=1), encoding="utf-8")
     write_jsonl(out / "gold.jsonl", d["gold"])
-    (out / "hard_negatives.txt").write_text("".join(i + "\n" for i in d["hn"]), encoding="utf-8")
+    (out / "hard_negatives.txt").write_text("".join(f"{i}\t{t}\n" for i, t in d["hn"]), encoding="utf-8")
     write_jsonl(out / "user_actions.jsonl", sorted(d["acts"], key=lambda x: x["at"]))
     (out / "split.json").write_text(json.dumps(split, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -183,6 +192,7 @@ def main() -> None:
         raise SystemExit(f"nhãn tác giả lệch nhãn suy: {conflicts[:3]}")
     s = stats(rows, split)
     print(json.dumps(s, ensure_ascii=False))
+    print(json.dumps(data_stats(load_dataset(str(out)), split), ensure_ascii=False, indent=1))
     print(f"{len(d['messages'])} tin, {len(d['gold'])} nhãn ({sum(1 for g in d['gold'] if g['assignee_ids'])} có người nhận) → {out}")
 
 

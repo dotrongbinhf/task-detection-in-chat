@@ -1,0 +1,293 @@
+conv ch_ecom group dev
+# v6 mục 10.5: hội thoại nhiều task (≥ 40 mở), 12 ngày, tiêu đề gần giống nhau, nhắc việc cũ không reply, sửa nội dung việc cũ
+member vinh Vinh | anh Vinh, Vinh Phạm
+member ha Hà | Ha, chị Hà
+member nam Nam | Nam Trần
+member mai Mai | Mai Anh
+member tuan Tuấn | Tuan
+member linh Linh | Linh Đỗ
+member khoa Khoa | Khoa
+member yen Yến | Yen
+
+gold pr482 | Review PR #482 đồng bộ tồn kho | assigned | khoa | 2026-11-18 | active | similar_titles,question_assign,relative_deadline
+gold pr490 | Review PR #490 voucher stacking | assigned | tuan | 2026-11-24 | active | similar_titles,narrative_assign,far_update_no_reply,index_overflow
+gold bcnam | Gửi báo cáo tuần phần vận hành kho | assigned | nam | 2026-11-20 | active | similar_titles,multi_task_message,name_collision
+gold bclinh | Gửi báo cáo tuần phần CSKH | assigned | linh | 2026-11-20 | active | similar_titles,multi_task_message
+gold bfbanner | Làm banner Black Friday cho trang chủ | assigned | mai | 2026-11-19 | active | no_diacritics,narrative_assign,name_collision,detail_check
+gold skuimg | Import lại 300 SKU lỗi ảnh | self_commit | yen | 2026-11-16 | active | self_commit
+gold catsync | Đồng bộ danh mục sản phẩm sang Lazada | assigned | khoa | none | active | long_message
+gold shipfee | Sửa phí ship nội thành tính sai cho đơn trên 500k | assigned | yen | none | active | ttl_long,implicit_ask,index_overflow
+gold flashsale | Cấu hình flash sale 11h ngày 20/11 | assigned | tuan | 2026-11-19 | active | long_message,relative_deadline
+gold refundsop | Viết lại quy trình hoàn tiền cho CSKH | assigned | linh | none | active | english_mix,detail_check,far_update_no_reply
+gold couriercmp | So sánh bảng giá 3 hãng vận chuyển | assigned | nam | 2026-11-23 | cancelled | abbreviation,cancelled_far
+gold pr495 | Review PR #495 trang checkout | assigned | khoa | none | active | similar_titles,implicit_ask
+gold sizechart | Cập nhật bảng size cho 40 mẫu áo mới | assigned | yen | 2026-11-18 | active | question_assign
+gold invoicefix | Sửa mẫu hoá đơn điện tử thiếu mã số thuế | self_commit | ha | 2026-11-18 | active | no_diacritics
+gold gmvdash | Thêm biểu đồ GMV theo giờ vào dashboard | assigned | khoa | 2026-11-26 | active | far_update_no_reply,index_overflow
+gold returnlabel | In tem đổi trả cho kho Bình Dương | assigned | nam | 2026-11-19 | active | name_collision
+gold livestream | Chuẩn bị kịch bản livestream Black Friday | self_commit | mai | 2026-11-20 | active | self_commit
+gold cskhmacro | Tạo macro trả lời nhanh về phí ship | assigned | linh | none | active | long_message
+gold inventorycount | Kiểm kê tồn kho cuối tháng ở kho Thủ Đức | assigned | nam,khoa | 2026-11-30 | active | multi_assignee,reassign,index_overflow
+gold giftwrap | Thêm tuỳ chọn gói quà ở trang checkout | assigned | tuan | 2026-11-27 | active | question_assign
+gold seo | Viết mô tả SEO cho 20 sản phẩm bán chạy | assigned | yen | 2026-11-25 | active | question_assign,abbreviation
+gold warehousecam | Gọi bảo hành camera kho bị mất tín hiệu | assigned | nam | 2026-11-30 | active | ttl_long,far_update_no_reply,index_overflow
+gold couponbug | Fix lỗi coupon không áp được cho đơn COD | assigned | tuan | 2026-11-20 | active | english_mix
+gold emailblast | Soạn email blast Black Friday cho khách VIP | assigned | linh | 2026-11-20 | active | narrative_assign
+gold chatbotfaq | Cập nhật FAQ chatbot về chính sách đổi trả | assigned | linh | none | active | long_message
+gold holidaysched | Xếp lịch trực CSKH dịp Black Friday | assigned | linh | 2026-11-26 | active | relative_deadline
+gold pricecheck | Rà lại giá sau giảm cho 150 SKU flash sale | self_commit | yen | 2026-11-20 | active | self_commit
+gold photoshoot | Đặt studio chụp ảnh bộ sưu tập Tết | assigned | mai | 2026-11-25 | active | name_collision,question_assign
+gold newhire | Hướng dẫn intern mới dùng hệ thống OMS | assigned | khoa | 2026-11-25 | active | narrative_assign
+gold pr501 | Review PR #501 refactor giỏ hàng | assigned | tuan | none | cancelled | similar_titles,cancelled_far
+gold skulist | Ẩn 25 SKU hết hàng trên Shopee | assigned | yen | 2026-11-23 | active | relative_deadline
+gold bcnam2 | Gửi báo cáo tuần phần vận hành kho tuần 23/11 | assigned | nam | 2026-11-27 | active | similar_titles,name_collision,index_overflow
+gold lowstock | Cài cảnh báo tồn kho thấp cho 50 SKU chủ lực | assigned | khoa | 2026-11-26 | active | abbreviation
+gold bannercyber | Làm banner Cyber Monday | assigned | mai | 2026-11-27 | active | similar_titles,name_collision,index_overflow
+gold apikey | Xin API key mới của GHN | self_commit | tuan | none | active | english_mix,self_commit
+gold vouchertet | Lên phương án voucher Tết | self_commit | ha | event | active | event_deadline,long_message
+gold dupeorders | Gộp đơn trùng của khách sỉ | self_commit | nam | 2026-11-24 | active | self_commit
+gold packaging | Đặt thêm 2.000 hộp carton size M | assigned | nam | 2026-11-27 | active | no_diacritics,index_overflow
+gold reviewreply | Trả lời 30 đánh giá 1 sao trên Shopee | assigned | linh | none | active | question_assign,index_overflow
+gold tiktokshop | Đăng 15 sản phẩm lên TikTok Shop | assigned | yen | 2026-11-27 | active | english_mix,index_overflow
+gold bfreport | Tổng hợp số liệu Black Friday | assigned | ha | 2026-11-30 | active | narrative_assign,index_overflow
+gold affiliate | Liên hệ 5 KOC cho chiến dịch tháng 12 | open_ask | - | none | active | unanswered_ask,no_assignee
+gold sla | Viết báo cáo SLA giao hàng tháng 11 | assigned | nam | 2026-12-02 | active | name_collision,index_overflow
+gold qrcode | In mã QR bảo hành dán hộp | assigned | khoa | none | active | question_assign,index_overflow
+gold retro | Chuẩn bị buổi retro Black Friday | self_commit | vinh | 2026-12-01 | active | self_commit,index_overflow
+
+day 2026-11-16
+08:31:12 vinh: Chào cả nhà, tuần này là tuần chạy nước rút cho Black Friday nên mọi người để ý kênh này giúp anh nhé
+08:31:40 vinh: Anh sẽ dồn mọi việc liên quan sàn và kho vào đây cho dễ theo dõi, đỡ lạc sang nhóm khác
+08:33:05 ha: Dạ anh, bên em đã chốt xong danh sách 150 SKU chạy flash sale từ tối thứ 6 tuần trước
+08:40:27 khoa: Sáng nay em thấy job đồng bộ tồn kho với Shopee lại chậm khoảng 15 phút so với thường ngày
+08:41:02 tuan: Chắc do PR mới của team platform deploy đêm qua, log báo timeout ở bước gọi API
+09:02:10 vinh [pr1]: Khoa ơi PR #482 phần đồng bộ tồn kho em review giúp anh trước thứ 4 được không, bên platform đang chờ để merge   ## pr482:assign pr482:due
+09:02:48 khoa ^pr1: Được anh, chiều nay em đọc trước phần logic retry rồi tối em comment   ## pr482:confirm
+09:03:30 vinh [pr2]: Còn PR #490 voucher stacking thì để Tuấn xem, cái đó không gấp bằng nên cứ từ từ   ## pr490:assign
+09:04:01 tuan: Ok anh, em đang dở PR khác, xong em nhảy qua xem voucher stacking   ## pr490:confirm
+09:20:44 vinh [bc]: Tuần này Nam với Linh mỗi người gửi anh báo cáo tuần phần mình trước trưa thứ 6, Nam phần vận hành kho, Linh phần CSKH   ## bcnam:assign bcnam:due bclinh:assign bclinh:due
+09:21:15 linh ^bc: Dạ anh, phần CSKH tuần này có thêm số liệu khiếu nại về phí ship nên em gửi kèm luôn   ## bclinh:confirm
+09:21:38 nam ^bc: Em gửi phần kho trước thứ 6 anh, có cả tỉ lệ hàng hoàn   ## bcnam:confirm
+09:45:09 ha [bf]: banner black friday cho trang chu chac phai nho Mai thoi, thu 5 can len web roi ma ben thiet ke ngoai tre lich   ## bfbanner:assign bfbanner:due
+09:46:30 mai ^bf: Dạ để em làm, tối nay em gửi bản phác cho chị duyệt trước   ## bfbanner:confirm
+09:47:02 vinh: Hay là mình làm thêm mini game vòng quay may mắn cho Black Friday nhỉ, anh chỉ đang nghĩ thôi chưa chốt đâu   ## hn:idea
+09:47:55 ha: Mini game thì cần dev nữa anh ơi, để sau Black Friday bàn tiếp cho chắc   ## hn:defer
+10:15:20 yen [sk]: Có 300 SKU bị lỗi ảnh do đợt upload hôm thứ 7, để em import lại hết, chiều nay xong   ## skuimg:self_commit skuimg:due
+10:16:01 vinh: Cảm ơn Yến, nhớ kiểm tra lại ảnh đại diện của mấy mẫu áo khoác vì khách hay phàn nàn chỗ đó
+10:40:33 vinh [cs]: Một việc nữa: danh mục sản phẩm bên Lazada đang lệch với Shopee khá nhiều, mấy danh mục mới tạo tuần trước chưa có. Khoa xem đồng bộ danh mục sang Lazada luôn, làm bằng tool cũ cũng được, không cần viết mới. À, nhớ giữ nguyên mã danh mục cũ để báo cáo không bị gãy   ## catsync:assign
+10:41:20 khoa ^cs: Dạ em dùng tool cũ, có chỗ nào lệch em báo lại anh   ## catsync:confirm
+11:30:02 ha [sf]: Phí ship nội thành đang tính sai cho đơn trên 500k, khách bị thu thêm 15k dù đáng ra được miễn phí, có ai rảnh xem được không mọi người   ## shipfee:assign
+11:32:47 tuan: Em đang ôm flash sale nên chưa xem được chị ơi
+11:33:10 khoa: Em cũng đang dở PR #482, chiều mai em mới rảnh
+13:05:18 linh: Chiều nay CSKH nhận 42 ticket, phần lớn hỏi về lịch giao hàng Black Friday chứ chưa có khiếu nại gì lớn
+13:06:40 vinh: Deadline thứ 4 mà Khoa review xong PR trong một tiếng thì anh bao cả team trà sữa luôn 😆   ## hn:joke
+13:07:02 khoa: Anh nhớ lời đấy nha, em chụp màn hình rồi
+15:20:31 yen: Em import xong 300 SKU rồi, ảnh đại diện áo khoác cũng đã sửa lại theo bản mới   ## hn:done_report
+15:21:10 vinh: Tốt quá, cảm ơn em
+act 09:10 khoa approve pr482
+act 09:30 nam approve bcnam
+act 09:31 linh approve bclinh
+act 10:20 yen approve skuimg
+act 10:50 khoa approve catsync
+
+day 2026-11-17
+08:45:22 vinh: Hôm nay có vài việc cho flash sale với bên vận chuyển, mọi người đọc kỹ giúp anh
+08:47:10 vinh [fs]: Flash sale 11h ngày 20/11 sẽ chạy 150 SKU như Hà đã chốt. Giá giảm đã có trong file chung, khung giờ giữ nguyên như năm ngoái. Tuấn cấu hình flash sale trên hệ thống trước thứ 5 để còn một ngày test, có gì vướng phần giới hạn số lượng thì hỏi Hà   ## flashsale:assign flashsale:due
+08:48:02 tuan ^fs: Em làm trong hôm nay luôn anh, mai test với Hà   ## flashsale:confirm
+09:10:44 vinh [rf]: Linh update lại SOP refund cho team CS, bản cũ outdated rồi, nhiều bước không còn đúng với hệ thống mới   ## refundsop:assign
+09:11:30 linh ^rf: Dạ em viết lại theo luồng mới, có phần hoàn qua thẻ em hỏi kế toán thêm   ## refundsop:confirm
+09:30:05 vinh [cc]: Nam ss bảng giá 3 hãng vc GHN, GHTK, J&T cho anh, đầu tuần sau cần để đàm phán hợp đồng năm sau   ## couriercmp:assign couriercmp:due
+09:30:41 nam ^cc: Dạ em gom bảng giá xong gửi anh trước thứ 2   ## couriercmp:confirm
+10:02:15 khoa: Mọi người ơi có ai xem PR #495 trang checkout được không, em đang review #482 nên chưa xem kịp   ## pr495:assign
+10:05:50 khoa: À thôi để em xem luôn #495 sau khi xong #482, không ai rảnh thì em ôm   ## pr495:accept
+10:30:12 vinh [sz]: Yến cập nhật bảng size cho 40 mẫu áo mới được không em, mai mở bán rồi mà trang sản phẩm vẫn để bảng size cũ   ## sizechart:assign sizechart:due
+10:31:03 yen ^sz: Được anh, em làm luôn chiều nay   ## sizechart:confirm
+10:55:48 ha [iv]: mau hoa don dien tu dang thieu ma so thue cua ben mua, chi sua lai mau truoc mai, mai ke toan chot so roi   ## invoicefix:self_commit invoicefix:due
+10:56:20 vinh: Ok Hà, sửa xong gửi kế toán kiểm tra trước khi xuất thật
+11:20:31 ha: Nếu kịp thì mình làm thêm landing page riêng cho flash sale, không kịp thì dùng trang khuyến mãi chung cũng được   ## hn:conditional
+11:21:10 vinh: Ừ không kịp thì thôi, ưu tiên cấu hình chạy đúng trước
+13:40:05 linh: Vụ đổi logo trên bao bì là bên brand team lo, mình không cần đụng vào đâu mọi người nhé   ## hn:other_team
+13:41:00 mai: Dạ, em cũng nghe bên brand nói tuần sau mới chốt
+14:10:27 ha: Sếp bảo "ai rảnh thì xem lại mô tả sản phẩm cho đợt sale" nhưng chưa nói ai, mình cứ để đó chờ sếp chốt   ## hn:quote
+14:12:00 vinh: Ừ chưa giao thì mình chưa làm, để anh hỏi lại sếp sau
+16:05:33 tuan: Em cấu hình flash sale xong phần giá, còn phần giới hạn mỗi khách 2 sản phẩm mai em làm nốt
+act 08:55 tuan approve flashsale
+act 09:20 linh approve refundsop
+act 09:40 nam approve couriercmp
+act 10:40 yen approve sizechart
+
+day 2026-11-18
+08:30:40 khoa: PR #482 em review xong rồi, có 2 comment nhỏ về retry, bên platform đang sửa   ## hn:done_report
+08:31:15 vinh: Cảm ơn Khoa, đúng hạn luôn
+08:31:50 vinh: Vụ trà sữa để thứ 6 nhé 😄
+09:05:11 vinh [gm]: Dashboard đang thiếu biểu đồ GMV theo giờ, Khoa thêm vào trước buổi review với sếp nha, sếp hay hỏi giờ cao điểm   ## gmvdash:assign gmvdash:due
+09:05:59 khoa ^gm: Dạ, em lấy dữ liệu từ bảng orders theo giờ là được   ## gmvdash:confirm
+09:30:20 vinh [rl]: Kho Bình Dương hết tem đổi trả rồi, chắc phải nhờ Nam in thêm cho kịp, mai bên đó cần dùng   ## returnlabel:assign returnlabel:due
+09:31:02 nam ^rl: Dạ em in 500 tem gửi xe chiều nay lên kho   ## returnlabel:confirm
+10:10:47 mai [ls]: Kịch bản livestream Black Friday để em chuẩn bị luôn, thứ 6 em gửi chị Hà xem trước khi lên sóng   ## livestream:self_commit livestream:due
+10:11:30 ha: Ok Mai, nhớ có phần giới thiệu 5 mẫu bán chạy nhất
+10:40:09 vinh [mc]: Khách hỏi phí ship rất nhiều, CS trả lời tay mất thời gian quá. Linh tạo macro trả lời nhanh về phí ship cho team, có câu cho nội thành, ngoại thành và đơn trên 500k, viết ngắn thôi đừng dài như email   ## cskhmacro:assign
+10:41:14 linh ^mc: Dạ em làm 3 macro, xong em share cho cả team CS   ## cskhmacro:confirm
+10:42:00 vinh: Không cần Linh làm macro tiếng Anh đâu, khách mình gần như toàn người Việt   ## hn:negation
+11:15:36 ha: Vụ phí ship nội thành đơn trên 500k có ai xem chưa nhỉ, hôm nay khách vẫn bị thu sai   ## hn:status_question
+11:17:02 tuan: Chưa chị ơi, em vẫn đang làm flash sale
+13:30:24 vinh [ic]: Cuối tháng kiểm kê tồn kho ở kho Thủ Đức, Nam với Tuấn đi giúp anh, ngày 30 kiểm cho xong   ## inventorycount:assign inventorycount:due
+13:31:05 nam ^ic: Dạ anh, em in sẵn danh sách SKU theo kệ   ## inventorycount:confirm
+13:31:40 tuan ^ic: Ok anh, hôm đó em đi cả ngày   ## inventorycount:confirm
+14:20:55 vinh [gw]: Tuấn làm được tuỳ chọn gói quà ở trang checkout không, cuối tuần sau cần để chạy cho mùa quà Noel   ## giftwrap:assign giftwrap:due
+14:21:40 tuan ^gw: Được anh, cần thêm phí gói quà không ạ   ## giftwrap:confirm
+14:22:10 vinh: Phí 10k nhé, cứ để cấu hình được cho dễ đổi   ## giftwrap:content
+15:45:38 yen: Bảng size 40 mẫu áo mới em cập nhật xong rồi, có 3 mẫu dùng size châu Âu em ghi chú riêng   ## hn:done_report
+act 09:10 khoa approve gmvdash
+act 09:40 nam approve returnlabel
+act 10:50 linh approve cskhmacro
+act 13:35 nam approve inventorycount
+act 13:36 tuan approve inventorycount
+act 14:30 tuan approve giftwrap
+
+day 2026-11-19
+08:40:17 vinh [p9]: PR #490 cần merge trước thứ 3 tuần sau vì đợt voucher Noel dùng tính năng đó, Tuấn sắp xếp xem giúp anh   ## pr490:due
+08:41:00 tuan: Dạ em xem trong cuối tuần này
+09:10:42 vinh [se]: Yến viết được mô tả SEO cho 20 sp bán chạy không em, thứ 4 tuần sau cần để chạy quảng cáo Google   ## seo:assign seo:due
+09:11:20 yen ^se: Được anh, em làm theo mẫu mô tả của team marketing   ## seo:confirm
+09:40:03 vinh [wc]: Camera ở kho bị mất tín hiệu từ tối qua, Nam kiểm tra giúp anh xem là do mạng hay do đầu ghi   ## warehousecam:assign
+09:40:51 nam ^wc: Dạ trưa em qua kho xem   ## warehousecam:confirm
+10:05:28 linh: Khách báo coupon không áp được cho đơn COD từ sáng giờ, toàn đơn trên 300k
+10:06:01 vinh [cb]: Tuấn fix lỗi coupon cho đơn COD trước mai nha, flash sale mà lỗi chỗ này là toang   ## couponbug:assign couponbug:due
+10:06:40 tuan ^cb: Em check ngay, chắc do rule validate payment method mới thêm   ## couponbug:confirm
+10:30:10 ha: banner black friday bo phan countdown di Mai oi, sep thay roi mat qua, giu chu va anh san pham thoi   ## bfbanner:content
+11:00:45 vinh [eb]: Email blast Black Friday cho khách VIP chắc Linh soạn là hợp nhất, cuối tuần gửi được thì tốt   ## emailblast:assign emailblast:due
+11:01:30 linh ^eb: Dạ em soạn, có ưu đãi riêng cho VIP không anh   ## emailblast:confirm
+11:02:12 vinh: Có, thêm mã giảm 10% cho hạng vàng
+11:40:33 vinh [fq]: Chatbot đang trả lời sai chính sách đổi trả cũ 7 ngày, giờ mình đổi thành 15 ngày rồi. Linh cập nhật FAQ chatbot giúp anh, nhớ sửa cả câu trả lời về phí ship đổi trả vì giờ mình chịu phí chiều về   ## chatbotfaq:assign
+11:41:10 linh ^fq: Dạ em sửa luôn trong chiều nay   ## chatbotfaq:confirm
+13:20:14 vinh: Nhắc mọi người trưa mai là deadline báo cáo tuần nhé, ai xong rồi thì gửi sớm   ## hn:reminder
+14:05:39 khoa: Có ai biết khách hỏi "shop đổi giúp em size khác được không" thì trả lời theo macro nào không   ## hn:quote
+14:06:20 linh: Macro đổi size em làm từ tháng trước rồi, tên là DOI_SIZE_01
+15:30:51 tuan: Flash sale em cấu hình xong rồi, test với Hà ổn, giới hạn 2 sản phẩm mỗi khách chạy đúng   ## hn:done_report
+15:31:22 ha: Đúng rồi, chị test 5 trường hợp đều qua
+act 09:20 yen approve seo
+act 10:10 tuan approve couponbug
+act 11:10 linh approve emailblast
+act 11:45 linh approve chatbotfaq
+
+day 2026-11-20
+08:20:05 nam: Em gửi báo cáo tuần phần kho rồi anh, tỉ lệ hàng hoàn tuần này giảm còn 3,2%   ## hn:done_report
+08:20:44 linh: Phần CSKH em cũng gửi vào mail anh rồi ạ   ## hn:done_report
+08:21:10 vinh: Cảm ơn hai đứa
+09:00:30 vinh [hs]: Black Friday CSKH phải trực tới 22h, Linh xếp lịch trực cho team, thứ 5 tuần sau chốt để mọi người còn đổi ca   ## holidaysched:assign holidaysched:due
+09:01:15 linh ^hs: Dạ em xếp, có ai xin nghỉ em báo anh trước   ## holidaysched:confirm
+09:30:22 yen [pc]: 150 SKU flash sale để em rà lại giá sau giảm trong sáng nay, sợ có mẫu bị giảm 2 lần do voucher chồng   ## pricecheck:self_commit pricecheck:due
+09:31:00 ha: Đúng rồi Yến, tuần trước có mẫu giá về 0đ đấy
+10:15:48 vinh [ph]: Bộ sưu tập Tết cần chụp ảnh sớm, Mai đặt studio được không em, thứ 4 tuần sau chụp thì vừa   ## photoshoot:assign photoshoot:due
+10:16:30 mai ^ph: Dạ em đặt studio quen ở quận 3, em gửi báo giá trước   ## photoshoot:confirm
+10:40:02 khoa: Nếu sếp duyệt ngân sách thì tháng sau mình thử thêm kênh Tiki, chưa duyệt thì thôi   ## hn:conditional
+11:00:07 vinh: Flash sale chạy được một tiếng rồi, đơn gấp 4 lần ngày thường, kho xử lý kịp không Nam
+11:00:40 nam: Kịp anh, em huy động thêm 3 bạn đóng gói
+11:01:15 vinh: Mai mà kho ổn định thế này thì anh mừng   ## hn:name_time_word
+13:30:28 mai: Kịch bản livestream em gửi chị Hà rồi ạ, có 5 mẫu bán chạy như chị dặn   ## hn:done_report
+14:10:45 tuan: Có ai bảo "Tuấn làm xong coupon trong 5 phút" không, em fix mất cả buổi sáng đấy 😂   ## hn:joke
+14:11:30 linh: Haha nhưng khách hết báo lỗi rồi nhé, cảm ơn Tuấn
+16:40:19 yen: Giá 150 SKU em rà xong, có 2 mẫu bị giảm chồng em đã sửa   ## hn:done_report
+act 09:05 linh approve holidaysched
+act 10:20 mai approve photoshoot
+
+day 2026-11-23
+08:35:10 vinh: Đầu tuần, mọi người cập nhật nhanh việc đang làm vào đây giúp anh, tuần này có Cyber Monday nữa
+08:36:55 vinh [nh]: Có bạn intern mới vào làm ở bộ phận vận hành, chắc nhờ Khoa hướng dẫn bạn dùng hệ thống OMS, thứ 4 bạn bắt đầu xử lý đơn rồi   ## newhire:assign newhire:due
+08:37:40 khoa ^nh: Dạ để em kèm bạn ấy hai buổi   ## newhire:confirm
+09:10:24 nam [cx]: Anh ơi bảng giá vận chuyển em mới gom được GHN với GHTK, J&T chưa gửi báo giá
+09:12:03 vinh ^cx: Thôi khỏi so sánh bảng giá vận chuyển nữa Nam, sếp chốt ở lại với GHN rồi   ## couriercmp:cancel
+09:12:40 nam: Dạ vâng anh
+09:40:31 khoa [p5]: Còn PR #501 refactor giỏ hàng, có ai review được không mọi người
+09:41:10 vinh ^p5: Tuấn xem luôn #501 nhé, xong #490 thì làm tiếp   ## pr501:assign
+09:41:55 tuan ^p5: Dạ em xếp sau #490   ## pr501:confirm
+10:05:39 vinh [sl]: Yến ẩn 25 SKU hết hàng trên Shopee trong hôm nay giúp anh, khách đặt rồi lại huỷ nhiều quá   ## skulist:assign skulist:due
+10:06:15 yen ^sl: Dạ em ẩn trước 12h   ## skulist:confirm
+10:30:46 vinh [b2]: Báo cáo tuần này Nam gửi anh thứ 6 như cũ, nhớ thêm phần chi phí đóng gói tăng ca dịp Black Friday   ## bcnam2:assign bcnam2:due
+10:31:20 nam ^b2: Dạ em thêm bảng chi phí tăng ca   ## bcnam2:confirm
+11:00:13 vinh: SOP refund thêm phần hoàn tiền qua ví điện tử nữa Linh, kế toán vừa bật thêm MoMo   ## refundsop:content
+11:20:58 khoa [lw]: Mấy SKU chủ lực hay hết hàng mà không ai biết, em đề xuất cài cảnh báo tồn kho thấp
+11:21:40 vinh ^lw: Ừ Khoa cài luôn cho 50 SKU chủ lực, thứ 5 bật được thì tốt   ## lowstock:assign lowstock:due
+11:22:15 khoa: Dạ em dùng ngưỡng 20 sản phẩm trước rồi chỉnh sau   ## lowstock:confirm
+13:15:30 ha: Cái camera kho đã có ai gọi bên lắp đặt chưa mọi người   ## hn:status_question
+13:16:10 nam: Em xem rồi chị, do đầu ghi, đang chờ bên kỹ thuật báo giá
+14:00:02 ha: Vụ hoá đơn VAT cho khách doanh nghiệp là kế toán làm nha mọi người, mình không cần xuất   ## hn:other_team
+14:30:17 yen: 25 SKU hết hàng em ẩn rồi ạ, em gửi danh sách vào drive chung   ## hn:done_report
+act 08:45 khoa approve newhire
+act 09:50 tuan approve pr501
+act 10:10 yen approve skulist
+act 10:35 nam approve bcnam2
+act 11:30 khoa approve lowstock
+
+day 2026-11-24
+08:30:11 vinh: PR #490 nay là hạn đó Tuấn, xong thì báo anh để bên marketing chuẩn bị voucher Noel   ## hn:reminder
+08:32:00 tuan: Em đang review dở, trưa xong anh
+09:05:25 vinh [gd]: Biểu đồ GMV theo giờ cần trước thứ 5 Khoa nhé, buổi review với sếp dời lên sớm hơn   ## gmvdash:due
+09:06:10 khoa: Dạ em xong phần query rồi, còn phần vẽ chart
+09:40:37 ha [cy]: Cyber Monday cũng cần banner riêng, Mai làm thêm banner Cyber Monday cuối tuần này nha, dùng lại bố cục của Black Friday cũng được   ## bannercyber:assign bannercyber:due
+09:41:12 mai ^cy: Dạ em làm, em đổi tông màu sang xanh cho khác   ## bannercyber:confirm
+10:10:56 vinh [ra]: Kiểm kê kho Thủ Đức để Khoa đi thay Tuấn nha, Tuấn còn bận voucher Noel   ## inventorycount:assignee
+10:11:40 khoa ^ra: Dạ ngày 30 em đi với Nam   ## inventorycount:confirm
+10:40:22 tuan [ak]: API key của GHN sắp hết hạn, để em xin key mới luôn, bên đó xử lý cũng nhanh   ## apikey:self_commit
+10:41:00 vinh: Ok em, nhớ cập nhật vào kho secret chứ đừng dán vào chat
+11:05:49 ha [vt]: Năm nay voucher Tết mình muốn làm khác năm ngoái một chút: bớt mã giảm tiền, thêm mã freeship cho đơn từ 300k, và có mã riêng cho khách cũ quay lại. Chị sẽ lên phương án voucher Tết trước buổi họp kế hoạch Q1, ai có ý tưởng thì gửi chị   ## vouchertet:self_commit vouchertet:due
+11:06:30 vinh: Ok Hà, phương án có số liệu năm ngoái thì sếp dễ duyệt hơn
+11:30:14 nam [do]: Đơn sỉ của khách Hoàng Gia bị tách thành 6 đơn trùng, em gộp lại trong hôm nay luôn   ## dupeorders:self_commit dupeorders:due
+11:31:00 vinh: Cảm ơn Nam
+13:20:41 khoa: Hay là mình gom hết cảnh báo tồn kho vào một kênh Slack riêng, đang nghĩ thôi chứ chưa cần làm ngay   ## hn:idea
+13:21:30 vinh: Cũng được, để sau Cyber Monday tính
+14:50:26 tuan: PR #490 em review xong rồi anh, đã approve, bên platform merge chiều nay   ## hn:done_report
+15:10:03 linh: Nếu khách hỏi về hoàn tiền MoMo thì tạm thời bảo chờ SOP mới, đừng hứa ngày cụ thể   ## hn:conditional
+act 09:50 mai approve bannercyber
+
+day 2026-11-25
+08:40:44 yen [sf2]: Phí ship nội thành đơn trên 500k vẫn tính sai, hôm trước chưa ai nhận, để em sửa nốt cấu hình bảng phí luôn   ## shipfee:accept
+08:41:20 ha: Cảm ơn Yến, cái đó tồn từ tuần trước rồi
+09:10:09 vinh [pk]: kho sap het hop carton size M, Nam dat them 2.000 hop truoc thu 6 nha, lay ben cu cho quen   ## packaging:assign packaging:due
+09:10:50 nam ^pk: Dạ em gọi bên cũ đặt luôn   ## packaging:confirm
+09:40:31 vinh [rr]: Linh trả lời giúp anh 30 đánh giá 1 sao trên Shopee được không, đa số do giao chậm dịp Black Friday   ## reviewreply:assign
+09:41:15 linh ^rr: Dạ được anh, em dùng mẫu xin lỗi kèm mã giảm giá   ## reviewreply:confirm
+10:20:52 vinh [tk]: TikTok Shop mới mở gian hàng, Yến đăng 15 sản phẩm đầu tiên lên trước thứ 6, chọn mấy mẫu đang viral trên TikTok   ## tiktokshop:assign tiktokshop:due
+10:21:30 yen ^tk: Dạ em chọn 15 mẫu theo số liệu view tuần này   ## tiktokshop:confirm
+11:00:18 mai: Studio quận 3 em đặt rồi, chiều nay chụp bộ sưu tập Tết   ## hn:done_report
+11:30:40 khoa: Intern mới em hướng dẫn xong 2 buổi rồi, bạn ấy đã tự xử lý đơn được   ## hn:done_report
+13:45:05 vinh: Không cần Mai làm thêm banner cho Tiki đâu, mình chưa mở gian hàng bên đó   ## hn:negation
+14:20:33 linh: Ai mà trả lời 30 đánh giá 1 sao trong một buổi thì xứng đáng được nghỉ phép một ngày luôn 😅   ## hn:joke
+14:21:10 vinh: Trả lời xong thì anh xin sếp cho em nửa ngày
+15:05:47 ha: Khách VIP nói "lần sau shop gửi email sớm hơn giúp mình nhé" nên năm sau mình lên lịch sớm hơn   ## hn:quote
+act 09:20 nam approve packaging
+act 10:30 yen approve tiktokshop
+
+day 2026-11-26
+08:30:20 vinh: Black Friday kết thúc rồi, cảm ơn cả team, giờ mình tổng kết số liệu
+08:31:45 vinh [br]: Số liệu Black Friday thì Hà là người nắm rõ nhất, chắc Hà tổng hợp cho anh, thứ 2 tuần sau anh trình sếp   ## bfreport:assign bfreport:due
+08:32:30 ha ^br: Dạ chị gom số liệu sàn, kho, CSKH vào một file   ## bfreport:confirm
+09:15:12 vinh [af]: Tháng 12 mình muốn chạy affiliate với KOC, có ai liên hệ được 5 bạn KOC chuyên thời trang không mọi người   ## affiliate:assign
+09:17:40 mai: Em quen 2 bạn nhưng tuần này em kín lịch chụp rồi anh
+09:18:22 linh: Em không rành mảng này lắm anh ơi
+10:00:39 vinh [sa]: Báo cáo SLA giao hàng tháng 11 sếp cần trước thứ 4 tuần sau, Nam viết giúp anh, có tách theo từng hãng vận chuyển   ## sla:assign sla:due
+10:01:20 nam ^sa: Dạ em lấy số từ hệ thống GHN với GHTK   ## sla:confirm
+10:30:56 vinh [qr]: Khoa in được mã QR bảo hành để dán lên hộp không, khách hay mất phiếu bảo hành giấy   ## qrcode:assign
+10:31:41 khoa ^qr: Được anh, em làm mã trỏ về trang tra cứu bảo hành   ## qrcode:confirm
+11:20:07 ha: Báo cáo tuần phần vận hành kho tuần trước Nam gửi rồi đúng không, chị cần lấy số hàng hoàn   ## hn:status_question
+11:21:00 nam: Dạ gửi rồi chị, trong mail anh Vinh hôm thứ 6
+13:30:31 linh: Lịch trực CSKH Black Friday em xếp xong rồi, đã gửi vào nhóm CS   ## hn:done_report
+14:15:44 vinh: Nhắc Khoa biểu đồ GMV theo giờ hôm nay review với sếp nha   ## hn:reminder
+14:16:20 khoa: Dạ em bật lên dashboard rồi anh
+act 08:40 ha approve bfreport
+act 10:10 nam approve sla
+act 10:40 khoa approve qrcode
+
+day 2026-11-27
+08:40:15 vinh [rt]: Thứ 3 tuần sau anh tổ chức buổi retro Black Friday, để anh chuẩn bị nội dung, mọi người nghĩ trước 3 điểm tốt và 3 điểm cần sửa   ## retro:self_commit retro:due
+08:41:00 ha: Ok anh, em gửi trước số liệu để anh đưa vào slide
+09:10:42 tuan [cl]: PR #501 refactor giỏ hàng bên platform đóng rồi anh, họ làm lại từ đầu
+09:11:20 vinh ^cl: Vậy Tuấn khỏi review #501 nhé, khi nào có PR mới thì tính   ## pr501:cancel
+09:40:30 nam [cm]: camera kho em goi ben lap dat roi ma ho khong xu ly, chuyen sang goi ben bao hanh nha anh, han thu 2 tuan sau ho moi qua   ## warehousecam:content warehousecam:due
+09:41:10 vinh: Ok Nam, có gì báo anh
+10:20:58 mai: Banner Cyber Monday em làm xong rồi, đã gửi chị Hà duyệt   ## hn:done_report
+11:00:16 vinh: Hay là năm sau mình tách Black Friday và Cyber Monday thành hai đợt riêng, anh nghĩ vậy thôi chưa bàn   ## hn:idea
+11:30:49 ha: Chuyện in catalogue năm mới là bên brand team phụ trách nhé, mình chỉ gửi danh sách sản phẩm cho họ   ## hn:other_team
+14:00:33 yen: 15 sản phẩm TikTok Shop em đăng xong rồi, đã có đơn đầu tiên   ## hn:done_report
+14:01:10 vinh: Tuyệt, cả team vất vả rồi, cuối tuần nghỉ ngơi nhé

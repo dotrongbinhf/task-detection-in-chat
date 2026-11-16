@@ -18,51 +18,42 @@ day 2026-11-30
 10:30 khoa: rc1 crash khi mở màn QR trên iPhone SE
 10:31 nam: thiếu quyền camera trong Info.plist
 10:32 khoa: đúng, log báo thế
-10:50 nam: Em sửa xong, rc2 đang build   ## hn
+10:50 nam: Em sửa xong, rc2 đang build   ## hn:done_report
 11:30 quan: Android rc1 chưa thấy lỗi nghiêm trọng
 11:31 khoa: có 2 lỗi giao diện nhỏ ở màn hạn mức
 11:32 quan: cả hai đều có trên bản 2.5
 11:33 hung: vậy không chặn release
 14:00 nam: rc2 iOS đã lên TestFlight
 14:20 khoa: rc2 mở màn QR bình thường
-14:21 hung: tốt
 15:00 mai: Ảnh chụp màn hình cho store em đã cập nhật theo giao diện mới
 15:01 quan: bản tiếng Anh có chưa chị
-15:02 mai: có rồi
 16:00 khoa: Regression hôm nay xong 35%
-16:01 hung: ok
 
 day 2026-12-01
 09:00 khoa: Regression tới 60%, chưa có lỗi chặn
-09:01 hung: tốt
 09:30 quan: Crash rate rc2 trên nhóm nội bộ là 0,1%
 09:31 nam: chủ yếu từ máy Android 9
 09:32 quan: Android 9 chỉ còn 1,5% người dùng
 10:10 mai: Apple vừa đổi quy định về ảnh chụp màn hình iPad
 10:11 nam: mình có hỗ trợ iPad không
-10:12 mai: không, chỉ iPhone
 10:13 hung: vậy không ảnh hưởng
 11:00 nam: QR liên ngân hàng em test với 6 ngân hàng, cả 6 đều thanh toán được
 11:01 khoa: ngân hàng nào chậm nhất
 11:02 nam: một ngân hàng mất 7 giây mới trả kết quả
 11:03 hung: vẫn trong ngưỡng timeout
-14:00 khoa: Regression 85%
 15:30 quan: Android có cảnh báo về target SDK 35 cho bản sau
 15:31 nam: bản 2.6 vẫn ổn, bản 2.7 phải nâng
 15:32 hung: ghi vào kế hoạch 2.7
 
 day 2026-12-02
 09:00 khoa: Regression xong, không có lỗi chặn
-09:01 hung: tuyệt
 09:30 hung: Họp go/no-go lúc 3h chiều
 10:00 mai: Release note đã duyệt với marketing
 11:00 nam: rc3 chỉ khác rc2 ở số phiên bản
 11:01 khoa: không cần test lại toàn bộ
 11:02 hung: smoke test là đủ
 13:30 khoa: Smoke test rc3 pass
-15:00 hung: Go/no-go bắt đầu
 15:40 hung: Kết luận Go, sáng mai submit store
-15:41 nam: 🚀
 
 day 2026-12-03
 09:10 nam: Đã submit cả App Store và Google Play
@@ -70,7 +61,6 @@ day 2026-12-03
 14:00 nam: App Store đã duyệt
 14:20 hung: Rollout iOS theo phased release 7 ngày
 16:00 quan: Crash rate 2.6 trên production 0,08%
-16:01 hung: tốt
 
 day 2026-12-04
 09:00 quan: Android rollout lên 50%

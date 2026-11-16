@@ -46,7 +46,7 @@ def test_replay_calls_real_llm_and_remaps_task_ids():
 def test_split_and_pick_turns():
     ds = load_dataset("data/eval", "dev")
     keys = {m.conversation_id for m in ds["messages"]}
-    assert keys == {"ch_app", "ch_data", "ch_qa", "ch_infra"} and ds["gold"]
+    assert {"ch_app", "ch_data", "ch_qa", "ch_infra", "ch_ecom"} <= keys and "ch_saas" not in keys and ds["gold"]
     assert all(g.conversation_key in keys for g in ds["gold"])
     state = init_state(ds)
     picked = pick_turns(resolve_dir("data/eval"), {e.id for e in state.events}, 10, 7)

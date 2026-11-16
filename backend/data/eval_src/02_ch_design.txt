@@ -1,4 +1,4 @@
-conv ch_design group train
+conv ch_design group dev
 member thao Thảo | chị Thảo, Thao
 member linh Linh | Linh Nguyễn
 member vy Vy | Vy Đỗ
@@ -16,57 +16,43 @@ gold uxr | Viết báo cáo usability test | assigned | linh | 2026-11-23 | acti
 
 day 2026-11-16
 08:40 thao: Chào team design 🌞
-08:41 linh: chào chị
-08:42 vy: Morning chị
-08:45 an: hello mọi người
 09:00 thao: Tuần này campaign 12/12 bắt đầu chạy, bên marketing chốt concept rồi
-09:01 quan: concept nào chị
 09:02 thao: tông đỏ cam, có mascot con mèo
-09:03 quan: dễ thương ghê
 09:15 thao [bn]: Mình cần làm banner cho campaign 12/12, 3 kích thước   ## banner:assign
 09:17 an: em đang bận landing page
 09:20 vy ^bn: để em làm banner cho ạ   ## banner:accept
 09:25 thao: ok Vy, thứ 4 có bản đầu nhé   ## banner:due
-09:26 vy: dạ
-09:40 thao [ob]: @Linh với @Quân chuẩn bị slide onboarding cho bạn mới, thứ 6 dùng nhé   ## onboard:assign onboard:due
-09:41 linh ^ob: dạ ok chị   ## onboard:accept
-09:41:30 +quan like ob   ## onboard:accept
+09:40 thao [ob]: @Linh với @Quân chuẩn bị slide onboarding cho bạn mới, thứ 6 dùng   ## onboard:assign onboard:due
+09:41 linh ^ob: dạ ok chị   ## onboard:confirm
+09:41:30 +quan like ob
 09:50 linh: Bạn mới tên gì chị
-09:51 thao: Phương, bên UI
-09:51 linh: oki
-10:10 thao [ic]: @An vẽ lại bộ icon set cho app nhé, bộ cũ lệch stroke quá   ## icon:assign
-10:12 an: dạ để em xem   ## hn
+10:10 thao [ic]: @An vẽ lại bộ icon set cho app, bộ cũ lệch stroke quá   ## icon:assign
+10:12 an: dạ để em xem   ## hn:defer
 10:30 vy: Chị ơi font mới mình dùng Inter hay SF Pro
 10:31 thao: Inter cho cả web và app
-10:32 vy: dạ
-10:50 thao [ck]: @Vy làm mockup màn checkout trước thứ 3 nhé   ## checkout:assign checkout:due
-10:51 vy: dạ em nhận   ## checkout:accept
+10:50 thao [ck]: @Vy làm mockup màn checkout trước thứ 3   ## checkout:assign checkout:due
+10:51 vy: dạ em nhận   ## checkout:confirm
 11:20 quan: Mọi người thấy màu đỏ này có chói quá không
-11:21 linh: hơi chói thật
 11:22 an: giảm saturation xuống chút là ổn
 11:23 quan: để em thử vài bản
-11:40 thao [sg]: @Quân làm lại style guide màu nhé, gộp luôn màu campaign   ## style:assign
-11:42 quan: dạ
+11:40 thao [sg]: @Quân làm lại style guide màu, gộp luôn màu campaign   ## style:assign
 13:30 linh: Chị Thảo ơi file Figma onboarding năm ngoái còn không
 13:31 thao: trong folder Archive ấy em
 13:32 linh: em thấy rồi ạ
 14:00 vy: Banner em làm theo grid 12 cột nhé
-14:01 thao: ok
-14:15 thao: À thôi để Linh làm icon set nhé, An tập trung landing page   ## icon:assignee
+14:15 thao: À thôi để Linh làm icon set, An tập trung landing page   ## icon:assignee
 14:16 linh: dạ em làm ạ
 14:16 an: dạ cảm ơn chị
 15:00 linh [ex]: Vy ơi màn profile export asset cho dev chưa
 15:01 vy: chưa, mà component button trên Figma đang sai state disabled
-15:02 linh: ủa sao vậy
 15:03 vy: Mai em cập nhật lại component button nhé, giờ em đang làm banner   ## figma:self_commit figma:due
-15:04 thao: Linh export asset màn profile cho dev luôn nhé, bên dev đang chờ   ## asset:assign
-15:05 linh: dạ em export luôn   ## asset:accept
+15:04 thao: Linh export asset màn profile cho dev luôn, bên dev đang chờ   ## asset:assign
+15:05 linh: dạ em export luôn   ## asset:confirm
 15:06 vy: disabled phải xám 40% mới đúng
 15:07 linh: ok, export xong em báo
 15:40 linh: export xong rồi nhé, em để trong Drive
-15:41 thao: 👍
-16:10 thao [ux]: @Linh viết báo cáo usability test tuần trước giúp chị, trước thứ 6 nhé   ## uxr:assign uxr:due
-16:11 linh ^ux: dạ vâng   ## uxr:accept
+16:10 thao [ux]: @Linh viết báo cáo usability test tuần trước giúp chị, trước thứ 6   ## uxr:assign uxr:due
+16:11 linh ^ux: dạ vâng   ## uxr:confirm
 act 09:42 linh approve onboard
 act 09:45 quan approve onboard
 act 10:55 vy approve checkout
@@ -75,47 +61,31 @@ act 16:15 linh approve uxr
 
 day 2026-11-17
 08:50 vy: Hôm nay em sửa button trước
-08:51 thao: ok
 09:30 vy: Button component sửa xong rồi chị
-09:31 thao: ok em
 09:40 thao [ck2]: Vy ơi mockup checkout lùi sang thứ 5 nhé, PM đổi flow   ## checkout:due
-09:41 vy: dạ
 09:55 thao [ck3]: à không, thứ 6 nhé, thứ 5 còn họp   ## checkout:due
 09:56 vy: dạ thứ 6 ạ
 10:20 an: landing page em làm hero section xong rồi
-10:21 thao: nhanh thế
-10:22 an: em gửi rồi ạ   ## hn
+10:22 an: em gửi rồi ạ   ## hn:done_report
 10:40 quan: Mọi người cho em xin ý kiến 3 bản màu này
 10:41 linh: em thích bản 2
-10:42 vy: bản 2 +1
-10:43 thao: bản 2 nhé
 11:30 linh: Slide onboarding em làm được 10 trang rồi
 11:31 quan: em làm phần quy trình review nhé
-11:32 linh: ok
 13:45 thao: Chiều nay 4h review banner nhé
-13:46 vy: dạ
 16:00 thao: Banner ổn rồi, sửa mascot to hơn chút nhé   ## banner:content
-16:01 vy: dạ em sửa
 16:30 an: Icon set cũ em có file gốc, Linh cần không
 16:31 linh: có, gửi tớ nhé
-16:32 an: ok
 act 10:00 vy approve_change ck3
 
 day 2026-11-18
 09:00 thao: Sáng nay team marketing góp ý banner, mình xem lúc 10h
-09:01 vy: dạ
 10:15 linh [uxd]: Chị Thảo ơi cái UX research report em xin lùi sang thứ 2 nhé, data còn thiếu 2 người   ## uxr:due
-10:16 thao: ok em
-11:00 thao: Quân nhớ làm style guide màu nha, campaign cần gấp   ## style:assign
+11:00 thao: Quân nhớ làm style guide màu, campaign cần gấp   ## style:assign
 11:02 quan: chị ơi hôm trước em báo bận rồi mà
 11:03 thao: à ừ chị quên, để chị tính
 11:30 vy: Banner bản final em up lên rồi
-11:31 thao: tuyệt
 14:00 an: Landing page có cần dark mode không chị
-14:01 thao: chưa cần em
-14:02 an: dạ
 15:20 linh: Icon set em làm được 20/48 cái
 15:21 thao: ok em, cứ từ từ
 16:45 quan: Mai em nghỉ phép nhé mọi người
-16:46 thao: ok em
 act 10:20 linh approve_change uxd

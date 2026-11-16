@@ -33,7 +33,7 @@ def resolve_dir(name: str) -> Path:
 def load_dataset(name: str, split: str | None = None) -> dict[str, Any]:
     """'empty' = cùng thành viên với sample nhưng không có tin nào — để người dùng tự nhập chat.
 
-    split: tên một phần trong `<dataset>/split.json` (train / dev / test) → chỉ giữ các hội thoại của phần đó."""
+    split: tên một phần trong `<dataset>/split.json` (dev / test) → chỉ giữ các hội thoại của phần đó."""
     d = resolve_dir("sample" if name == "empty" else name)
     members = {k: [Member(**m) for m in v] for k, v in json.loads((d / "members.json").read_text(encoding="utf-8")).items()}
     if name == "empty":

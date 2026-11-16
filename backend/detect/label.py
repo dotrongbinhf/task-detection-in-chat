@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -21,8 +22,13 @@ from .context import _fmt_list, _to_prompt_msg
 from .dataset import load_dataset, resolve_dir
 from .models import StreamEvent
 from .run import init_state, next_batch
+from .timeexpr import ts
 
-KINDS = ("assign", "accept", "self_commit", "open_ask", "due", "assignee", "content", "cancel")
+KINDS = ("assign", "accept", "self_commit", "open_ask", "due", "assignee", "content", "cancel", "confirm")
+# loại hard negative (v6 mục 10.3) + hai loại có từ v5: defer ("để anh xem đã"), name_time_word ("Mai nghỉ lễ")
+HN_TAGS = ("done_report", "status_question", "conditional", "negation", "other_team", "quote", "idea", "reminder", "joke",
+           "defer", "name_time_word")
+HN_TAGS_V6 = HN_TAGS[:9]
 GOLD_KIND = {"assigned": "assign", "self_commit": "self_commit", "open_ask": "open_ask"}
 
 
@@ -83,13 +89,16 @@ def export(ds: dict[str, Any], cfg: Config, k: int) -> list[dict[str, Any]]:
 # ---------------- derive ----------------
 
 def derive(ds: dict[str, Any], cfg: Config) -> list[dict[str, Any]]:
-    """Lượt chứa tin supporting của một nhãn → 1; chứa hard negative → 0 + hard; còn lại → 0.
+    """Lượt chứa tin supporting của một nhãn → 1; chỉ chứa tin `confirm` → 0, kinds ["confirm"]; chứa hard negative → 0 + hard;
+    còn lại → 0.
 
-    kinds: gold không ghi vai trò từng tin → chỉ suy được loại ở tin anchor (theo `kind`) và reaction (= accept).
+    kinds: gold không ghi vai trò từng tin → chỉ suy được loại ở tin anchor (theo `kind`).
     """
     gold = ds["gold"] or []
     support = {i: g for g in gold for i in g.supporting_message_ids}
+    confirm = {i: g for g in gold for i in g.confirm_message_ids}
     hard = set(ds["hard_negatives"])
+    hn_tag = ds.get("hard_negative_tags", {})
     rows = []
     for key, batch in turns(ds, cfg):
         ids = [e.id for e in batch]
@@ -102,12 +111,14 @@ def derive(ds: dict[str, Any], cfg: Config) -> list[dict[str, Any]]:
                 g = support[i]
                 if i == g.anchor_message_id:
                     kinds.add(GOLD_KIND[g.kind])
-                elif "#r" in i:
-                    kinds.add("accept")
             row["kinds"] = [x for x in KINDS if x in kinds]
             row["note"] = "gold: " + ",".join(sorted({support[i].gold_id for i in hit}))
-        elif set(ids) & hard:
+        elif conf := [i for i in ids if i in confirm]:
+            row["kinds"] = ["confirm"]
+            row["note"] = "confirm: " + ",".join(sorted({confirm[i].gold_id for i in conf}))
+        if not hit and set(ids) & hard:
             row["hard"] = True
+            row["hn_tags"] = sorted({hn_tag.get(i, "untagged") for i in ids if i in hard})
         rows.append(row)
     return rows
 
@@ -139,7 +150,7 @@ def merge(derived: list[dict[str, Any]], files: list[list[dict[str, Any]]], name
                                   "derived": d["label"], "final": int(final["label"]), "by": final.get("annotator")})
         out.append({**{k: d[k] for k in ("turn_id", "conversation_key", "new_event_ids")},
                     "label": int(final["label"]), "kinds": final.get("kinds") or [], "annotator": final.get("annotator", ""),
-                    "note": final.get("note", ""), **({"hard": True} if d.get("hard") else {})})
+                    "note": final.get("note", ""), **({"hard": True, "hn_tags": d.get("hn_tags", [])} if d.get("hard") else {})})
     if hand:
         raise SystemExit(f"turn_id không có trong dataset (gán nhãn trên bản export cũ?): {sorted(hand)[:5]}")
     return out, conflicts
@@ -175,6 +186,47 @@ def stats(rows: list[dict[str, Any]], split: Optional[dict[str, list[str]]] = No
     for name, keys in (split or {}).items():
         out[name] = one([r for r in rows if r["conversation_key"] in set(keys)])
     return out
+
+
+POLITE_RE = re.compile(r"(?<!\w)(nhé|nhe|giúp|giup|nha)(?!\w)", re.IGNORECASE)
+V6_TAGS = ("index_overflow", "similar_titles", "detail_check", "ttl_long")
+
+
+def data_stats(ds: dict[str, Any], split: Optional[dict[str, list[str]]] = None) -> dict[str, Any]:
+    """Các tỉ lệ ở v6 mục 10.2, 10.3, 10.5 (ngưỡng ghi kèm)."""
+    msgs = ds["messages"]
+    gold = ds["gold"] or []
+    by_id = {m.id: m for m in msgs}
+    anchors = [by_id[g.anchor_message_id] for g in gold if g.anchor_message_id in by_id]
+    words = sorted(len(m.text.split()) for m in msgs)
+    hn_tags = Counter(ds.get("hard_negative_tags", {}).get(h, "untagged") for h in ds["hard_negatives"])
+    convs: dict[str, Any] = {}
+    for key in sorted({m.conversation_id for m in msgs}):
+        cm = [m for m in msgs if m.conversation_id == key]
+        times = sorted(ts(m.created_at) for m in cm)
+        ev: list[tuple[float, int]] = []
+        for g in [x for x in gold if x.conversation_key == key]:
+            ev.append((ts(by_id[g.anchor_message_id].created_at), 1))
+            if g.final_status == "cancelled":
+                ev.append((max(ts(by_id[i].created_at) for i in g.supporting_message_ids), -1))
+        open_n = peak = 0
+        for _, d in sorted(ev):
+            open_n += d
+            peak = max(peak, open_n)
+        convs[key] = {"messages": len(cm), "days": round((times[-1] - times[0]) / 86400, 1) if times else 0, "peak_open_tasks": peak,
+                      "bursts_30s": sum(1 for a, b in zip(times, times[1:]) if b - a <= 30)}
+    parts = {name: sum(1 for g in gold if g.assignee_ids and g.conversation_key in set(keys)) for name, keys in (split or {}).items()}
+    return {
+        "assign_messages": len(anchors),
+        "assign_with_mention": f"{sum(1 for m in anchors if m.mentions) / max(1, len(anchors)):.0%} (≤ 50%)",
+        "assign_polite_nhe_giup_nha": f"{sum(1 for m in anchors if POLITE_RE.search(m.text)) / max(1, len(anchors)):.0%} (≤ 40%)",
+        "median_words": f"{words[len(words) // 2] if words else 0} (≥ 8)",
+        "hard_negative_tags": f"{dict(hn_tags)} (mỗi loại v6 ≥ 5)",
+        "hard_negative_tags_below_5": [t for t in HN_TAGS_V6 if hn_tags[t] < 5],
+        "labels_with_assignee_by_split": f"{parts} (test ≥ 40)",
+        "v6_scenario_tags": {t: sum(1 for g in gold if t in g.scenario_tags) for t in V6_TAGS},
+        "conversations": convs,
+    }
 
 
 def main() -> None:
@@ -213,6 +265,8 @@ def main() -> None:
         sp = resolve_dir(a.data) / "split.json" if a.data else None
         split = json.loads(sp.read_text(encoding="utf-8")) if sp and sp.exists() else None
         print(json.dumps(stats(read_jsonl(a.labels), split), ensure_ascii=False, indent=1))
+        if a.data:
+            print(json.dumps(data_stats(load_dataset(a.data), split), ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":

@@ -749,5 +749,124 @@
     "Quan"
    ]
   }
+ ],
+ "ch_ecom": [
+  {
+   "user_id": "u_vinh",
+   "display_name": "Vinh",
+   "aliases": [
+    "anh Vinh",
+    "Vinh Phạm"
+   ]
+  },
+  {
+   "user_id": "u_ha",
+   "display_name": "Hà",
+   "aliases": [
+    "Ha",
+    "chị Hà"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam Trần"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Anh"
+   ]
+  },
+  {
+   "user_id": "u_tuan",
+   "display_name": "Tuấn",
+   "aliases": [
+    "Tuan"
+   ]
+  },
+  {
+   "user_id": "u_linh",
+   "display_name": "Linh",
+   "aliases": [
+    "Linh Đỗ"
+   ]
+  },
+  {
+   "user_id": "u_khoa",
+   "display_name": "Khoa",
+   "aliases": [
+    "Khoa"
+   ]
+  },
+  {
+   "user_id": "u_yen",
+   "display_name": "Yến",
+   "aliases": [
+    "Yen"
+   ]
+  }
+ ],
+ "ch_saas": [
+  {
+   "user_id": "u_thu",
+   "display_name": "Thu",
+   "aliases": [
+    "chị Thu",
+    "Thu Lê"
+   ]
+  },
+  {
+   "user_id": "u_quang",
+   "display_name": "Quang",
+   "aliases": [
+    "Quang"
+   ]
+  },
+  {
+   "user_id": "u_mai",
+   "display_name": "Mai",
+   "aliases": [
+    "Mai Phương"
+   ]
+  },
+  {
+   "user_id": "u_nam",
+   "display_name": "Nam",
+   "aliases": [
+    "Nam"
+   ]
+  },
+  {
+   "user_id": "u_long",
+   "display_name": "Long",
+   "aliases": [
+    "Long"
+   ]
+  },
+  {
+   "user_id": "u_hoa",
+   "display_name": "Hoa",
+   "aliases": [
+    "Hoa"
+   ]
+  },
+  {
+   "user_id": "u_binh",
+   "display_name": "Bình",
+   "aliases": [
+    "Binh"
+   ]
+  },
+  {
+   "user_id": "u_ngoc",
+   "display_name": "Ngọc",
+   "aliases": [
+    "Ngoc"
+   ]
+  }
  ]
 }

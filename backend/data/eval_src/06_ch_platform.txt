@@ -1,4 +1,4 @@
-conv ch_platform group train
+conv ch_platform group dev
 member hung Hưng | anh Hưng, Hung
 member nam Nam | Nam Trần
 member khoa Khoa | Khoa Lê
@@ -16,7 +16,6 @@ day 2026-11-16
 08:51 hung: vào giờ nào em
 08:52 tuan: 21h thứ 7 và 20h chủ nhật, trùng lúc chạy flash sale
 08:54 dat: em xem log thấy có 1 client gọi 300 req/s vào API tra cứu đơn
-08:55 hung: client nào vậy
 08:56 dat: app đối tác vận chuyển, họ poll trạng thái liên tục
 08:58 nam: bên mình chưa có rate limit cho API public đúng không
 08:59 dat: chưa có, chỉ có limit ở tầng nginx theo IP
@@ -27,7 +26,7 @@ day 2026-11-16
 09:22 nhi: vâng, test checkout timeout, chạy lại thì pass
 09:23 khoa: test đó flaky từ tháng trước rồi
 09:40 hung [ci]: @Nhi xem lại mấy test flaky trong CI giúp anh, đỏ hoài team mất niềm tin vào pipeline   ## flaky:assign
-09:41 nhi: dạ em nhận   ## flaky:accept
+09:41 nhi: dạ em nhận   ## flaky:confirm
 10:10 tuan: gRPC hay REST cho giao tiếp nội bộ thì team mình đã chốt chưa
 10:11 hung: chưa chốt, còn đang bàn
 10:13 khoa: em nghiêng về gRPC, payload nhỏ hơn và có schema
@@ -37,7 +36,6 @@ day 2026-11-16
 10:17 khoa: frontend vẫn qua gateway REST, gRPC chỉ giữa service với nhau
 10:18 tuan: vậy cũng hợp lý
 10:30 dat: Gateway hiện tại là Kong bản 3.4 đúng không anh
-10:31 hung: đúng rồi
 10:32 dat: Kong có plugin rate-limiting-advanced nhưng bản enterprise
 10:33 tuan: bản OSS có rate-limiting thường, đủ dùng mà
 10:35 dat: bản thường lưu counter ở Redis được, ổn
@@ -49,7 +47,6 @@ day 2026-11-16
 11:31 khoa: vậy là thiếu cô lập dữ liệu
 11:32 nhi: vâng, chạy song song thì giẫm lên nhau
 13:30 tuan: Redis cluster đang dùng 62% RAM
-13:31 hung: còn ổn
 13:32 tuan: lúc sale có thể lên 85%
 13:33 hung: lúc đó tính tiếp
 14:10 khoa: Thứ 5 em viết ADR về việc chuyển giao tiếp nội bộ sang gRPC, gửi mọi người review   ## adr:self_commit adr:due
@@ -62,47 +59,37 @@ day 2026-11-16
 15:20 dat: rate limit em định để mặc định 100 req/phút mỗi API key
 15:22 hung: đối tác lớn thì sao
 15:23 dat: cho cấu hình riêng theo consumer trong Kong
-15:24 hung: ok
 16:00 nhi: em thử tách schema riêng cho mỗi test thì hết flaky ở local
 16:01 khoa: CI có chạy được không
-16:02 nhi: để em thử trên CI đã   ## hn
+16:02 nhi: để em thử trên CI đã   ## hn:defer
 act 09:45 nhi approve flaky
 act 11:10 dat approve ratelimit
 act 14:15 khoa approve adr
 
 day 2026-11-17
 08:40 tuan: Đêm qua không có alert nào
-08:41 hung: tốt
 08:50 nam: migration order_items xong, mất 2 tiếng
 08:51 tuan: có lock bảng không
 08:52 nam: không, em dùng pt-online-schema-change
 09:10 dat: rate limit em deploy lên staging rồi
-09:11 hung: test thử chưa
 09:12 dat: em bắn 200 req/phút, từ request 101 trả 429 đúng
 09:13 tuan: header Retry-After có trả không
-09:14 dat: có anh
 09:30 hung [rld]: Đạt ơi rate limit thứ 6 xong lên production nhé, sale bắt đầu thứ 7   ## ratelimit:due
-09:31 dat: dạ anh
 10:00 khoa: em đang so sánh hiệu năng gRPC và REST cho service tồn kho
-10:01 nam: kết quả sao
 10:03 khoa: gRPC latency thấp hơn khoảng 30%, payload nhỏ hơn 60%
-10:04 tuan: con số đẹp
 10:05 nam: đo trên payload thật hay mock
 10:06 khoa: payload thật lấy từ log production
 10:30 nhi: CI chạy với schema riêng pass 5 lần liên tiếp
-10:31 khoa: ngon
 10:32 nhi: nhưng thời gian chạy tăng thêm 2 phút
-10:33 hung: chấp nhận được
 11:00 tuan: Có ai biết vì sao pod payment restart 4 lần đêm qua không
 11:02 nam: OOMKilled, limit RAM 512Mi
 11:03 tuan: tăng lên 1Gi được không
-11:04 hung: được, nhưng xem có leak không đã   ## hn
+11:04 hung: được, nhưng xem có leak không đã   ## hn:defer
 11:20 tuan: heap dump thấy cache tỉ giá không có TTL
 11:21 nam: à đúng, cache đó em viết, quên TTL
-11:22 nam: em sửa luôn rồi, đang chờ review   ## hn
+11:22 nam: em sửa luôn rồi, đang chờ review   ## hn:done_report
 13:30 dat: Kong có cần reload khi đổi cấu hình consumer không
 13:31 tuan: không, dùng declarative config thì tự sync
-13:32 dat: dạ
 14:00 hung: Sprint review chiều thứ 5 lúc 2h
 14:01 khoa: em demo kết quả benchmark gRPC
 14:02 nhi: em demo CI mới
@@ -110,47 +97,39 @@ day 2026-11-17
 15:11 tuan: nhớ theo dõi replication lag
 15:12 nam: dạ em có alert rồi
 16:00 khoa: ADR em viết xong phần bối cảnh và lựa chọn
-16:01 hung: ok
 act 09:35 dat approve_change rld
 
 day 2026-11-18
 08:40 nam: order_events migration xong lúc 3h sáng, lag cao nhất 4 giây
-08:41 tuan: chấp nhận được
-08:42 hung: tốt lắm
 09:00 nhi: PR tách schema cho test em mở rồi
 09:01 khoa: em review rồi, có 2 comment nhỏ
-09:02 nhi: dạ em sửa xong rồi   ## hn
+09:02 nhi: dạ em sửa xong rồi   ## hn:done_report
 09:30 dat: rate limit production em lên lịch tối thứ 5
 09:31 hung: ok, có rollback plan chưa
 09:32 dat: có anh, tắt plugin là về như cũ
 10:00 tuan: Redis em vừa thêm 1 node, RAM xuống 48%
-10:01 hung: tốt
 10:30 khoa: Mọi người cho em xin ý kiến: mình dùng buf hay protoc thuần để generate code
 10:31 nam: buf, lint với breaking change check tiện hơn
-10:32 tuan: +1 buf
 10:33 khoa: ok em ghi vào ADR
 11:00 hung: Đối tác vận chuyển vừa xác nhận họ sẽ chuyển sang webhook thay vì poll
 11:01 dat: vậy tốt quá, rate limit đỡ phải chặn họ
 11:02 tuan: webhook bên mình đã có retry chưa
 11:03 nam: có, 3 lần exponential backoff
 14:00 nhi: CI tuần này đỏ 2 lần, cả 2 do lỗi thật
-14:01 hung: thế mới đúng
 15:00 tuan: Ai có ý kiến về việc chuyển log sang Loki không
 15:02 khoa: Loki rẻ hơn ELK nhiều, query thì yếu hơn
 15:03 tuan: team ops đang thử bên infra
-15:04 hung: chờ kết quả bên đó rồi tính   ## hn
+15:04 hung: chờ kết quả bên đó rồi tính   ## hn:defer
 
 day 2026-11-19
 08:50 khoa: ADR gRPC em đăng lên Confluence rồi
 08:52 hung: anh đọc rồi, viết rõ ràng
 08:53 nam: em comment phần versioning schema
-08:55 khoa: dạ em xem
 10:00 dat: rate limit production tối nay 22h nhé mọi người
 10:01 tuan: em online hỗ trợ
 14:00 hung: Sprint review bắt đầu
 15:30 hung: Demo hôm nay tốt, cảm ơn mọi người
 22:30 dat: rate limit lên production xong, chưa thấy lỗi
-22:31 tuan: dashboard ổn
 22:32 hung: cảm ơn hai em
 
 day 2026-11-20
@@ -161,4 +140,3 @@ day 2026-11-20
 10:00 khoa: ADR có 6 comment, em trả lời hết rồi
 10:01 hung: thứ 2 họp chốt ADR
 11:00 nhi: CI trung bình còn 11 phút, flaky về 0
-11:01 khoa: tuyệt
