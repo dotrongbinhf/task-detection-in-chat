@@ -67,7 +67,7 @@ def gate_model_name() -> str:
 
 
 def extract_model_name() -> str:
-    return os.environ.get("EXTRACT_MODEL") or "gpt-4.1-mini"
+    return os.environ.get("EXTRACT_MODEL") or "gpt-4o-mini"  # model tham chiếu v6 (mục 14.3)
 
 
 # ---------- cache đĩa: khoá = hash(model + prompt + tham số) ----------
@@ -98,13 +98,14 @@ def _retry(fn: Callable[[], Any], retries: int = 3) -> Any:
 class OpenAILLM:
     mode = "openai"
 
-    def __init__(self, no_cache: bool = False):
+    def __init__(self, no_cache: bool = False, seed: int = 7):
         from openai import OpenAI
 
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
         self.gate_model = gate_model_name()
         self.extract_model = extract_model_name()
         self.no_cache = no_cache
+        self.seed = seed  # `seed` của lời gọi, nằm trong khoá cache đĩa → mỗi seed là một lần chạy riêng (v6 mục 11.5)
         from .embed import OpenAIEmbedder
 
         self.embedder = OpenAIEmbedder(name=os.environ.get("EMBED_MODEL") or "text-embedding-3-small", no_cache=no_cache)
@@ -134,7 +135,7 @@ class OpenAILLM:
         t0 = time.time()
         req = dict(model=self.extract_model, messages=[{"role": "system", "content": ctx.system},
                                                        {"role": "user", "content": ctx.user}],
-                   temperature=0, seed=7 + attempt, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
+                   temperature=0, seed=self.seed + attempt, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
         if ctx.cache_key:
             req["prompt_cache_key"] = ctx.cache_key  # định tuyến các lời gọi có cùng tiền tố tới cùng máy cache
 
@@ -221,11 +222,11 @@ def _localize(s: str, ctx: BuiltContext) -> str:
     return s
 
 
-def make_llm(mode: str = "auto", no_cache: bool = False) -> LLM:
+def make_llm(mode: str = "auto", no_cache: bool = False, seed: int = 7) -> LLM:
     if mode == "openai" or (mode == "auto" and has_openai_key()):
         if not has_openai_key():
             raise RuntimeError("Chưa có OPENAI_API_KEY (điền vào backend/.env)")
-        return OpenAILLM(no_cache)
+        return OpenAILLM(no_cache, seed)
     return HeuristicLLM()
 
 

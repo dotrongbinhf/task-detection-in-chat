@@ -187,6 +187,8 @@ class EngineState(BaseModel):
     counters: Counters = Field(default_factory=Counters)
     gold: Optional[list[GoldTask]] = None
     hardNegatives: list[str] = Field(default_factory=list)
+    hardNegativeTags: dict[str, str] = Field(default_factory=dict)   # message_id -> loại hard negative (v6 mục 10.3)
+    turnLabels: list[dict[str, Any]] = Field(default_factory=list)   # turn_labels.jsonl (chấm op theo lượt, v6 mục 11.4)
 
 
 # ---------- Đầu ra bộ trích (bản phẳng, strict) ----------

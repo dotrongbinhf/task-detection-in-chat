@@ -49,7 +49,8 @@ def init_state(ds: dict[str, Any]) -> EngineState:
         dataset=ds["name"], members=ds["members"], events=events,
         simNow=to_iso(parse(first) - timedelta(minutes=1)),
         userActions=sorted([a.model_copy(update={"source": "dataset"}) for a in ds["user_actions"]], key=lambda a: ts(a.at)),
-        gold=ds["gold"], hardNegatives=ds["hard_negatives"],
+        gold=ds["gold"], hardNegatives=ds["hard_negatives"], hardNegativeTags=ds.get("hard_negative_tags", {}),
+        turnLabels=ds.get("turn_labels", []),
     )
 
 
@@ -286,7 +287,7 @@ def write_run(state: EngineState, run_dir: Path, cfg: Config, llm: LLM) -> None:
             f.write(json.dumps({"type": "turn_detail", **tr}, ensure_ascii=False) + "\n")
         for e in state.trace:
             f.write(json.dumps(e, ensure_ascii=False) + "\n")
-    meta = {"dataset": state.dataset, "mode": llm.mode, "gate_model": llm.gate_model, "extract_model": llm.extract_model,
+    meta = {"dataset": state.dataset, "mode": llm.mode, "seed": getattr(llm, "seed", None), "gate_model": llm.gate_model, "extract_model": llm.extract_model,
             "config": cfg.model_dump()}
     (run_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (run_dir / "state.json").write_text(state.model_dump_json(), encoding="utf-8")
@@ -299,11 +300,12 @@ def main() -> None:
     ap.add_argument("--set", action="append", default=[], help="ghi đè config, vd. gate_mode=shadow")
     ap.add_argument("--mode", default="auto", choices=["auto", "openai", "heuristic"])
     ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--seed", type=int, default=7, help="seed của lời gọi LLM (đo dao động giữa các lần chạy)")
     ap.add_argument("--id", default=None)
     ap.add_argument("-q", "--quiet", action="store_true")
     a = ap.parse_args()
     cfg = load_config(sets=a.set)
-    llm = make_llm(a.mode, a.no_cache)
+    llm = make_llm(a.mode, a.no_cache, a.seed)
     set_model(llm.extract_model)
     state = init_state(load_dataset(a.data, a.split))
     prompts = load_prompts()
