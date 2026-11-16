@@ -1,6 +1,9 @@
 """Đọc config.yaml, ghi đè bằng --set key=value hoặc dict từ UI."""
 from __future__ import annotations
 
+import json
+import os
+import threading
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -8,14 +11,11 @@ import yaml
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
-PROMPT_VERSION = "v5.1"  # prompts/extract.txt
+PROMPT_VERSION = "v6"  # prompts/extract.txt
 
 
 class Config(BaseModel):
     draft_min: Literal["assignee", "assignee_due"] = "assignee"
-    gate_mode: Literal["none", "shadow", "llm"] = "none"
-    gate_threshold: float = 0.2
-    gate_window_k: int = 5
     window_k: int = 10
     reply_chain_max: int = 3
     evidence_per_task: int = 1
@@ -47,9 +47,6 @@ class Config(BaseModel):
 
 CONFIG_HELP: dict[str, str] = {
     "draft_min": "assignee: nháp hiện khi có người nhận | assignee_due: cần thêm hạn",
-    "gate_mode": "none = trần chất lượng | shadow = chấm p không chặn | llm = chặn khi p < ngưỡng",
-    "gate_threshold": "Ngưỡng p khi gate_mode = llm",
-    "gate_window_k": "Số tin trước trong ngữ cảnh của cổng",
     "window_k": "Số tin trước trong ngữ cảnh bộ trích (K)",
     "reply_chain_max": "Số tin tối đa lần ngược theo chuỗi reply",
     "evidence_per_task": "Tin bằng chứng gần nhất kèm mỗi task",
@@ -57,12 +54,12 @@ CONFIG_HELP: dict[str, str] = {
     "message_max_tokens": "Cắt tin dài hơn số token này",
     "coalesce_seconds": "Gộp tin đến dồn (giây)",
     "candidate_ttl_hours": "Task ẩn chưa ai nhận thì hết hạn (giờ)",
-    "draft_ttl_days": "Nháp không được chạm tới thì stale (ngày)",
+    "draft_ttl_days": "Nháp không được chạm tới thì đóng (closed, draft_ttl) sau (ngày)",
     "approved_grace_days": "Task đã duyệt còn mở sau hạn (ngày)",
     "undated_open_days": "Task đã duyệt không hạn còn mở kể từ lần chạm cuối (ngày)",
     "declined_suppress_days": "Đề xuất bị từ chối không được đề xuất lại; task bị từ chối chuyển closed sau (ngày)",
     "llm_max_retries": "Retry khi lỗi parse hoặc mạng",
-    "linked_tasks_max": "Task được link (reply/reaction) tối đa",
+    "linked_tasks_max": "Task được link (TIN MỚI reply vào tin bằng chứng) tối đa",
     "linked_evidence_per_task": "Tin bằng chứng kèm mỗi task được link",
     "search_max_results": "Số kết quả tìm kiếm trả về LLM",
     "search_lookup_days": "Phạm vi thời gian tìm task / task được link (ngày)",
@@ -76,6 +73,22 @@ CONFIG_HELP: dict[str, str] = {
     "matched_tasks_max": "Task khớp nội dung TIN MỚI tối đa",
     "matched_min_keyword_overlap": "Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",
 }
+
+
+def read_cache(f: Path) -> Any:
+    """Đọc một file cache JSON; thiếu hoặc hỏng (đang được tiến trình / luồng khác ghi dở) → None = trượt cache."""
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def write_cache(f: Path, v: Any) -> None:
+    """Ghi nguyên tử (file tạm + os.replace) để các luồng `--jobs` / tiến trình song song không đọc phải file ghi dở."""
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_name(f"{f.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, f)
 
 
 def load_config(overrides: dict[str, Any] | None = None, sets: list[str] | None = None) -> Config:

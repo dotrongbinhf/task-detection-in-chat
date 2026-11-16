@@ -83,5 +83,4 @@ def apply_labels(state: Any, ds: dict[str, Any]) -> None:
 
 def load_prompts() -> dict[str, str]:
     extract = (ROOT / "prompts" / "extract.txt").read_text(encoding="utf-8").replace("{time_conventions}", TIME_CONVENTIONS)
-    gate = (ROOT / "prompts" / "gate.txt").read_text(encoding="utf-8")
-    return {"extract": extract.strip(), "gate": gate.strip()}
+    return {"extract": extract.strip()}

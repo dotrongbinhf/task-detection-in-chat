@@ -206,8 +206,10 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             assigner = anchor_msg.author_id if kind != "self_commit" and anchor_msg and anchor_msg.author_id not in ids else None
             ev_list = ev_ids if any(i == anchor_id for i, _ in ev_ids) else [(anchor_id, "assign"), *ev_ids]
             state.counters.task += 1
+            conv = ctx.key.split(";")[0]
+            n_conv = state.counters.task_by_conv[conv] = state.counters.task_by_conv.get(conv, 0) + 1
             t = Task(
-                **df, task_id=f"K{state.counters.task}", conversation_key=ctx.key, status="candidate", kind=kind,
+                **df, task_id=f"K{state.convIndex.get(conv, 0)}.{n_conv}", conversation_key=ctx.key, status="candidate", kind=kind,
                 title=(op.title or "").strip() or "(chưa có tiêu đề)", notes=op.notes, assignee_refs_raw=op.assignee_refs or [],
                 assignee_ids=ids, assigner_id=assigner, due_type=due.due_type, due_date=due.due_date, anchor_message_id=anchor_id,
                 created_at=at, created_turn=turn, last_touched_at=at, status_changed_at=at, prompt_version=PROMPT_VERSION, model=model,
@@ -233,7 +235,7 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
             continue
         t = next(x for x in state.tasks if x.task_id == task_id)
         res["task_id"] = t.task_id
-        if t.status in ("declined", "expired", "stale", "closed", "cancelled"):
+        if t.status in ("declined", "closed", "cancelled", "expired", "stale"):
             reject(f"target_not_open ({t.task_id} đang {t.status})")
             continue
 

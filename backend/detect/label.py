@@ -70,7 +70,7 @@ def export(ds: dict[str, Any], cfg: Config, k: int) -> list[dict[str, Any]]:
         window = evs[max(0, i - k):i]
 
         def fmt(lst: list[StreamEvent]) -> str:
-            pm = [_to_prompt_msg(e, "window") for e in lst]
+            pm = [_to_prompt_msg(e, "window", batch[-1].at) for e in lst]
             for m in pm:
                 m.local = m.id
             return _fmt_list(pm, {e.id: e.id for e in evs}, 200)
@@ -79,7 +79,7 @@ def export(ds: dict[str, Any], cfg: Config, k: int) -> list[dict[str, Any]]:
         rows.append({
             "turn_id": turn_id(key, batch), "conversation_key": key, "new_event_ids": [e.id for e in batch],
             "new_text": fmt(batch), "context": fmt(window),
-            "has_reply": any(m.reply_to_id for m in msgs), "has_reaction": any(e.kind == "reaction" for e in batch),
+            "has_reply": any(m.reply_to_id for m in msgs), "has_reaction": any(m.reactions for m in msgs),
             "has_mention": any(m.mentions for m in msgs),
             "label": None, "kinds": [], "annotator": "", "note": "",
         })

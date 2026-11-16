@@ -10,7 +10,7 @@ from detect.config import PROMPT_VERSION, Config
 from detect.dataset import load_prompts
 from detect.embed import FakeEmbedder
 from detect.llm import FakeLLM
-from detect.models import EXTRACT_JSON_SCHEMA, Member, Message, Reaction, UserAction, empty_op
+from detect.models import EXTRACT_JSON_SCHEMA, Member, Message, UserAction, empty_op
 from detect.run import flush_actions, init_state, process_turn
 from detect.store import TaskStore
 from detect.text import terms
@@ -93,7 +93,7 @@ def four_tasks() -> tuple[list[Message], dict]:
 
 
 def six_tasks():
-    """four_tasks + K5 review PR + K6 release note."""
+    """four_tasks + K1.5 review PR + K1.6 release note."""
     ms, by = four_tasks()
     ms += [msg("e", "09:40", "u_hung", "@Nam review PR nhé", mentions=mention("u_nam")),
            msg("f", "09:50", "u_hung", "@Tuấn viết release note nhé", mentions=mention("u_tuan"))]
@@ -104,23 +104,20 @@ def six_tasks():
 
 # ---------------- task được link ----------------
 
-def test_linked_direct_reply_chain_and_reaction():
+def test_linked_direct_reply_chain():
     ms, by = four_tasks()
     ms += fillers(0, 12)
     ms += [msg("r1", "11:00", "u_hung", "lùi sang thứ 2 nhé", reply_to_id="a"),                 # reply trực tiếp
            msg("x", "11:05", "u_nam", "anh ơi việc này gấp không", reply_to_id="b"),
            msg("y", "11:06", "u_hung", "gấp nhé", reply_to_id="x"),                             # qua chuỗi y → x → b
            msg("z", "11:10", "u_nam", "ok", reactions=[])]
-    ms[2].reactions.append(Reaction(user_id="u_tuan", type="like", created_at=at("11:20")))  # 👍 vào c sau nhiều tin
     turns = run_all(state_of(ms), FakeLLM(by), Config(window_k=10))
     r1 = turn_of(turns, "r1")
-    assert src(r1, "linked") == ["K1"] and "K1" not in src(r1, "matched", "recent")
+    assert src(r1, "linked") == ["K1.1"] and "K1.1" not in src(r1, "matched", "recent")
     assert "<LINKED_TASKS>" in r1["context"]["prompt"] and "NEW_MESSAGES reply to" in r1["context"]["prompt"]
     assert "báo cáo tuần" in r1["context"]["blocks"]["b3a"]  # kèm tin bằng chứng
     y = turn_of(turns, "y")
-    assert src(y, "linked") == ["K2"] and "via thread" in y["context"]["candidates"][0]["why"]
-    rc = turn_of(turns, "c#r1")
-    assert src(rc, "linked") == ["K3"] and "react" in rc["context"]["candidates"][0]["why"]
+    assert src(y, "linked") == ["K1.2"] and "via thread" in y["context"]["candidates"][0]["why"]
 
 
 def test_linked_includes_closed_task_and_respects_max():
@@ -136,7 +133,7 @@ def test_linked_includes_closed_task_and_respects_max():
             s.tasks[0].status = "closed"  # task đã đóng vẫn được link (người dùng reply vào việc cũ để sửa/huỷ)
         if "r" in t["new_event_ids"]:
             linked = src(t, "linked")
-            assert len(linked) == 3 and "K1" in linked
+            assert len(linked) == 3 and "K1.1" in linked
 
 
 # ---------------- ứng viên: matched rồi recent ----------------
@@ -145,24 +142,24 @@ def test_recent_order_ignores_approval_and_excludes_declined_and_linked():
     ms, by = four_tasks()
     ms += [msg("e", "10:00", "u_nam", "mọi người ăn trưa chưa"),
            msg("f", "10:30", "u_hung", "nhớ nhé", reply_to_id="c")]
-    acts = [UserAction(at=at("09:40"), user_id="u_linh", message_id="a", action="approve"),   # duyệt K1 ≠ "được nhắc"
-            UserAction(at=at("09:45"), user_id="u_linh", message_id="d", action="decline")]   # K4 declined
+    acts = [UserAction(at=at("09:40"), user_id="u_linh", message_id="a", action="approve"),   # duyệt K1.1 ≠ "được nhắc"
+            UserAction(at=at("09:45"), user_id="u_linh", message_id="d", action="decline")]   # K1.4 declined
     s = state_of(ms, acts)
     turns = run_all(s, FakeLLM(by), Config())
-    assert src(turn_of(turns, "e"), "recent") == ["K3", "K2", "K1"]  # K4 declined bị loại, K1 không "gần" hơn vì được duyệt
+    assert src(turn_of(turns, "e"), "recent") == ["K1.3", "K1.2", "K1.1"]  # K1.4 declined bị loại, K1.1 không "gần" hơn vì được duyệt
     f = turn_of(turns, "f")
-    assert src(f, "linked") == ["K3"] and src(f, "recent") == ["K2", "K1"]
-    k1 = next(t for t in s.tasks if t.task_id == "K1")
+    assert src(f, "linked") == ["K1.3"] and src(f, "recent") == ["K1.2", "K1.1"]
+    k1 = next(t for t in s.tasks if t.task_id == "K1.1")
     assert k1.status == "approved" and k1.last_mentioned_at == at("09:00")
 
 
 def test_last_mentioned_at_is_evidence_message_time():
     ms, by = four_tasks()
     ms += [msg("ok", "12:00", "u_linh", "dạ em gửi trước thứ 5 ạ", reply_to_id="a")]
-    by["ok"] = {"ops": [update_due("K1", "ok", 4)]}
+    by["ok"] = {"ops": [update_due("K1.1", "ok", 4)]}
     s = state_of(ms)
     run_all(s, FakeLLM(by), Config())
-    assert next(t for t in s.tasks if t.task_id == "K1").last_mentioned_at == at("12:00")
+    assert next(t for t in s.tasks if t.task_id == "K1.1").last_mentioned_at == at("12:00")
 
 
 def test_candidates_matched_first_then_recent():
@@ -170,8 +167,8 @@ def test_candidates_matched_first_then_recent():
     ms += [msg("u", "11:00", "u_hung", "@Linh báo cáo tuần lùi sang thứ 6 nhé", mentions=mention("u_linh"))]
     llm = FakeLLM(by)
     t = turn_of(run_all(state_of(ms), llm, Config()), "u")
-    # K1 khớp nội dung; K4 (cũng của Linh) chỉ trùng người → không vào matched mà vào recent
-    assert cands(t) == [("K1", "matched"), ("K6", "recent"), ("K5", "recent"), ("K4", "recent"), ("K3", "recent")]
+    # K1.1 khớp nội dung; K1.4 (cũng của Linh) chỉ trùng người → không vào matched mà vào recent
+    assert cands(t) == [("K1.1", "matched"), ("K1.6", "recent"), ("K1.5", "recent"), ("K1.4", "recent"), ("K1.3", "recent")]
     first = t["context"]["candidates"][0]
     assert "bao" in first["why"] and first["local"] == "T1"
     user = llm.calls[-1]["user"]
@@ -191,12 +188,12 @@ def test_candidates_limits():
 
 def test_candidates_exclude_linked_declined_and_closed():
     ms, by = six_tasks()
-    ms += [msg("u", "11:00", "u_hung", "báo cáo tuần với icon set nhé", reply_to_id="a")]   # reply → K1 được link
-    acts = [UserAction(at=at("10:00"), user_id="u_tuan", message_id="c", action="decline")]  # K3 declined
+    ms += [msg("u", "11:00", "u_hung", "báo cáo tuần với icon set nhé", reply_to_id="a")]   # reply → K1.1 được link
+    acts = [UserAction(at=at("10:00"), user_id="u_tuan", message_id="c", action="decline")]  # K1.3 declined
     t = turn_of(run_all(state_of(ms, acts), FakeLLM(by), Config()), "u")
-    assert src(t, "linked") == ["K1"]
+    assert src(t, "linked") == ["K1.1"]
     ids = [i for i, _ in cands(t)]
-    assert "K1" not in ids and "K3" not in ids and not src(t, "matched")
+    assert "K1.1" not in ids and "K1.3" not in ids and not src(t, "matched")
 
 
 def test_people_only_hit_never_matched():
@@ -233,7 +230,7 @@ def test_budget_trim_order_never_cuts_linked():
     order = ["drop_candidate_evidence", "reduce_k", "drop_candidate"]
     kinds = [x.split(" ")[0] for x in t["context"]["trims"]]
     assert kinds == sorted(kinds, key=order.index) and kinds[0] == "drop_candidate_evidence" and "drop_candidate" in kinds
-    assert src(t, "linked") == ["K4"] and t["context"]["tokens"]["b3a"] > 0
+    assert src(t, "linked") == ["K1.4"] and t["context"]["tokens"]["b3a"] > 0
     assert [s for _, s in cands(t)] == ["matched"]  # cắt recent trước, giữ ≥ 1 ứng viên
 
 
@@ -250,11 +247,11 @@ def test_store_search_diacritics_people_time_and_limit():
     run_all(s, FakeLLM(by), Config())
     st = TaskStore(s)
     hits = st.search("g", "bao cao tuan", None, None, 5)                     # không dấu khớp có dấu
-    assert hits[0].task.task_id == "K1" and {"bao", "cao"} <= set(hits[0].matched)
+    assert hits[0].task.task_id == "K1.1" and {"bao", "cao"} <= set(hits[0].matched)
     hits = st.search("g", "báo cáo", ["u_nam"], None, 5)                     # ưu tiên theo người
-    assert hits[0].task.task_id == "K2" and hits[0].people_match
-    assert st.search("g", "báo cáo", ["Tuấn"], None, 5)[0].task.task_id == "K3"                 # người là tên cũng được
-    assert [h.task.task_id for h in st.search("g", "bao cao", None, at("09:15"), 5)] == ["K3"]  # lọc thời gian
+    assert hits[0].task.task_id == "K1.2" and hits[0].people_match
+    assert st.search("g", "báo cáo", ["Tuấn"], None, 5)[0].task.task_id == "K1.3"                 # người là tên cũng được
+    assert [h.task.task_id for h in st.search("g", "bao cao", None, at("09:15"), 5)] == ["K1.3"]  # lọc thời gian
     assert len(st.search("g", "bao cao", None, None, 2)) == 2                                    # giới hạn kết quả
     assert st.search("g", "deploy staging", None, None, 5) == []
 
@@ -266,7 +263,7 @@ def test_hybrid_finds_paraphrase_keyword_does_not():
     assert TaskStore(s, Config(), None).mode == "keyword"  # không có embedder → chỉ BM25
     assert TaskStore(s, Config(), None).search("g", "weekly report", None, None, 5) == []
     hy = TaskStore(s, Config(), EMB).search("g", "weekly report", None, None, 5)
-    assert hy[0].task.task_id == "K1" and hy[0].similarity > 0.9 and any(m.startswith("ngữ nghĩa") for m in hy[0].matched)
+    assert hy[0].task.task_id == "K1.1" and hy[0].similarity > 0.9 and any(m.startswith("ngữ nghĩa") for m in hy[0].matched)
 
 
 def test_hybrid_keeps_exact_ids_apart():
@@ -297,27 +294,27 @@ def _far_update_dataset():
 
 def test_target_check_redirects_wrong_update():
     ms, by = _far_update_dataset()
-    # lần 1: LLM nhắm nhầm task gần nhất (Review PR / K5); lần 2 (sau khi code đưa K1 vào): đúng K1
-    by["u"] = [{"ops": [update_due("K5", "u", 5)]}, {"ops": [update_due("K1", "u", 5)]}]
+    # lần 1: LLM nhắm nhầm task gần nhất (Review PR / K1.5); lần 2 (sau khi code đưa K1.1 vào): đúng K1.1
+    by["u"] = [{"ops": [update_due("K1.5", "u", 5)]}, {"ops": [update_due("K1.1", "u", 5)]}]
     s = state_of(ms)
     llm = FakeLLM(by)
     t = turn_of(run_all(s, llm, Config(**NARROW)), "u")
-    assert "K1" not in src(t, "matched", "recent")
-    assert t["target_check"]["triggered"] and t["target_check"]["checks"][0]["candidates"][0] == "K1"
+    assert "K1.1" not in src(t, "matched", "recent")
+    assert t["target_check"]["triggered"] and t["target_check"]["checks"][0]["candidates"][0] == "K1.1"
     assert [c["reason"] for c in t["extract_calls"]] == ["initial", "target_check"]
     assert 'source="target_check"' in llm.calls[-1]["user"] and llm.calls[-1]["user"].startswith(llm.calls[-2]["user"])
-    assert t["ops"][0]["accepted"] and t["ops"][0]["task_id"] == "K1"
-    assert next(x for x in s.tasks if x.task_id == "K1").due_date == "2026-11-13"
+    assert t["ops"][0]["accepted"] and t["ops"][0]["task_id"] == "K1.1"
+    assert next(x for x in s.tasks if x.task_id == "K1.1").due_date == "2026-11-13"
 
 
 def test_target_check_skips_linked_and_can_be_disabled():
     ms, by = _far_update_dataset()
-    ms[-1] = msg("u", "11:00", "u_hung", "báo cáo tuần lùi sang thứ 6 nhé", reply_to_id="a")  # reply → K1 được link
-    by["u"] = {"ops": [update_due("K1", "u", 5)]}
+    ms[-1] = msg("u", "11:00", "u_hung", "báo cáo tuần lùi sang thứ 6 nhé", reply_to_id="a")  # reply → K1.1 được link
+    by["u"] = {"ops": [update_due("K1.1", "u", 5)]}
     t = turn_of(run_all(state_of(ms), FakeLLM(by), Config(**NARROW)), "u")
     assert not t["target_check"]["triggered"] and t["target_check"]["checks"] == [] and len(t["extract_calls"]) == 1
     ms, by = _far_update_dataset()
-    by["u"] = {"ops": [update_due("K5", "u", 5)]}
+    by["u"] = {"ops": [update_due("K1.5", "u", 5)]}
     t = turn_of(run_all(state_of(ms), FakeLLM(by), Config(**NARROW, target_check_on_update=False)), "u")
     assert t["target_check"] is None and len(t["extract_calls"]) == 1
 
@@ -325,11 +322,11 @@ def test_target_check_skips_linked_and_can_be_disabled():
 def test_target_check_semantic_paraphrase():
     ms, by = _far_update_dataset()
     ms[-1] = msg("u", "11:00", "u_hung", "@Linh weekly report dời sang thứ 6 nhé", mentions=mention("u_linh"))
-    by["u"] = [{"ops": [update_due("K5", "u", 5)]}, {"ops": [update_due("K1", "u", 5)]}]
+    by["u"] = [{"ops": [update_due("K1.5", "u", 5)]}, {"ops": [update_due("K1.1", "u", 5)]}]
     t = turn_of(run_all(state_of(ms), FakeLLM(by, embedder=EMB), Config(**NARROW)), "u")
     c = t["target_check"]["checks"][0]
-    assert c["candidates"] == ["K1"] and c["results"][0]["overlap"] == 0   # không chung từ khoá nào, bắt nhờ ngữ nghĩa
-    assert t["ops"][0]["task_id"] == "K1"
+    assert c["candidates"] == ["K1.1"] and c["results"][0]["overlap"] == 0   # không chung từ khoá nào, bắt nhờ ngữ nghĩa
+    assert t["ops"][0]["task_id"] == "K1.1"
 
 
 def test_target_check_offers_several_semantic_candidates():
@@ -337,9 +334,9 @@ def test_target_check_offers_several_semantic_candidates():
     emb = FakeEmbedder({"a": ["bao cao tuan", "weekly report"], "b": ["bug ma giam gia", "loi coupon"]})
     ms, by = _far_update_dataset()
     ms[-1] = msg("u", "11:00", "u_hung", "@Linh weekly report với lỗi coupon dời sang thứ 6 nhé", mentions=mention("u_linh"))
-    by["u"] = [{"ops": [update_due("K5", "u", 5)]}, {"ops": [update_due("K1", "u", 5)]}]
+    by["u"] = [{"ops": [update_due("K1.5", "u", 5)]}, {"ops": [update_due("K1.1", "u", 5)]}]
     t = turn_of(run_all(state_of(ms), FakeLLM(by, embedder=emb), Config(**NARROW, target_check_max_candidates=3)), "u")
-    assert sorted(t["target_check"]["checks"][0]["candidates"]) == ["K1", "K2"]
+    assert sorted(t["target_check"]["checks"][0]["candidates"]) == ["K1.1", "K1.2"]
     block = t["extract_calls"][1]["extra_block"]
     assert "Gửi báo cáo tuần" in block and "Fix bug mã giảm giá" in block
     t1 = turn_of(run_all(state_of(ms), FakeLLM(by, embedder=emb), Config(**NARROW, target_check_max_candidates=1)), "u")
@@ -364,7 +361,7 @@ def test_message_text_instead_of_id_is_mapped():
           msg("b", "09:05", "u_nam", "ok anh", reply_to_id="a")]
     op = create("a", ["u_nam"], "Làm màn hình lịch sử giao dịch")
     op["anchor"] = op["evidence"][0]["msg"] = "@Nam làm màn hình lịch sử giao dịch nhé (@Nam=u_nam)"
-    acc = empty_op("UPDATE", target="@K1", evidence=[{"msg": "ok anh", "role": "accept"}], changes=None)
+    acc = empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "ok anh", "role": "accept"}], changes=None)
     s = state_of(ms)
     turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [acc]}}), Config())
     assert turn_of(turns, "a")["ops"][0]["accepted"] and s.tasks[0].anchor_message_id == "a"
@@ -422,14 +419,14 @@ def test_accept_adds_to_existing_assignees():
           msg("b", "09:05", "u_nam", "ok anh", reply_to_id="a"),
           msg("c", "09:06", "u_linh", "dạ em nhận", reply_to_id="a")]
     by = {"a": {"ops": [create("a", ["Linh"], "Chuẩn bị slide demo cho khách hàng")]},
-          "b": {"ops": [_accept("K1", "b")]}, "c": {"ops": [_accept("K1", "c")]}}
+          "b": {"ops": [_accept("K1.1", "b")]}, "c": {"ops": [_accept("K1.1", "c")]}}
     s = state_of(ms)
     turns = run_all(s, FakeLLM(by), Config())
     assert sorted(s.tasks[0].assignee_ids) == ["u_linh", "u_nam"]
     assert turn_of(turns, "c")["ops"][0]["accepted"]  # Linh đã có → không đổi, chỉ thêm bằng chứng
     # đổi người nhận bằng tên / @mention vẫn THAY như cũ
     ms2 = ms[:1] + [msg("d", "09:10", "u_hung", "thôi để Tuấn làm nhé", reply_to_id="a")]
-    by2 = {"a": by["a"], "d": {"ops": [empty_op("UPDATE", target="@K1", evidence=[{"msg": "@d", "role": "assignee"}],
+    by2 = {"a": by["a"], "d": {"ops": [empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "@d", "role": "assignee"}],
                                                  changes=[{"field": "assignee_refs", "value": '["Tuấn"]', "evidence_msg": "@d"}])]}}
     s = state_of(ms2)
     run_all(s, FakeLLM(by2), Config())
@@ -441,7 +438,7 @@ def test_accept_on_self_commit_replaces():
     ms = [msg("a", "09:00", "u_hung", "em làm giúp anh bảng so sánh giá nhé"),
           msg("b", "09:05", "u_linh", "Dạ vâng anh", reply_to_id="a")]
     by = {"a": {"ops": [create("a", ["SPEAKER:@a"], "Làm bảng so sánh giá", kind="self_commit")]},
-          "b": {"ops": [_accept("K1", "b")]}}
+          "b": {"ops": [_accept("K1.1", "b")]}}
     s = state_of(ms)
     run_all(s, FakeLLM(by), Config())
     assert s.tasks[0].assignee_ids == ["u_linh"]
@@ -460,9 +457,9 @@ def test_assignee_change_needs_accept_or_assignee_role():
           msg("c", "10:00", "u_hung", "ổn rồi em", reply_to_id="a"),                   # người giao, model ghi accept
           msg("d", "10:30", "u_hung", "thôi để anh làm cho", reply_to_id="a")]         # người giao tự nhận làm
     by = {"a": {"ops": [create("a", ["u_nam"], "Fix crash màn đăng nhập")]},
-          "b": {"ops": [_set_assignee("K1", "b", "SPEAKER:@b", "content")]},
-          "c": {"ops": [_set_assignee("K1", "c", "SPEAKER:@c", "accept")]},
-          "d": {"ops": [_set_assignee("K1", "d", "SPEAKER:@d", "assignee")]}}
+          "b": {"ops": [_set_assignee("K1.1", "b", "SPEAKER:@b", "content")]},
+          "c": {"ops": [_set_assignee("K1.1", "c", "SPEAKER:@c", "accept")]},
+          "d": {"ops": [_set_assignee("K1.1", "d", "SPEAKER:@d", "assignee")]}}
     s = state_of(ms)
     turns = run_all(s, FakeLLM(by), Config())
     assert any("assignee_change_dropped" in n for n in turn_of(turns, "b")["ops"][0]["notes"])
@@ -477,7 +474,7 @@ def test_weekday_written_number_and_roll_forward():
           msg("b", "15:00", "u_nam", "anh ơi em xin lùi sang thứ 2 nhé", day=16, reply_to_id="a")]
     op = create("a", ["u_nam"], "Làm báo cáo")
     op.update(due_text="thứ 5", due_kind="weekday", due_weekday=5)
-    lui = update_due("K1", "b", 1)
+    lui = update_due("K1.1", "b", 1)
     lui["changes"][0]["value"] = '{"due_text": "thứ 2", "due_kind": "weekday", "due_weekday": 2, "due_week_offset": 0}'
     s = state_of(ms)
     turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [lui]}}), Config())

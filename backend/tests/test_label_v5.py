@@ -24,7 +24,6 @@ def test_derive_labels_supporting_and_hard(sample):
     by_id = {i: r for r in rows for i in r["new_event_ids"]}
     assert by_id["m003"]["label"] == 1 and by_id["m003"]["kinds"] == ["assign"]  # anchor g01
     assert by_id["m004"]["label"] == 1                                         # "Dạ ok anh" (supporting)
-    assert by_id["m036#r1"]["label"] == 1  # v6: reaction không còn suy ra kinds = accept
     assert by_id["m011"]["label"] == 0 and by_id["m011"].get("hard")
     assert by_id["m001"]["label"] == 0 and not by_id["m001"].get("hard")
     assert len({r["turn_id"] for r in rows}) == len(rows)

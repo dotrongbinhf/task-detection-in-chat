@@ -1,8 +1,7 @@
 """Embedding cho tìm kiếm ngữ nghĩa trong kho task (tìm task matched, kiểm tra target).
 
 - `OpenAIEmbedder` — `text-embedding-3-small` (đa ngôn ngữ), cache đĩa `.cache/emb/` theo hash(model + văn bản).
-- `HashEmbedder` — n-gram ký tự (bỏ dấu) băm vào vector cố định. Chạy offline cho chế độ giả lập và unit test.
-  KHÔNG hiểu nghĩa (chỉ giống về mặt chữ) — không dùng số liệu của nó để kết luận.
+- `FakeEmbedder` — vector định sẵn theo cụm từ khoá, chỉ cho unit test.
 
 Khi chuyển sang model nội bộ: thay `OpenAIEmbedder` bằng `bge-m3` / `multilingual-e5` (cùng giao diện `embed`),
 rồi hiệu chỉnh lại `semantic_min_similarity` (thang cosine mỗi model một khác).
@@ -13,13 +12,12 @@ import hashlib
 import json
 import math
 import os
-import re
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
 from dotenv import load_dotenv
 
-from .config import ROOT
+from .config import ROOT, read_cache, write_cache
 from .text import norm
 
 load_dotenv(ROOT / ".env")
@@ -65,9 +63,10 @@ class OpenAIEmbedder:
             k = _key(self.name, t)
             v = self._mem.get(k)
             f = CACHE_DIR / f"{k}.json"
-            if v is None and not self.no_cache and f.exists():
-                v = json.loads(f.read_text(encoding="utf-8"))
-                self._mem[k] = v
+            if v is None and not self.no_cache:
+                v = read_cache(f)
+                if v is not None:
+                    self._mem[k] = v
             out.append(v)
             if v is None:
                 miss.append((i, t, k))
@@ -77,35 +76,11 @@ class OpenAIEmbedder:
             client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
             r = client.embeddings.create(model=self.name, input=[t or " " for _, t, _ in miss])
             self.tokens_used += getattr(r.usage, "total_tokens", 0) or 0
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
             for (i, _, k), d in zip(miss, r.data):
                 out[i] = list(d.embedding)
                 self._mem[k] = out[i]
-                (CACHE_DIR / f"{k}.json").write_text(json.dumps(out[i]), encoding="utf-8")
+                write_cache(CACHE_DIR / f"{k}.json", out[i])
         return [v or [] for v in out]
-
-
-@dataclass
-class HashEmbedder:
-    """n-gram ký tự 3–4 trên văn bản bỏ dấu → 512 chiều. Giống nhau về chữ ≠ giống nhau về nghĩa."""
-
-    name: str = "hash-ngram"
-    default_threshold: float = 0.45
-    tokens_used: int = 0
-    dim: int = 512
-
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        out = []
-        for t in texts:
-            v = [0.0] * self.dim
-            s = f" {re.sub(r'[^a-z0-9 ]+', ' ', norm(t))} "
-            for n in (3, 4):
-                for i in range(len(s) - n + 1):
-                    g = s[i:i + n]
-                    if g.strip():
-                        v[int(hashlib.md5(g.encode()).hexdigest(), 16) % self.dim] += 1.0
-            out.append(v)
-        return out
 
 
 @dataclass

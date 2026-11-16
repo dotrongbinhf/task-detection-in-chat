@@ -10,8 +10,9 @@ RULES
    If the task already exists in the prompt, use UPDATE instead.
 3. UPDATE when NEW_MESSAGES accept a task, add/change its due date, assignee or content. CANCEL when NEW_MESSAGES cancel a task
    ("thôi khỏi", "không cần nữa"). Pick the task NEW_MESSAGES are about by their content
-   (a reply / reaction points to LINKED_TASKS, but if the text clearly names another task in the prompt, use that one).
-   A 👍/ok reaction or "để em làm" on a task with no assignee = the sender accepts it → UPDATE assignee_refs ["SPEAKER:#n"].
+   (a reply points to LINKED_TASKS, but if the text clearly names another task in the prompt, use that one).
+   "để em làm" on a task with no assignee = the sender accepts it → UPDATE assignee_refs ["SPEAKER:#n"].
+   Reactions shown at the end of a message line ([👍 Nam]) never create or change a task.
    Only use T<n> ids that exist in the prompt.
 4. CANDIDATE_TASKS lists tasks that may be related: [matched: …] = found by content similarity with NEW_MESSAGES, [recent] = recently
    mentioned. NEW_MESSAGES usually refer to a task in LINKED_TASKS (if present) or a [matched] task. If NEW_MESSAGES clearly edit / cancel /

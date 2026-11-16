@@ -42,9 +42,10 @@ class Member(BaseModel):
 
 
 class StreamEvent(BaseModel):
-    """Tin nhắn hoặc reaction trong luồng sự kiện. Reaction có id `<message_id>#r<n>`."""
+    """Một tin nhắn trong luồng sự kiện. v6: reaction không còn là sự kiện mà in kèm dòng tin (mục 4);
+    `kind = "reaction"` và các trường target/user/type chỉ còn để đọc state.json của lần chạy cũ."""
 
-    kind: Literal["message", "reaction"]
+    kind: Literal["message", "reaction"] = "message"
     id: str
     key: str
     at: str
@@ -89,7 +90,9 @@ class GoldTask(BaseModel):
 
 # ---------- Sổ cái ----------
 
-TaskStatus = Literal["candidate", "draft", "approved", "declined", "cancelled", "expired", "stale", "closed"]
+# v6: một trạng thái đóng `closed` + `closed_reason` (mục 8.2). "expired" / "stale" chỉ còn để đọc lần chạy cũ.
+TaskStatus = Literal["candidate", "draft", "approved", "declined", "cancelled", "closed", "expired", "stale"]
+ClosedReason = Literal["candidate_ttl", "draft_ttl", "past_due", "undated", "declined_ttl"]
 EvidenceRole = Literal["assign", "accept", "assignee", "due", "content", "cancel", "context"]
 DueKind = Literal["none", "event", "relative_day", "weekday", "week_part", "absolute"]
 ChangeField = Literal["title", "notes", "kind", "assignee_refs", "due", "status"]
@@ -141,10 +144,11 @@ class Task(BaseModel):
     created_at: str
     created_turn: int
     last_touched_at: str
-    # created_at của tin bằng chứng mới nhất trong chat (tin hoặc reaction). Thao tác duyệt KHÔNG cập nhật.
+    # created_at của tin bằng chứng mới nhất trong chat. Thao tác duyệt KHÔNG cập nhật.
     last_mentioned_at: str = ""
     shown_at: Optional[str] = None
     status_changed_at: str
+    closed_reason: Optional[ClosedReason] = None
     draft_update_count: int = 0
     prompt_version: str
     model: str
@@ -171,6 +175,9 @@ class Counters(BaseModel):
     change: int = 0
     turn: int = 0
     msg: int = 0
+    # số task / đề xuất theo hội thoại → id `K<thứ tự hội thoại>.<n>` không phụ thuộc thứ tự chạy (v6 mục 8.4)
+    task_by_conv: dict[str, int] = Field(default_factory=dict)
+    change_by_conv: dict[str, int] = Field(default_factory=dict)
 
 
 class EngineState(BaseModel):
@@ -191,6 +198,7 @@ class EngineState(BaseModel):
     hardNegatives: list[str] = Field(default_factory=list)
     hardNegativeTags: dict[str, str] = Field(default_factory=dict)   # message_id -> loại hard negative (v6 mục 10.3)
     turnLabels: list[dict[str, Any]] = Field(default_factory=list)   # turn_labels.jsonl (chấm op theo lượt, v6 mục 11.4)
+    convIndex: dict[str, int] = Field(default_factory=dict)          # conversation_id -> thứ tự (id task / đề xuất)
 
 
 # ---------- Đầu ra bộ trích (bản phẳng, strict) ----------
@@ -241,7 +249,7 @@ class ExtractOutput(BaseModel):
 
 
 def empty_op(op: str, due: dict[str, Any] | None = None, **kw: Any) -> dict[str, Any]:
-    """Op phẳng với mọi trường = null (dùng cho bộ trích giả lập và FakeLLM)."""
+    """Op phẳng với mọi trường = null (dùng cho FakeLLM)."""
     base: dict[str, Any] = {k: None for k in Op.model_fields}
     base.update(op=op, evidence=[], changes=None)
     base.update(due or {})

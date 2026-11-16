@@ -14,12 +14,12 @@ def _enc(model: str):
         return tiktoken.get_encoding("o200k_base")
 
 
-_model = "gpt-4.1-mini"
+_model = "gpt-4o-mini"
 
 
 def set_model(model: str) -> None:
     global _model
-    _model = model if model != "heuristic" else "gpt-4.1-mini"
+    _model = model if model != "fake" else "gpt-4o-mini"
 
 
 def count_tokens(s: str) -> int:
