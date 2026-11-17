@@ -20,12 +20,43 @@ task-detection-in-chat/
 > 1. **Chỉ gửi dữ liệu tự sinh lên API bên ngoài.** Không dùng chat thật của tổ chức.
 > 2. **Số liệu không chuyển được sang model khác.** Model tham chiếu là `gpt-4o-mini`; đổi model phải chạy lại toàn bộ đánh giá.
 
+## Sổ cái
+
+Sổ cái là kho task của người dùng cùng mọi thứ đang chờ người duyệt (HITL). Trong prototype nó là `EngineState` trong bộ nhớ,
+ghi ra `runs/<id>/tasks.jsonl`, `changes.jsonl`, `state.json` khi chạy xong; sản phẩm thật sẽ là database.
+
+- `Task`: tiêu đề, ghi chú, người nhận (`user_id`), hạn, trạng thái, tin bằng chứng (`evidence`), lịch sử sửa (`field_history`),
+  `approvals` (mỗi người nhận: pending / approved / declined).
+- `PendingChange`: đề xuất thay đổi trên task **đã duyệt** (đổi hạn, người nhận, ghi chú, huỷ) — chờ người nhận duyệt, không sửa thẳng.
+- Trạng thái: `candidate` (ẩn, chưa có người nhận) → `draft` (nháp hiện cho người nhận) → `approved` / `declined`; `cancelled`;
+  `closed` kèm `closed_reason` khi hết hạn.
+
+Ba thứ ghi vào sổ cái: **lượt chat** (bộ trích tạo / sửa / huỷ task), **thao tác duyệt** của người dùng (duyệt / từ chối nháp và
+đề xuất), **hết hạn** theo thời gian (`candidate_ttl_hours`, `draft_ttl_days`, quá hạn + `approved_grace_days`, `undated_open_days`,
+`declined_suppress_days`).
+
+## Đồng bộ sổ cái tới thời điểm lượt (replay) và sản phẩm thật
+
+Thao tác duyệt và hết hạn **không thuộc** việc phát hiện task; trong sản phẩm thật chúng chạy ngoài lượt chat:
+API duyệt ghi thẳng vào sổ cái khi người dùng bấm, job nền định kỳ gọi `apply_expiry` để đóng task hết hạn.
+
+Prototype chạy **replay** trên thời gian mô phỏng (tin và thao tác duyệt của dataset đều có timestamp), không có đồng hồ thật để
+chạy nền. Vì vậy trước mỗi lượt, `catch_up` (`detect/run.py`) **đuổi kịp đồng hồ**: áp mọi thao tác duyệt và hết hạn có thời điểm
+≤ lượt đó. Thời điểm đóng = `last_touched_at` + TTL (không phải lúc lượt chạy), nên kết quả giống hệt một job nền chạy liên tục
+và không phụ thuộc lượt của hội thoại khác (DECISIONS #80, #89).
+
+Bước này phải xong **trước** khi dựng ngữ cảnh, vì prompt đọc sổ cái: task đã `closed` không được lọt vào `<TASK_INDEX>`; task vừa
+được duyệt thì UPDATE phải thành đề xuất chờ duyệt; task vừa bị từ chối phải mang nhãn `[declined]` để không bị tạo lại.
+Ngoại lệ của replay: thao tác duyệt trỏ tới tin còn nằm trong lượt chưa chạy (đang đợi hội thoại yên) thì nháp chưa tồn tại → hoãn
+tới ngay sau lượt chứa tin đó (`apply_deferred`). Sản phẩm thật vẫn nên giữ một lần kiểm tra hết hạn trước khi dựng prompt, làm lưới
+an toàn khi job nền trễ (chỉ so mốc thời gian, rẻ).
+
 ## Mỗi lượt xử lý gì
 
 Một lượt = các tin của một hội thoại đến liền nhau cho tới khi hội thoại **yên** `quiet_seconds` (60 s; trần 5 phút / 10 tin).
 Độ trễ thật = độ trễ đo + `quiet_seconds`. Reaction không sinh lượt — in kèm dòng tin (`[👍 Nam]`), không đổi task.
 
-1. **Hết hạn & thao tác duyệt** tới thời điểm của lượt. Thao tác duyệt trỏ tới tin chưa xử lý được hoãn tới ngay sau lượt chứa tin đó.
+1. **Đồng bộ sổ cái tới thời điểm lượt** (`catch_up`, chỉ có ở replay — xem mục trên): áp thao tác duyệt và hết hạn ≤ thời điểm lượt.
 2. **Dựng ngữ cảnh** — `Conversation type` + `<MEMBERS>` (user_id, tên, alias) · dòng `Today: <thứ> <YYYY-MM-DD>` (DECISIONS #88) · ba khối task, mỗi task đúng một lần,
    `T<n>` đánh liên tục:
    - `<LINKED_TASKS>`: task có tin bằng chứng mà TIN MỚI reply vào (đi ngược chuỗi reply). Chi tiết đầy đủ, không bao giờ bị cắt.
