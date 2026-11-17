@@ -30,4 +30,5 @@ pricing:
   gpt-4.1-mini: {input: 0.40, cached: 0.10, output: 1.60}
   gpt-4.1-nano: {input: 0.10, cached: 0.025, output: 0.40}
   gpt-4o-mini: {input: 0.15, cached: 0.075, output: 0.60}
+  deepseek-ai/DeepSeek-V4.1-Flash-1017: {input: 0.12, cached: 0.0024, output: 0.48}  # River, 11/2026
   text-embedding-3-small: {input: 0.02, cached: 0, output: 0}
