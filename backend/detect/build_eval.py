@@ -166,6 +166,13 @@ def build(src: Path) -> tuple[dict[str, Any], dict[str, list[str]], dict[str, li
     return {"messages": msgs, "members": members, "gold": gold, "hn": hn, "acts": acts}, split, roles
 
 
+# Tập con đại diện để đo nhanh / rẻ (--split mini_dev). Chọn tay theo độ phủ, không ngẫu nhiên:
+# ch_ecom phủ đủ 13 nhãn hard negative + mọi loại lượt; ch_design có assignee/content/accept; ch_backend có cancel/defer;
+# ch_qa gần như toàn lượt âm (đo báo nhầm). mini_test: ch_saas (đủ loại) + ch_sales (self_commit) + ch_release (toàn âm).
+MINI = {"mini_dev": ["ch_ecom", "ch_design", "ch_backend", "ch_qa"],
+        "mini_test": ["ch_saas", "ch_sales", "ch_release"]}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Dựng data/eval từ data/eval_src")
     ap.add_argument("--src", default="data/eval_src")
@@ -174,6 +181,7 @@ def main() -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     d, split, roles = build(Path(a.src))
+    split.update(MINI)
     write_jsonl(out / "messages.jsonl", sorted(d["messages"], key=lambda m: (m["created_at"], m["id"])))
     (out / "members.json").write_text(json.dumps(d["members"], ensure_ascii=False, indent=1), encoding="utf-8")
     write_jsonl(out / "gold.jsonl", d["gold"])
