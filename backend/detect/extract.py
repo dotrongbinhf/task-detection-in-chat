@@ -17,7 +17,7 @@ from .context import BuiltContext
 from .ledger import (apply_field_value, display_due, log, meets_draft_min, pending_for, propose_change, set_status,
                      sync_approvals, task_due_display)
 from .models import DUE_FIELDS, EngineState, Evidence, ExtractOutput, FieldHistory, Op, Task
-from .text import HONORIFICS, norm, terms
+from .text import HONORIFICS, norm
 from .timeexpr import DATE_FIELDS, local_date, resolve_due, ts
 
 
@@ -385,61 +385,3 @@ def validate_and_apply(state: EngineState, ctx: BuiltContext, out: ExtractOutput
         log(state, events, {"type": "op_applied", "at": at, "turn": turn, "op": "UPDATE", "task_id": t.task_id, "changes": applied})
         results.append(res)
     return results, events
-
-
-# ---------- kiểm tra target của UPDATE / CANCEL (DECISIONS #31, #44) ----------
-
-TARGET_MIN_KEYWORD_OVERLAP = 2
-
-
-def target_check(state: EngineState, ctx: BuiltContext, out: ExtractOutput, cfg: Config, embedder: Any = None) -> list[dict[str, Any]]:
-    """Đo được: gpt-4.1-mini hay UPDATE/CANCEL nhầm sang một task gần nhất (hoặc bịa T<n>) thay vì search.
-
-    Với mỗi UPDATE/CANCEL nhắm task KHÔNG được link: tìm trong kho bằng nội dung TIN MỚI; nếu có task ngoài prompt
-    khớp ≥ TARGET_MIN_KEYWORD_OVERLAP từ khoá VÀ khớp nhiều hơn task đang nhắm (hoặc T<n> không tồn tại), hoặc gần nghĩa
-    hơn task đang nhắm → ứng viên. Code chỉ đưa ứng viên vào lần gọi 2; LLM vẫn là bên quyết định."""
-    from .context import to_iso_days_before
-    from .store import TaskStore
-
-    store = TaskStore(state, cfg, embedder)
-    thr = store.threshold()
-    in_prompt = set(ctx.task_map.values())
-    linked = {p.task.task_id for p in ctx.tasks if p.source == "linked"}
-    text = " ".join(m.text for m in ctx.new_msgs if m.kind == "message")
-    people = list(dict.fromkeys(x["user_id"] for m in ctx.new_msgs for x in m.mentions))
-    since = to_iso_days_before(ctx.turn_at, cfg.search_lookup_days)
-    q_terms = set(terms(text))
-    checks: list[dict[str, Any]] = []
-    if not q_terms:
-        return checks
-    hits = None
-    for op in out.ops:
-        if op.op not in ("UPDATE", "CANCEL"):
-            continue
-        tid = ctx.task_map.get((op.target or "").strip())
-        if tid in linked:
-            continue
-        target = next((t for t in state.tasks if t.task_id == tid), None)
-        t_overlap = len(q_terms & set(terms(store.document(target)))) if target else -1
-        t_sim = (store.similarity(store.query_text(ctx.key, text), [target]).get(target.task_id, -1.0)
-                 if target and store.mode != "keyword" else -1.0)
-        if hits is None:
-            hits = [h for h in store.search(ctx.key, text, people, since, cfg.search_max_results, now=ctx.turn_at,
-                                            lookup_days=cfg.search_lookup_days) if h.task.task_id not in in_prompt]
-        # ứng viên: khớp từ khoá tốt hơn target, HOẶC (xếp mọi task theo cosine với tin mới) là một trong tối đa
-        # `target_check_max_candidates` task ngoài prompt đứng TRÊN task LLM đang nhắm, cosine ≥ ngưỡng loại nhiễu.
-        # Không dùng ngưỡng cosine tuyệt đối để quyết định: đo được task đúng 0.41–0.77, task sai tới 0.58.
-        sem = sorted([h for h in hits if h.similarity is not None and h.similarity >= thr and h.similarity > t_sim],
-                     key=lambda h: -h.similarity)
-        sem_ids = {h.task.task_id for h in sem[: max(0, cfg.target_check_max_candidates)]}
-        cands = [h for h in hits
-                 if (h.keyword_overlap >= TARGET_MIN_KEYWORD_OVERLAP and h.keyword_overlap > t_overlap)
-                 or h.task.task_id in sem_ids]
-        cands.sort(key=lambda h: -(h.similarity if h.similarity is not None else -1))
-        checks.append({"op": op.op, "target": op.target, "task_id": tid, "target_title": target.title if target else None,
-                       "target_overlap": t_overlap, "target_similarity": None if t_sim < 0 else round(t_sim, 3),
-                       "threshold": thr if store.mode != "keyword" else None, "query": text, "people": people,
-                       "results": [{"task_id": h.task.task_id, "title": h.task.title, "status": h.task.status, "score": h.score,
-                                    "matched": h.matched, "overlap": h.keyword_overlap, "similarity": h.similarity} for h in hits],
-                       "candidates": [h.task.task_id for h in cands], "_hits": cands})
-    return checks

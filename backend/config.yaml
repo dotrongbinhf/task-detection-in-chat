@@ -2,8 +2,7 @@
 draft_min: assignee            # assignee | assignee_due
 window_k: 10                   # số tin trước trong LỊCH SỬ GẦN
 reply_chain_max: 3
-evidence_per_task: 1           # tin bằng chứng kèm mỗi task ở CANDIDATE_TASKS
-context_token_budget: 3000
+context_token_budget: 3500
 message_max_tokens: 80
 coalesce_seconds: 5
 candidate_ttl_hours: 48
@@ -13,21 +12,14 @@ undated_open_days: 14
 declined_suppress_days: 7
 llm_max_retries: 2
 
-# Ngữ cảnh: code tìm task trước, LLM phán sau.
+# Ngữ cảnh: ba tầng task (v6 mục 6).
 linked_tasks_max: 3                  # task được link (reply vào tin bằng chứng)
 linked_evidence_per_task: 3
-candidate_tasks_max: 5               # tổng task ở CANDIDATE_TASKS (matched + recent)
-matched_tasks_max: 3                 # task khớp nội dung TIN MỚI (BM25 + embedding)
-matched_min_keyword_overlap: 1       # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
-search_lookup_days: 30               # phạm vi tìm / task được link
-search_max_results: 5
-semantic_floor: 0.35
-rrf_k: 10
-
-# Lần gọi 2 duy nhất: kiểm tra target của UPDATE / CANCEL (DECISIONS #31, #44).
-target_check_on_update: true
-semantic_min_similarity:             # trống = mặc định embedder (text-embedding-3-small: 0.45)
-target_check_max_candidates: 3
+search_lookup_days: 30               # phạm vi task được link
+detail_recent_max: 3                 # TASK_DETAILS: task mở nhắc gần nhất
+detail_similar_max: 2                # TASK_DETAILS: task mở gần nghĩa nhất (embedding, chỉ xếp hạng)
+index_tasks_max: 30                  # TASK_INDEX: tối đa số dòng
+index_overflow_max: 5                # TASK_INDEX tràn: chỗ cuối cho task gần nghĩa nhất trong phần bị cắt
 prompt_cache_key: ai_reminder_extract
 members_max: 30                      # <MEMBERS>: hội thoại đông hơn chỉ liệt kê người có mặt trong prompt
 

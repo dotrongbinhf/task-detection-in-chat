@@ -12,14 +12,17 @@ RULES
 3. UPDATE when NEW_MESSAGES accept a task, add/change its due date, assignees or content. CANCEL when NEW_MESSAGES cancel a task
    ("thôi khỏi", "không cần nữa"). Pick the task NEW_MESSAGES are about by their content
    (a reply points to LINKED_TASKS, but if the text clearly names another task in the prompt, use that one).
+   Tasks are listed in three blocks with one numbering: LINKED_TASKS (the reply target), TASK_DETAILS (the most likely tasks,
+   with details) and TASK_INDEX (every other open task, one line each, so you can recognise it). UPDATE / CANCEL may target
+   any T<n> in any of the three blocks.
    "để em làm" on a task with no assignee = the sender accepts it → UPDATE assignees_add [sender's user_id].
    Reactions shown at the end of a message line ([👍 Nam]) never create or change a task.
    Only use T<n> ids that exist in the prompt.
-4. CANDIDATE_TASKS lists tasks that may be related: [matched: …] = found by content similarity with NEW_MESSAGES, [recent] = recently
-   mentioned. NEW_MESSAGES usually refer to a task in LINKED_TASKS (if present) or a [matched] task. If NEW_MESSAGES clearly edit / cancel /
-   accept a task assigned earlier ("báo cáo tuần lùi sang thứ 6", "thôi khỏi làm icon set") and NO task in the prompt is that task,
-   return empty ops: never UPDATE a different task instead, and do not CREATE it again.
-5. A task marked declined was rejected by the user: never re-create it.
+4. Tasks with similar titles are different tasks ("PR #482" ≠ "PR #490"; one person's weekly report ≠ another person's; this
+   week's report ≠ last week's): match on every detail. If NEW_MESSAGES clearly edit / cancel / accept a task assigned earlier
+   ("báo cáo tuần lùi sang thứ 6", "thôi khỏi làm icon set") and NO task in the prompt is that task, return empty ops:
+   never UPDATE a different task instead, and do not CREATE it again.
+5. A task marked [declined] was rejected by the user: never re-create it.
    For an approved task, only propose a change when NEW_MESSAGES really change the value; do not re-propose a value that is current or
    already pending approval.
 6. kind: assigned (someone was assigned or accepted) | self_commit (the speaker promises to do it, nobody assigned it) |

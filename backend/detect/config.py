@@ -18,8 +18,7 @@ class Config(BaseModel):
     draft_min: Literal["assignee", "assignee_due"] = "assignee"
     window_k: int = 10
     reply_chain_max: int = 3
-    evidence_per_task: int = 1
-    context_token_budget: int = 3000
+    context_token_budget: int = 3500
     message_max_tokens: int = 80
     coalesce_seconds: float = 5
     candidate_ttl_hours: float = 48
@@ -31,18 +30,14 @@ class Config(BaseModel):
     # ---- ngữ cảnh: task được link + task khớp nội dung TIN MỚI + task gần nhất ----
     linked_tasks_max: int = 3
     linked_evidence_per_task: int = 3
-    search_max_results: int = 5
     search_lookup_days: float = 30
-    target_check_on_update: bool = True    # UPDATE/CANCEL nhắm nhầm → code tìm task khớp hơn → gọi lần 2
-    semantic_min_similarity: Optional[float] = None  # kiểm tra target; None = mặc định embedder (OpenAI 0.45)
-    target_check_max_candidates: int = 3  # kiểm tra target: số ứng viên gần nghĩa tối đa (DECISIONS #44)
-    semantic_floor: float = 0.35  # cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa
-    rrf_k: int = 10
+    # ---- ba tầng task trong prompt (v6 mục 6) ----
+    detail_recent_max: int = 3     # TASK_DETAILS: task mở nhắc gần nhất
+    detail_similar_max: int = 2    # TASK_DETAILS: task mở gần nghĩa nhất với TIN MỚI (xếp hạng, không ngưỡng)
+    index_tasks_max: int = 30      # TASK_INDEX: tối đa số dòng
+    index_overflow_max: int = 5    # TASK_INDEX tràn: số chỗ cuối dành cho task gần nghĩa nhất trong phần bị cắt
     prompt_cache_key: Optional[str] = "ai_reminder_extract"
     members_max: int = 30  # hội thoại đông hơn: <MEMBERS> chỉ liệt kê người xuất hiện trong prompt (v6 mục 5.1)
-    candidate_tasks_max: int = 5            # tổng task ở khối CANDIDATE_TASKS (matched + recent)
-    matched_tasks_max: int = 3              # task khớp nội dung TIN MỚI tối đa
-    matched_min_keyword_overlap: int = 1    # vào matched khi ≥ n từ khoá chung hoặc cosine ≥ semantic_floor
     pricing: dict[str, dict[str, float]] = {}
 
 
@@ -50,7 +45,6 @@ CONFIG_HELP: dict[str, str] = {
     "draft_min": "assignee: nháp hiện khi có người nhận | assignee_due: cần thêm hạn",
     "window_k": "Số tin trước trong ngữ cảnh bộ trích (K)",
     "reply_chain_max": "Số tin tối đa lần ngược theo chuỗi reply",
-    "evidence_per_task": "Tin bằng chứng gần nhất kèm mỗi task",
     "context_token_budget": "Trần token input của bộ trích",
     "message_max_tokens": "Cắt tin dài hơn số token này",
     "coalesce_seconds": "Gộp tin đến dồn (giây)",
@@ -62,18 +56,13 @@ CONFIG_HELP: dict[str, str] = {
     "llm_max_retries": "Retry khi lỗi parse hoặc mạng",
     "linked_tasks_max": "Task được link (TIN MỚI reply vào tin bằng chứng) tối đa",
     "linked_evidence_per_task": "Tin bằng chứng kèm mỗi task được link",
-    "search_max_results": "Số kết quả tìm kiếm trả về LLM",
-    "search_lookup_days": "Phạm vi thời gian tìm task / task được link (ngày)",
-    "target_check_on_update": "UPDATE/CANCEL nhắm task không được link mà khớp TIN MỚI kém hơn một task ngoài prompt (hoặc T<n> không tồn tại) → code tìm và hỏi lại LLM",
-    "semantic_min_similarity": "Kiểm tra target: cosine tối thiểu để task gần nghĩa được đưa vào lần 2; trống = mặc định embedder",
-    "target_check_max_candidates": "Kiểm tra target: số ứng viên gần nghĩa nhất tối đa đưa cho LLM chọn ở lần 2",
-    "semantic_floor": "Cosine tối thiểu để task vào danh sách xếp hạng ngữ nghĩa",
-    "rrf_k": "Hằng số k của Reciprocal Rank Fusion",
+    "search_lookup_days": "Phạm vi thời gian task được link (ngày)",
+    "detail_recent_max": "TASK_DETAILS: số task mở nhắc gần nhất",
+    "detail_similar_max": "TASK_DETAILS: số task mở gần nghĩa nhất với TIN MỚI (embedding, xếp hạng)",
+    "index_tasks_max": "TASK_INDEX: số dòng tối đa",
+    "index_overflow_max": "TASK_INDEX tràn: số chỗ cuối cho task gần nghĩa nhất trong phần bị cắt",
     "prompt_cache_key": "prompt_cache_key gửi OpenAI (null = không gửi)",
     "members_max": "Hội thoại có nhiều thành viên hơn số này: <MEMBERS> chỉ gồm tác giả tin, người được @mention, người nhận / người giao của task trong prompt",
-    "candidate_tasks_max": "Tổng task ở khối CANDIDATE_TASKS (khớp nội dung + gần nhất)",
-    "matched_tasks_max": "Task khớp nội dung TIN MỚI tối đa",
-    "matched_min_keyword_overlap": "Số từ khoá chung tối thiểu để task vào nhóm khớp nội dung (hoặc cosine ≥ semantic_floor)",
 }
 
 

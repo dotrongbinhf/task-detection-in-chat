@@ -29,7 +29,6 @@ CACHE_DIR = ROOT / ".cache" / "emb"
 
 class Embedder(Protocol):
     name: str
-    default_threshold: float  # cosine tối thiểu để kiểm tra target coi là "gần nghĩa" khi config không đặt
     tokens_used: int
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
@@ -51,7 +50,6 @@ class OpenAIEmbedder:
     # Đo trên data/sample (bỏ @mention cả hai phía): task đúng 0.41–0.77 (trung vị 0.54), task sai cao nhất 0.58 —
     # ngưỡng tuyệt đối không tách được; xếp hạng thì tốt (task đúng hạng 1 ở 11/14 tin). Nên chỉ dùng embedding để
     # XẾP HẠNG ứng viên cho LLM chọn, không dùng ngưỡng cosine để quyết định thay LLM.
-    default_threshold: float = 0.45
     tokens_used: int = 0           # token gửi đi thật (không tính cache trúng)
     no_cache: bool = False
     _mem: dict[str, list[float]] = field(default_factory=dict)
@@ -89,7 +87,6 @@ class FakeEmbedder:
 
     concepts: dict[str, list[str]] = field(default_factory=dict)  # tên khái niệm -> các cụm (bỏ dấu, chữ thường)
     name: str = "fake"
-    default_threshold: float = 0.5
     tokens_used: int = 0
 
     def embed(self, texts: list[str]) -> list[list[float]]:

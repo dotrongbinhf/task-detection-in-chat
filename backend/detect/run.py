@@ -2,7 +2,7 @@
 
     python -m detect.run --data data/eval --split dev [--jobs 4] [--seed 7] [--no-cache] [--set key=value]
 
-Mỗi lượt: hết hạn + user_actions → dựng ngữ cảnh → bộ trích (+ kiểm tra target) → Validate → sổ cái.
+Mỗi lượt: hết hạn + user_actions → dựng ngữ cảnh (3 tầng task) → bộ trích (+ detail_check) → Validate → sổ cái.
 `--jobs N`: mỗi hội thoại chạy trong một EngineState riêng trên một luồng rồi gộp (v6 mục 8.4); kết quả không phụ thuộc
 thứ tự chạy vì id task / đề xuất đánh theo hội thoại và thời điểm hết hạn là đúng lúc hết TTL.
 """
@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .config import ROOT, Config, load_config
-from .context import BuiltContext, build_context, conversation_key, extend_context
+from .context import BuiltContext, build_context, conversation_key, detail_check_targets, extend_context
 from .dataset import load_dataset, load_prompts
-from .extract import parse_extract, target_check, validate_and_apply
+from .extract import parse_extract, validate_and_apply
 from .ledger import apply_expiry, apply_user_action
 from .llm import LLM, make_llm
 from .models import EngineState, ExtractOutput, Message, Mention, Reaction, StreamEvent, UserAction
@@ -112,7 +112,7 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     exp, acts = catch_up(state, at, cfg)
     rec: dict[str, Any] = {"turn": turn, "key": key, "at": at, "new_event_ids": [e.id for e in batch], "coalesced": len(batch) > 1,
                            "skipped": None, "pre": {"expirations": exp, "user_actions": acts}, "context": None,
-                           "extract": None, "extract_calls": [], "target_check": None, "ops": [], "events": []}
+                           "extract": None, "extract_calls": [], "detail_check": None, "ops": [], "events": []}
 
     def finish(skipped: Optional[str] = None, **extra: Any) -> dict[str, Any]:
         rec["skipped"] = skipped
@@ -128,13 +128,14 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
         "candidates": ctx.candidates, "retrieval": ctx.retrieval, "linked_chain_ids": ctx.chain_ids,
         "window_ids": ctx.window_ids, "reply_chain_ids": ctx.reply_ids, "evidence_ids": ctx.evidence_ids,
         "id_map": ctx.id_map, "task_map": ctx.task_map, "trims": ctx.trims, "tokens": ctx.tokens, "window_k_used": ctx.window_k,
+        "index_count": ctx.index_count,
         "prompt": ctx.user,  # khối 1 cố định, không lưu lại mỗi lượt
         "blocks": {**ctx.blocks, "b1": ""},
     }
     for t in ctx.trims:
         state.trace.append({"type": "budget_trim", "at": at, "turn": turn, "trim": t})
 
-    # ---- bộ trích: lần 1, và lần 2 chỉ khi kiểm tra target kích hoạt ----
+    # ---- bộ trích: lần 1, và lần 2 chỉ khi detail_check kích hoạt (tối đa 2 lần gọi mỗi lượt) ----
     calls: list[dict[str, Any]] = []
     rec["extract_calls"] = calls
 
@@ -177,25 +178,17 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
         return finish(calls[-1]["failure"])  # lượt bị bỏ không làm mất tin: tin vẫn nằm trong LỊCH SỬ GẦN của lượt sau
     cur_ctx = ctx
 
-    # ---- kiểm tra target: UPDATE / CANCEL nhắm task khớp TIN MỚI kém hơn một task ngoài prompt → gọi lần 2 ----
-    if cfg.target_check_on_update and any(o.op in ("UPDATE", "CANCEL") for o in out.ops):
-        tchecks = target_check(state, ctx, out, cfg, embedder)
-        tc_hits = list({h.task.task_id: h for c in tchecks for h in c["_hits"]}.values())
-        rec["target_check"] = {"checks": [{k: v for k, v in c.items() if k != "_hits"} for c in tchecks],
-                               "triggered": bool(tc_hits), "call": None}
-        if tc_hits:
-            # đo: câu "nếu không hợp hơn thì giữ lựa chọn cũ" làm LLM trả ops rỗng ở m064 → giữ câu dẫn ngắn
-            intro = ("Double-check: NEW_MESSAGES may refer to one of the tasks below (they were not in the prompt above). "
-                     "If so, use that task's T<n>.")
-            ctx2 = extend_context(state, ctx, tc_hits, cfg, intro)
-            state.trace.append({"type": "target_check_triggered", "at": at, "turn": turn,
-                                "candidates": [h.task.task_id for h in tc_hits]})
-            out2 = call(ctx2, "target_check")
-            rec["target_check"]["call"] = len(calls)
-            if not out2:
-                return finish(calls[-1]["failure"])
-            rec["target_check"]["ops_after"] = [f"{o.op} {o.target or ''}".strip() for o in out2.ops]
-            cur_ctx, out = ctx2, out2
+    # ---- detail_check: UPDATE thay notes / title trên task chỉ có ở <TASK_INDEX> → gọi lần 2 kèm chi tiết task đó ----
+    dc = detail_check_targets(ctx, out)
+    if dc:
+        ctx2 = extend_context(state, ctx, dc, cfg)
+        state.trace.append({"type": "detail_check", "at": at, "turn": turn, "tasks": dc})
+        rec["detail_check"] = {"tasks": dc, "ops_before": [f"{o.op} {o.target or ''}".strip() for o in out.ops]}
+        out2 = call(ctx2, "detail_check")
+        if not out2:
+            return finish(calls[-1]["failure"])
+        rec["detail_check"]["ops_after"] = [f"{o.op} {o.target or ''}".strip() for o in out2.ops]
+        cur_ctx, out = ctx2, out2
 
     ops, events = validate_and_apply(state, cur_ctx, out, cfg, turn, llm.extract_model)
     rec["embed"] = {"model": getattr(embedder, "name", None), "tokens": getattr(embedder, "tokens_used", 0) - emb_before}
