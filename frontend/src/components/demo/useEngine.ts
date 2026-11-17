@@ -4,10 +4,11 @@ import type { Config, EngineState, EvalReport, UserAction } from "@/lib/types";
 
 export type Info = {
   hasKey: boolean;
-  gateModel: string;
+  /** v6: không có key thì engine không chạy (không còn bộ trích giả lập) */
+  noKeyMessage: string | null;
   extractModel: string;
   datasets: string[];
-  prompts: { extract: string; gate: string };
+  prompts: { extract: string };
   defaultConfig: Config;
   configHelp: Record<string, string>;
 };
@@ -31,7 +32,6 @@ export function useEngine() {
   const [backendDown, setBackendDown] = useState(false);
   const [state, setState] = useState<EngineState | null>(null);
   const [dataset, setDataset] = useState("sample");
-  const [mode, setMode] = useState<"heuristic" | "openai">("heuristic");
   const [config, setConfig] = useState<Config>({});
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -70,12 +70,12 @@ export function useEngine() {
   const run = useCallback(
     (body: Record<string, unknown>) =>
       guard(async () => {
-        const r = await call({ ...body, state: stateRef.current, config, mode });
+        const r = await call({ ...body, state: stateRef.current, config });
         setState(r.state);
         setReport(null);
         return r.state;
       }),
-    [guard, config, mode],
+    [guard, config],
   );
 
   const init = useCallback(
@@ -98,7 +98,6 @@ export function useEngine() {
       setInfo(j);
       setBackendDown(false);
       setConfig((c) => (Object.keys(c).length ? c : j.defaultConfig));
-      if (j.hasKey) setMode("openai");
       return true;
     } catch {
       setBackendDown(true);
@@ -154,15 +153,15 @@ export function useEngine() {
   const evaluate = useCallback(
     () =>
       guard(async () => {
-        const r = await call<{ report: EvalReport }>({ cmd: "evaluate", state: stateRef.current, config, mode });
+        const r = await call<{ report: EvalReport }>({ cmd: "evaluate", state: stateRef.current, config });
         setReport(r.report);
         return r.report;
       }),
-    [guard, config, mode],
+    [guard, config],
   );
 
   return {
-    info, backendDown, loadInfo, state, dataset, setDataset, mode, setMode, config, setConfig, busy, playing, setPlaying,
+    info, backendDown, loadInfo, state, dataset, setDataset, config, setConfig, busy, playing, setPlaying,
     speed, setSpeed, toasts, toast, init, step, post, react, act, advance, evaluate, report, pending,
   };
 }

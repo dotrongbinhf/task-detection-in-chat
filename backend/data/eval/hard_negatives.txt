@@ -1,34 +1,113 @@
-ch_backend_025
-ch_backend_068
-ch_backend_076
-ch_design_020
-ch_design_062
-ch_mkt_058
-ch_mkt_070
-ch_ops_079
-ch_ops_082
-ch_platform_055
-ch_platform_081
-ch_platform_084
-ch_platform_101
-ch_platform_120
-ch_app_023
-ch_app_036
-ch_app_038
-ch_app_076
-ch_data_065
-ch_web_054
-ch_sales_019
-ch_sales_055
-ch_sales_077
-ch_pm_097
-ch_qa_031
-ch_qa_038
-ch_infra_067
-ch_hr_005
-ch_hr_018
-ch_cs_069
-ch_cs_072
-ch_event_032
-ch_event_065
-ch_release_013
+ch_backend_017	defer
+ch_backend_049	defer
+ch_backend_054	done_report
+ch_design_012	defer
+ch_design_044	done_report
+ch_mkt_045	done_report
+ch_mkt_052	name_time_word
+ch_ops_048	done_report
+ch_ops_050	defer
+ch_platform_051	defer
+ch_platform_069	defer
+ch_platform_072	done_report
+ch_platform_085	done_report
+ch_platform_101	defer
+ch_app_015	defer
+ch_app_024	defer
+ch_app_026	defer
+ch_app_056	defer
+ch_data_037	defer
+ch_web_036	defer
+ch_sales_013	defer
+ch_sales_036	name_time_word
+ch_sales_050	defer
+ch_pm_074	other_team
+ch_qa_015	defer
+ch_qa_019	done_report
+ch_infra_042	done_report
+ch_hr_003	done_report
+ch_hr_013	defer
+ch_cs_046	defer
+ch_cs_049	defer
+ch_event_021	defer
+ch_event_040	defer
+ch_release_013	done_report
+ch_ecom_015	idea
+ch_ecom_016	defer
+ch_ecom_025	joke
+ch_ecom_027	done_report
+ch_ecom_042	conditional
+ch_ecom_044	other_team
+ch_ecom_046	quote
+ch_ecom_049	done_report
+ch_ecom_060	negation
+ch_ecom_061	status_question
+ch_ecom_069	done_report
+ch_ecom_085	reminder
+ch_ecom_086	quote
+ch_ecom_088	done_report
+ch_ecom_090	done_report
+ch_ecom_091	done_report
+ch_ecom_099	conditional
+ch_ecom_102	name_time_word
+ch_ecom_103	done_report
+ch_ecom_104	joke
+ch_ecom_106	done_report
+ch_ecom_124	status_question
+ch_ecom_126	other_team
+ch_ecom_127	done_report
+ch_ecom_128	reminder
+ch_ecom_142	idea
+ch_ecom_144	done_report
+ch_ecom_145	conditional
+ch_ecom_154	done_report
+ch_ecom_155	done_report
+ch_ecom_156	negation
+ch_ecom_157	joke
+ch_ecom_159	quote
+ch_ecom_170	status_question
+ch_ecom_172	done_report
+ch_ecom_173	reminder
+ch_ecom_181	done_report
+ch_ecom_182	idea
+ch_ecom_183	other_team
+ch_ecom_184	done_report
+ch_saas_015	idea
+ch_saas_017	joke
+ch_saas_019	done_report
+ch_saas_030	conditional
+ch_saas_032	other_team
+ch_saas_033	quote
+ch_saas_035	done_report
+ch_saas_049	negation
+ch_saas_050	status_question
+ch_saas_052	done_report
+ch_saas_063	reminder
+ch_saas_064	done_report
+ch_saas_065	joke
+ch_saas_066	idea
+ch_saas_067	done_report
+ch_saas_068	done_report
+ch_saas_079	conditional
+ch_saas_080	quote
+ch_saas_081	done_report
+ch_saas_095	done_report
+ch_saas_096	other_team
+ch_saas_097	negation
+ch_saas_098	status_question
+ch_saas_110	reminder
+ch_saas_111	done_report
+ch_saas_112	joke
+ch_saas_113	done_report
+ch_saas_125	conditional
+ch_saas_126	quote
+ch_saas_127	idea
+ch_saas_128	negation
+ch_saas_129	done_report
+ch_saas_141	status_question
+ch_saas_143	reminder
+ch_saas_144	other_team
+ch_saas_153	done_report
+ch_saas_154	done_report
+ch_saas_155	joke
+ch_saas_156	negation

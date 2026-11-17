@@ -14,72 +14,55 @@ gold unittest | Viết unit test module cart | assigned | quan | none | active |
 
 day 2026-11-23
 08:45 hung: Chào team app, tuần này chốt bản 2.5
-08:46 nam: chào anh
-08:46 khoa: morning
-08:48 mai: chào cả nhà
-08:50 quan: hi
 09:00 khoa: cuối tuần crash rate tăng lên 1.2%
 09:01 hung: chủ yếu ở đâu
 09:02 khoa: màn đăng nhập, Android 14
 09:03 nam: chắc do permission notification mới
-09:10 hung [cr]: @Nam fix crash màn đăng nhập trên Android 14 nhé, thứ 4 cần có bản   ## crash:assign crash:due
-09:11 nam ^cr: dạ em nhận   ## crash:accept
+09:10 hung [cr]: @Nam fix crash màn đăng nhập trên Android 14, thứ 4 cần có bản   ## crash:assign crash:due
+09:11 nam ^cr: dạ em nhận   ## crash:confirm
 09:30 mai: Store review bản 2.4.1 pass rồi mọi người
-09:31 hung: tốt
-09:31 quan: nhanh thế
 09:50 hung [fb]: Ai update thư viện Firebase lên bản mới được không, bản cũ sắp hết hỗ trợ   ## firebase:assign
 09:52 nam: em đang fix crash
-09:53 khoa: em bận regression
 10:20 quan: Mọi người dùng Kotlin 2.0 chưa
 10:21 nam: chưa, đợi Compose ổn
-10:22 quan: ok
-10:40 hung [ut]: @Quân viết unit test cho module cart nhé, coverage đang thấp quá   ## unittest:assign
+10:40 hung [ut]: @Quân viết unit test cho module cart, coverage đang thấp quá   ## unittest:assign
 10:41 quan: anh ơi em đang làm màn voucher
-10:42 hung: ừ để anh xem   ## hn
+10:42 hung: ừ để anh xem   ## hn:defer
 13:30 hung: Bản 2.5 cần release note cho store, cả tiếng Việt và tiếng Anh   ## rnote:assign
 13:35 mai: để em viết release note cho anh   ## rnote:accept
-13:36 hung: ok Mai
 14:00 khoa: Android 14 em repro được crash rồi, gửi Nam stacktrace nhé
-14:01 nam: cảm ơn Khoa
 14:30 quan: màn voucher em làm xong UI rồi
-14:31 hung: ok
 15:00 nam: crash do thiếu check null ở token refresh
 15:01 hung: fix nhanh được không
-15:02 nam: được anh
 16:00 khoa: mọi người có ai dùng Maestro test UI chưa
 16:01 quan: em dùng thử rồi, ổn
-16:02 khoa: để em xem   ## hn
+16:02 khoa: để em xem   ## hn:defer
 act 09:15 nam approve crash
 act 10:50 quan decline unittest
 act 13:40 mai approve rnote
 
 day 2026-11-24
 08:30 nam: crash fix xong, em đẩy PR rồi
-08:31 hung: ok để anh review   ## hn
-08:50 +quan like fb   ## firebase:accept
+08:31 hung: ok để anh review   ## hn:defer
+08:50 +quan like fb
+08:50:30 quan ^fb: để em update Firebase cho anh, tuần trước em vừa làm bên dự án cũ rồi   ## firebase:accept
 08:51 quan: Firebase em làm nhé anh
 08:52 hung: ok cảm ơn Quân
-09:20 hung [rg]: @Khoa với @Nam test regression bản 2.5 trước thứ 6 nhé   ## regress:assign regress:due
-09:21 khoa ^rg: dạ   ## regress:accept
-09:22 nam ^rg: ok anh   ## regress:accept
+09:20 hung [rg]: @Khoa với @Nam test regression bản 2.5 trước thứ 6   ## regress:assign regress:due
+09:21 khoa ^rg: dạ   ## regress:confirm
+09:22 nam ^rg: ok anh   ## regress:confirm
 09:40 mai: Release note tiếng Việt em xong rồi
-09:41 hung: ok em
 10:15 khoa: Firebase bản mới có breaking change ở Analytics đó Quân
 10:16 quan: ừ em đọc rồi
 10:30 hung: @Khoa check giup a log crashlytics hom qua nhe, xem con crash nao khac khong   ## crashlog:assign
-10:31 khoa: ok a   ## crashlog:accept
+10:31 khoa: ok a   ## crashlog:confirm
 11:00 nam: Mọi người có ai bị Gradle build chậm không
-11:01 quan: có, 8 phút
 11:02 nam: bật config cache đi
 11:03 quan: để tối em thử
 13:30 khoa: log crashlytics còn 1 crash ở màn thanh toán nhưng ít
-13:31 hung: ok note lại
 14:00 mai: icon bản 2.5 có đổi không anh
-14:01 hung: không em
 14:30 quan: Firebase em update xong rồi, build pass
-14:31 hung: ngon
 16:20 nam: mọi người ơi mai em đến muộn chút, đi khám
-16:21 hung: ok em
 act 09:25 khoa approve regress
 act 09:26 nam approve regress
 act 10:35 khoa approve crashlog
@@ -87,29 +70,19 @@ act 08:55 quan approve firebase
 
 day 2026-11-25
 09:00 hung: Hôm nay build RC1 nhé
-09:01 khoa: dạ
 09:30 mai: Release note tiếng Anh xong rồi
 09:32 nam: em đọc rồi, ổn chị ạ
 10:00 khoa: regression em xong 40%
-10:01 hung: ok
 11:00 quan: màn voucher em gửi PR rồi
-11:01 hung: ok
-13:00 hung: Quân viết unit test cho module cart nhé, tuần này coverage phải lên 60%   ## unittest:assign
+13:00 hung: Quân viết unit test cho module cart, tuần này coverage phải lên 60%   ## unittest:assign
 13:02 quan: anh ơi em vẫn đang dở voucher
 13:03 hung: ừ thôi để anh tính
 14:30 nam: RC1 build xong, link trong Firebase App Distribution
 14:31 khoa: em cài thử rồi
 15:00 khoa: RC1 có lỗi font ở màn profile
-15:01 nam: để em xem   ## hn
-16:00 nam: fix font rồi
-16:01 hung: cảm ơn em
+15:01 nam: để em xem   ## hn:defer
 
 day 2026-11-26
-09:00 khoa: regression xong 80%
 09:30 nam: regression phần thanh toán ổn
 10:00 hung: Chiều nay họp go/no-go lúc 4h nhé
-10:01 mai: dạ
-10:01 quan: ok anh
-16:00 hung: vào họp nhé
 17:00 hung: Go nhé, sáng mai submit store
-17:01 nam: yeah

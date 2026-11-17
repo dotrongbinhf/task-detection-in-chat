@@ -1,12 +1,12 @@
 """Sổ cái: vòng đời task, hết hạn, user_actions, đề xuất thay đổi (mục 4.2)."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 
 from .config import Config
 from .models import OPEN_STATUSES, EngineState, FieldHistory, PendingChange, Task, UserAction
-from .timeexpr import format_due_date, local_date, ts
+from .timeexpr import VN, format_due_date, local_date, to_iso, ts
 
 H = 3600.0
 D = 24 * H
@@ -61,23 +61,34 @@ def task_due_display(t: Task) -> str:
 
 
 def apply_expiry(state: EngineState, now_iso: str, cfg: Config) -> list[dict]:
-    """Áp luật hết hạn theo thời gian mô phỏng (bảng vòng đời mục 4.2)."""
+    """Áp luật hết hạn theo thời gian mô phỏng (bảng vòng đời mục 4.2). v6: một trạng thái `closed` + `closed_reason`.
+
+    Thời điểm đóng = đúng lúc hết TTL (không phải lúc lượt sau chạy) → kết quả không phụ thuộc lượt của hội thoại khác
+    (chạy song song theo hội thoại, mục 8.4)."""
     out: list[dict] = []
     now = ts(now_iso)
+
+    def close(t: Task, reason: str, at: float, why: str) -> None:
+        set_status(state, t, "closed", to_iso(datetime.fromtimestamp(at, VN)), why, out)
+        t.closed_reason = reason  # type: ignore[assignment]
+
     for t in state.tasks:
         touched = ts(t.last_touched_at)
         if t.status == "candidate" and now - touched > cfg.candidate_ttl_hours * H:
-            set_status(state, t, "expired", now_iso, f"candidate_ttl_hours={cfg.candidate_ttl_hours}", out)
+            close(t, "candidate_ttl", touched + cfg.candidate_ttl_hours * H, f"candidate_ttl_hours={cfg.candidate_ttl_hours}")
         elif t.status == "draft" and now - touched > cfg.draft_ttl_days * D:
-            set_status(state, t, "stale", now_iso, f"draft_ttl_days={cfg.draft_ttl_days}", out)
+            close(t, "draft_ttl", touched + cfg.draft_ttl_days * D, f"draft_ttl_days={cfg.draft_ttl_days}")
         elif t.status == "approved" and not pending_for(state, t.task_id):
             if t.due_type == "calendar" and t.due_date:
-                if local_date(now_iso) > date.fromisoformat(t.due_date) + timedelta(days=cfg.approved_grace_days):
-                    set_status(state, t, "closed", now_iso, f"quá hạn + approved_grace_days={cfg.approved_grace_days}", out)
+                last = date.fromisoformat(t.due_date) + timedelta(days=cfg.approved_grace_days)
+                if local_date(now_iso) > last:
+                    at = datetime.combine(last + timedelta(days=1), time(0), VN).timestamp()
+                    close(t, "past_due", max(at, touched), f"quá hạn + approved_grace_days={cfg.approved_grace_days}")
             elif now - touched > cfg.undated_open_days * D:
-                set_status(state, t, "closed", now_iso, f"undated_open_days={cfg.undated_open_days}", out)
+                close(t, "undated", touched + cfg.undated_open_days * D, f"undated_open_days={cfg.undated_open_days}")
         elif t.status == "declined" and now - ts(t.status_changed_at) > cfg.declined_suppress_days * D:
-            set_status(state, t, "closed", now_iso, f"declined_suppress_days={cfg.declined_suppress_days}", out)
+            close(t, "declined_ttl", ts(t.status_changed_at) + cfg.declined_suppress_days * D,
+                  f"declined_suppress_days={cfg.declined_suppress_days}")
     for e in out:
         e["type"] = "expiry"
     return out
@@ -126,8 +137,10 @@ def propose_change(state: EngineState, t: Task, field: str, new_value: Any, new_
         notified = [u for u in t.assignee_ids if u not in ids]
         approvers = fresh or list(ids)  # đổi người nhận do người nhận MỚI duyệt
     state.counters.change += 1
+    conv = t.conversation_key.split(";")[0]
+    n = state.counters.change_by_conv[conv] = state.counters.change_by_conv.get(conv, 0) + 1
     c = PendingChange(
-        change_id=f"C{state.counters.change}", task_id=t.task_id, field=field, old_value=value_of(t, field),
+        change_id=f"C{state.convIndex.get(conv, 0)}.{n}", task_id=t.task_id, field=field, old_value=value_of(t, field),
         new_value=new_value, new_display=new_display, old_display=old_display, evidence_message_id=evidence_id,
         created_at=at, approver_ids=approvers, notified_ids=notified,
     )

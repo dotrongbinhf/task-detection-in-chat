@@ -54,9 +54,7 @@ export const STATUS_META: Record<TaskStatus, { label: string; tone: Tone; hint: 
   approved: { label: "Đã duyệt", tone: "emerald", hint: "Task thật; mọi thay đổi sau đều phải duyệt" },
   declined: { label: "Từ chối", tone: "rose", hint: "Người nhận từ chối — giữ lại để chặn tạo lại" },
   cancelled: { label: "Đã huỷ", tone: "zinc", hint: "Bị huỷ" },
-  expired: { label: "Hết hạn", tone: "zinc", hint: "candidate quá candidate_ttl_hours" },
-  stale: { label: "Stale", tone: "zinc", hint: "Nháp quá draft_ttl_days không ai chạm" },
-  closed: { label: "Đóng", tone: "zinc", hint: "Rời tập đang mở" },
+  closed: { label: "Đóng", tone: "zinc", hint: "Rời tập đang mở — lý do ở closed_reason (hết TTL, quá hạn, từ chối lâu)" },
 };
 
 export function StatusBadge({ status }: { status: TaskStatus }) {

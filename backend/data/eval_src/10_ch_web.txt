@@ -16,46 +16,33 @@ gold about | Dịch trang About sang tiếng Anh | assigned | linh | none | canc
 
 day 2026-11-30
 08:40 thao: Chào team web, tháng 12 rồi 🎄
-08:41 vy: chào chị
-08:41 linh: hi chị
-08:43 phong: morning
-08:45 an: hello
-08:46 quan: hi all
 09:00 thao: Tuần này mình làm mới trang chủ cho đợt cuối năm
 09:01 vy: concept giữ như cũ hay đổi chị
 09:02 thao: đổi tông sang xanh navy
-09:03 vy: oki
-09:10 thao [hr]: @Vy thiết kế lại hero section trang chủ nhé, thứ 4 chị cần bản đầu   ## hero:assign hero:due
-09:11 vy ^hr: dạ em nhận   ## hero:accept
+09:10 thao [hr]: @Vy thiết kế lại hero section trang chủ, thứ 4 chị cần bản đầu   ## hero:assign hero:due
+09:11 vy ^hr: dạ em nhận   ## hero:confirm
 09:30 phong: Lighthouse trang chủ đang 62 điểm performance
-09:31 thao: thấp quá
 09:32 phong: ảnh nặng quá chị
 09:50 thao [ay]: Trang web đang fail audit accessibility, ai fix được không   ## a11y:assign
 09:52 an: em chưa làm a11y bao giờ
 09:55 phong ^ay: để em fix cho chị   ## a11y:accept
-09:56 thao: cảm ơn Phong
 10:20 thao: Mình cần viết lại copy trang pricing, khách phàn nàn khó hiểu   ## pricing:assign
 10:22 quan: đúng là khó hiểu thật
 10:25 linh: em làm copy pricing cho chị   ## pricing:accept
 10:26 thao: ok Linh, đầu tuần sau xong nhé   ## pricing:due
-10:27 linh: dạ
-10:50 thao [p4]: @An làm trang 404 mới nhé, trang cũ xấu quá   ## p404:assign
-10:51 an: dạ   ## p404:accept
+10:50 thao [p4]: @An làm trang 404 mới, trang cũ xấu quá   ## p404:assign
+10:51 an: dạ   ## p404:confirm
 13:30 linh: chị Thảo ơi tone giọng copy mình giữ formal không
 13:31 thao: thân thiện hơn chút em
-13:32 linh: dạ
-14:00 thao [sp]: @Phong tối ưu tốc độ load trang trước buổi demo khách hàng nhé   ## speed:assign speed:due
-14:01 +phong like sp   ## speed:accept
+14:00 thao [sp]: @Phong tối ưu tốc độ load trang trước buổi demo khách hàng   ## speed:assign speed:due
+14:01 +phong like sp
 14:30 vy: em làm 3 phương án hero, chiều mai gửi chị
-14:31 thao: ok
-15:10 thao: À thôi để Quân làm trang 404 nhé, An làm hero bản mobile với Vy   ## p404:assignee heromob:assign
-15:11 quan: dạ em làm
-15:11 an: dạ ok chị   ## heromob:accept
+15:10 thao: À thôi để Quân làm trang 404, An làm hero bản mobile với Vy   ## p404:assignee heromob:assign
+15:11 an: dạ ok chị   ## heromob:confirm
 15:40 phong: ảnh em convert sang webp hết rồi
-15:41 thao: nhanh vậy
 16:30 linh [ab]: chị ơi trang About có cần bản tiếng Anh không
-16:32 thao: có em, @Linh dịch trang About sang tiếng Anh luôn nhé   ## about:assign
-16:33 linh: dạ   ## about:accept
+16:32 thao: có em, @Linh dịch trang About sang tiếng Anh luôn   ## about:assign
+16:33 linh: dạ   ## about:confirm
 act 09:15 vy approve hero
 act 10:00 phong approve a11y
 act 10:30 linh approve pricing
@@ -63,54 +50,34 @@ act 16:40 linh approve about
 
 day 2026-12-01
 08:30 phong: Lighthouse lên 81 rồi chị
-08:31 thao: tuyệt
 09:00 vy: hero bản đầu em gửi trong Figma rồi
 09:02 thao: bản 2 đẹp nhất
-09:03 vy: dạ
 09:40 thao [hrd] ^hr: lùi sang thứ 6 nhé Vy, sếp muốn thêm video nền   ## hero:due
-09:41 vy: dạ
 10:20 quan: trang 404 mình có làm minigame không chị
 10:21 thao: có thì vui, nhưng đừng nặng
-10:22 quan: dạ
 11:00 phong: a11y còn 12 lỗi contrast với 5 lỗi thiếu alt
-11:01 thao: ok em
 11:40 linh: copy pricing em xong bản nháp
-11:41 thao: để chị đọc   ## hn
+11:41 thao: để chị đọc   ## hn:defer
 14:00 an: hero mobile em làm theo breakpoint 375 nhé
-14:01 vy: ok
 15:30 quan: mọi người có font Be Vietnam Pro bản mới không
 15:31 vy: có, để trong Drive
-15:32 quan: cảm ơn chị
 16:40 phong: demo khách hàng ngày nào chị
-16:41 thao: thứ 5
-16:41 phong: dạ
 act 09:45 vy approve_change hrd
 
 day 2026-12-02
 09:00 thao: Có ai test site trên Safari chưa nhỉ
 09:02 vy: em test hôm qua rồi, ổn chị
-09:03 thao: ok cảm ơn
 09:30 linh: chị đọc copy pricing chưa ạ
 09:31 thao: rồi em, ổn lắm
-09:32 linh: dạ
 10:00 quan: trang 404 em làm xong rồi
-10:01 thao: vui ghê
 10:30 phong: a11y em fix xong, audit pass
-10:31 thao: giỏi quá
 14:00 an: mọi người có ai biết sao Vercel build lâu không
 14:01 phong: cache bị xoá đó
-14:02 an: à
 
 day 2026-12-03
 09:00 thao: Chiều nay demo khách hàng nhé mọi người
 09:01 phong: tốc độ trang ổn rồi chị, 92 điểm
-09:02 thao: tuyệt vời
 10:15 thao [abc]: @Linh thôi khỏi dịch trang About nhé, khách nước ngoài chưa cần   ## about:cancel
-10:16 linh: dạ ok chị
 11:00 an: hero mobile xong rồi
-11:01 vy: đẹp đó An
-14:00 thao: Demo bắt đầu
 16:00 thao: Demo ok, khách rất thích trang mới
-16:01 quan: yeah
-16:01 vy: 🎉
 act 10:20 linh approve_change abc

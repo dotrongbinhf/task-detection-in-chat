@@ -24,7 +24,6 @@ def test_derive_labels_supporting_and_hard(sample):
     by_id = {i: r for r in rows for i in r["new_event_ids"]}
     assert by_id["m003"]["label"] == 1 and by_id["m003"]["kinds"] == ["assign"]  # anchor g01
     assert by_id["m004"]["label"] == 1                                         # "Dạ ok anh" (supporting)
-    assert by_id["m036#r1"]["label"] == 1 and "accept" in by_id["m036#r1"]["kinds"]
     assert by_id["m011"]["label"] == 0 and by_id["m011"].get("hard")
     assert by_id["m001"]["label"] == 0 and not by_id["m001"].get("hard")
     assert len({r["turn_id"] for r in rows}) == len(rows)
@@ -33,8 +32,8 @@ def test_derive_labels_supporting_and_hard(sample):
 def test_export_matches_derive_turns(sample):
     ex, de = export(sample, Config(), 5), derive(sample, Config())
     assert [r["turn_id"] for r in ex] == [r["turn_id"] for r in de]
-    m4 = next(r for r in ex if r["new_event_ids"] == ["m004"])
-    assert m4["has_reply"] and "m003" in m4["context"] and m4["label"] is None
+    m4 = next(r for r in ex if "m004" in r["new_event_ids"])  # v6: m003 + m004 cùng một lượt (đợi hội thoại yên)
+    assert m4["has_reply"] and "m003" in m4["new_event_ids"] and m4["label"] is None
 
 
 # ---------------- import ----------------
@@ -118,15 +117,16 @@ def test_anonymize_keeps_gaps_and_weekday():
 
 # ---------------- build_eval ----------------
 
-SRC = """conv ch_t group train
+SRC = """conv ch_t group dev
 member hung Hưng | anh Hưng
 member linh Linh
 gold bc | Gửi báo cáo | assigned | linh | 2026-11-19 | active | single_message
 day 2026-11-16
 09:00 hung: chào
 09:05 hung [a]: @Linh gửi báo cáo trước thứ 5 nhé   ## bc:assign bc:due
-09:06:30 +linh like a   ## bc:accept
-09:07 linh ^a: để em xem   ## hn
+09:06:30 +linh like a
+09:06:40 linh ^a: dạ em gửi trước thứ 5   ## bc:confirm
+09:07 linh ^a: để em xem   ## hn:defer
 09:20 hung [d]: lùi sang thứ 6 nhé   ## bc:due
 act 09:10 linh approve bc
 act 09:25 linh approve_change d
@@ -137,14 +137,15 @@ def test_build_eval_parses_source(tmp_path):
     from detect.build_eval import build
     (tmp_path / "a.txt").write_text(SRC, encoding="utf-8")
     d, split, roles = build(tmp_path)
-    assert split["train"] == ["ch_t"]
+    assert split["dev"] == ["ch_t"]
     m = {x["id"]: x for x in d["messages"]}
     assert m["ch_t_002"]["mentions"] == [{"user_id": "u_linh", "name": "Linh"}]
     assert m["ch_t_003"]["reply_to_id"] == "ch_t_002" and m["ch_t_002"]["reactions"][0]["user_id"] == "u_linh"
     g = d["gold"][0]
-    assert g["anchor_message_id"] == "ch_t_002" and g["supporting_message_ids"] == ["ch_t_002", "ch_t_002#r1", "ch_t_004"]
-    assert d["hn"] == ["ch_t_003"] and roles["ch_t_002"] == ["assign", "due"]
-    assert [a["message_id"] for a in d["acts"]] == ["ch_t_002", "ch_t_004"]
+    assert g["anchor_message_id"] == "ch_t_002" and g["supporting_message_ids"] == ["ch_t_002", "ch_t_005"]
+    assert g["confirm_message_ids"] == ["ch_t_003"]  # "dạ" của người đã được giao: không thuộc supporting
+    assert d["hn"] == [("ch_t_004", "defer")] and roles["ch_t_002"] == ["assign", "due"]
+    assert [a["message_id"] for a in d["acts"]] == ["ch_t_002", "ch_t_005"]
 
 
 def test_build_eval_rejects_unknown_mention(tmp_path):
@@ -152,3 +153,32 @@ def test_build_eval_rejects_unknown_mention(tmp_path):
     (tmp_path / "a.txt").write_text(SRC.replace("@Linh", "@Lan"), encoding="utf-8")
     with pytest.raises(SystemExit):
         build(tmp_path)
+
+
+def test_build_eval_rejects_labeled_reaction(tmp_path):
+    from detect.build_eval import build
+    (tmp_path / "a.txt").write_text(SRC.replace("09:06:30 +linh like a\n", "09:06:30 +linh like a   ## bc:accept\n"), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        build(tmp_path)
+
+
+def test_build_eval_requires_hn_tag(tmp_path):
+    from detect.build_eval import build
+    (tmp_path / "a.txt").write_text(SRC.replace("## hn:defer", "## hn"), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        build(tmp_path)
+
+
+def test_derive_confirm_only_turn_is_negative(tmp_path):
+    from detect.build_eval import build
+    from detect.models import GoldTask
+    (tmp_path / "a.txt").write_text(SRC, encoding="utf-8")
+    d, _, _ = build(tmp_path)
+    from detect.models import Member, Message
+    ds = dict(name="t", messages=[Message(**m) for m in d["messages"]],
+              members={k: [Member(**x) for x in v] for k, v in d["members"].items()},
+              gold=[GoldTask(**g) for g in d["gold"]], hard_negatives=[i for i, _ in d["hn"]],
+              hard_negative_tags=dict(d["hn"]), user_actions=[], turn_labels=[])
+    rows = {i: r for r in derive(ds, Config()) for i in r["new_event_ids"]}
+    assert rows["ch_t_003"]["label"] == 0 and rows["ch_t_003"]["kinds"] == ["confirm"]
+    assert rows["ch_t_004"]["hard"] and rows["ch_t_004"]["hn_tags"] == ["defer"]

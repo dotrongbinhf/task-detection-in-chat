@@ -1,0 +1,269 @@
+conv ch_saas group test
+# v6 mục 10.5: hội thoại nhiều task (≥ 40 mở), 12 ngày, tiêu đề gần giống nhau, nhắc việc cũ không reply, sửa nội dung việc cũ
+member thu Thu | chị Thu, Thu Lê
+member quang Quang | Quang
+member mai Mai | Mai Phương
+member nam Nam | Nam
+member long Long | Long
+member hoa Hoa | Hoa
+member binh Bình | Binh
+member ngoc Ngọc | Ngoc
+
+gold onboardabc | Onboard khách hàng ABC Logistics | assigned | hoa | 2026-12-07 | active | narrative_assign,far_update_no_reply,index_overflow
+gold pr712 | Review PR #712 export CSV | assigned | long | 2026-12-01 | active | similar_titles,relative_deadline
+gold pr719 | Review PR #719 phân quyền | assigned | binh | none | active | similar_titles,question_assign
+gold bcquang | Gửi báo cáo tuần nhóm sales | assigned | quang | 2026-12-04 | active | similar_titles,multi_task_message
+gold bchoa | Gửi báo cáo tuần nhóm CS | assigned | hoa | 2026-12-04 | active | similar_titles,multi_task_message
+gold sso | Tìm lỗi đăng nhập SSO của khách XYZ | self_commit | nam | 2026-11-30 | active | self_commit,name_collision
+gold pricingdeck | Làm slide bảng giá mới cho sales | assigned | ngoc | 2026-12-03 | active | question_assign,detail_check,ttl_long
+gold churnlist | Lọc danh sách khách sắp hết hạn hợp đồng | assigned | quang | 2026-12-02 | active | english_mix,ttl_long,detail_check,index_overflow
+gold webinar | Chuẩn bị nội dung webinar tính năng báo cáo | assigned | mai | event | cancelled | implicit_ask,name_collision,event_deadline,cancelled_far
+gold apidoc | Cập nhật tài liệu API v2 | assigned | long | none | active | no_diacritics
+gold invoice | Xuất hoá đơn tháng 11 cho 12 khách doanh nghiệp | assigned | quang | 2026-12-04 | active | long_message
+gold slaalert | Cài cảnh báo ticket quá SLA 4 giờ | assigned | binh | 2026-12-07 | active | relative_deadline
+gold survey | Gửi khảo sát NPS quý 4 | assigned | mai | 2026-12-08 | active | name_collision,detail_check,index_overflow
+gold bugdash | Sửa lỗi dashboard không tải dữ liệu tháng 11 | assigned | long | 2026-12-03 | active | relative_deadline
+gold trainvideo | Quay video hướng dẫn tính năng phân quyền | self_commit | ngoc | 2026-12-04 | active | self_commit
+gold contractxyz | Gia hạn hợp đồng khách XYZ | assigned | quang | 2026-12-15 | active | far_update_no_reply,abbreviation,index_overflow
+gold kbarticle | Viết 5 bài hướng dẫn trong trung tâm trợ giúp | assigned | mai | none | active | reassign,name_collision,index_overflow
+gold datafix | Gộp tài khoản trùng của khách DEF | assigned | nam | 2026-12-04 | active | no_diacritics
+gold roadmap | Cập nhật roadmap quý 1 lên trang công khai | assigned | ngoc | event | active | event_deadline,narrative_assign
+gold renewal | Gọi 10 khách sắp hết hạn để chốt gia hạn | assigned | quang | 2026-12-11 | active | long_message
+gold i18n | Dịch giao diện sang tiếng Thái | open_ask | - | none | active | unanswered_ask,no_assignee
+gold pentest | Sửa 3 lỗi bảo mật từ báo cáo pentest | assigned | binh,long | 2026-12-09 | active | multi_assignee
+gold casestudy | Viết case study khách ABC Logistics | assigned | mai | none | active | question_assign,name_collision
+gold bcquang2 | Gửi báo cáo tuần nhóm sales tuần 7/12 | assigned | quang | 2026-12-11 | active | similar_titles,multi_task_message,index_overflow
+gold bchoa2 | Gửi báo cáo tuần nhóm CS tuần 7/12 | assigned | hoa | 2026-12-11 | active | similar_titles,multi_task_message,index_overflow
+gold pr725 | Review PR #725 thông báo email | assigned | binh | 2026-12-08 | active | similar_titles,index_overflow
+gold mobilebug | Fix lỗi app mobile không nhận thông báo đẩy | assigned | long | 2026-12-09 | active | english_mix,index_overflow
+gold backup | Kiểm tra bản backup database tuần này | self_commit | binh | 2026-12-08 | active | self_commit,index_overflow
+gold tierlimits | Tăng giới hạn API cho khách gói Pro | assigned | long | none | active | english_mix,abbreviation,index_overflow
+gold holiday | Xếp lịch trực hỗ trợ dịp Giáng sinh | assigned | hoa | 2026-12-18 | active | relative_deadline,index_overflow
+gold crmclean | Dọn dữ liệu CRM trùng liên hệ | assigned | nam | none | active | name_collision,index_overflow
+gold demoenv | Dựng môi trường demo cho khách GHI | assigned | binh | event | active | event_deadline,index_overflow
+gold yearend | Tổng hợp số liệu CS cả năm | assigned | hoa | 2026-12-16 | active | narrative_assign,index_overflow
+gold newsletter | Viết newsletter tháng 12 | assigned | mai | 2026-12-14 | active | name_collision,index_overflow
+gold perf | Tối ưu truy vấn báo cáo chạy chậm | assigned | long | none | active | question_assign,index_overflow
+gold yearretro | Chuẩn bị buổi tổng kết năm của team CS | self_commit | thu | 2026-12-18 | active | self_commit,index_overflow
+gold swag | Đặt quà cuối năm cho 20 khách thân thiết | assigned | ngoc | 2026-12-16 | active | index_overflow
+gold partnerlist | Lên danh sách đối tác tích hợp tiềm năng | assigned | ngoc | none | active | long_message,index_overflow
+gold refundpro | Hoàn tiền gói Pro cho khách bị trừ hai lần | self_commit | hoa | 2026-12-02 | active | relative_deadline
+gold logo | Thay logo mới trong email hệ thống | assigned | binh | none | active | abbreviation
+gold quota | Tăng dung lượng lưu trữ cho khách JKL | self_commit | nam | 2026-12-03 | active | self_commit
+gold faqprice | Cập nhật FAQ về bảng giá mới | assigned | hoa | 2026-12-09 | active | question_assign,index_overflow
+gold escalation | Viết quy trình chuyển ticket lên kỹ thuật | assigned | nam | none | active | narrative_assign,index_overflow
+gold demovideo | Cắt video demo 2 phút cho website | assigned | ngoc | 2026-12-11 | active | index_overflow
+
+day 2026-11-30
+08:32:14 thu: Chào cả team, tháng 12 nhiều việc cuối năm nên chị gom hết vào kênh này, mọi người đọc kỹ phần được nhắc tên mình
+08:33:40 quang: Dạ chị, bên sales tuần này có 3 khách lớn đang chờ báo giá gia hạn
+08:35:02 nam: Sáng nay khách XYZ báo không đăng nhập SSO được, em đang đọc log
+08:50:27 thu [ob]: Khách ABC Logistics vừa ký hợp đồng, chắc Hoa là người onboard hợp nhất vì em từng làm với ngành vận tải, thứ 4 họ bắt đầu dùng   ## onboardabc:assign onboardabc:due
+08:51:15 hoa ^ob: Dạ em lên lịch training với họ, gửi chị kế hoạch trong sáng nay   ## onboardabc:confirm
+09:10:38 thu [p1]: @Long review PR #712 export CSV trước mai, khách ABC cần tính năng này khi onboard   ## pr712:assign pr712:due
+09:11:20 long ^p1: Ok chị, em xem ngay sau standup   ## pr712:confirm
+09:12:05 thu [p2]: Còn PR #719 phân quyền thì Bình xem được không em, cái này không gấp   ## pr719:assign
+09:12:50 binh ^p2: Được chị, em xem trong tuần   ## pr719:confirm
+09:30:44 thu [bc]: Báo cáo tuần thì như mọi khi, Quang gửi phần nhóm sales, Hoa gửi phần nhóm CS, hạn thứ 6   ## bcquang:assign bcquang:due bchoa:assign bchoa:due
+09:31:20 quang ^bc: Dạ chị   ## bcquang:confirm
+09:31:45 hoa ^bc: Dạ em gửi trước trưa thứ 6   ## bchoa:confirm
+10:05:11 nam [ss]: Lỗi SSO của XYZ để em tìm cho ra trong hôm nay, có vẻ do chứng chỉ của họ mới đổi   ## sso:self_commit sso:due
+10:05:50 thu: Ok Nam, cần gì bên họ thì cứ gọi thẳng anh IT bên đó
+10:40:33 quang: Hay là mình làm gói dùng thử 30 ngày thay vì 14 ngày, em chỉ đề xuất thôi chưa có số liệu   ## hn:idea
+10:41:30 thu: Ý hay, để chị đưa vào buổi họp sản phẩm tháng sau
+11:20:09 long: Ai mà review xong PR #712 trước giờ ăn trưa thì được miễn họp chiều nay nhé 😄   ## hn:joke
+11:21:00 binh: Nghe hấp dẫn nhưng PR đó 40 file anh ơi
+15:30:48 nam: Lỗi SSO em tìm ra rồi, đúng là do chứng chỉ mới của khách, họ đã cập nhật lại   ## hn:done_report
+act 08:55 hoa approve onboardabc
+act 09:15 long approve pr712
+act 09:35 quang approve bcquang
+act 09:36 hoa approve bchoa
+
+day 2026-12-01
+08:40:20 thu [pd]: Bảng giá mới áp dụng từ tháng 1, Ngọc làm được slide bảng giá cho team sales trước thứ 5 không, sales cần để gửi khách   ## pricingdeck:assign pricingdeck:due
+08:41:05 ngoc ^pd: Được chị, em làm theo template mới của brand   ## pricingdeck:confirm
+09:05:37 thu [cl]: Quang pull list khách sắp hết hạn hợp đồng trong quý 1 cho chị, mai cần để lên kế hoạch renew   ## churnlist:assign churnlist:due
+09:06:10 quang ^cl: Dạ em lấy từ CRM, có kèm doanh thu năm nay   ## churnlist:confirm
+09:30:58 thu [wb]: Tháng này mình có webinar giới thiệu tính năng báo cáo, ai chuẩn bị nội dung được không mọi người   ## webinar:assign
+09:33:12 mai ^wb: Để em chuẩn bị nội dung cho webinar, em làm xong trước ngày phát sóng   ## webinar:accept webinar:due
+10:10:24 thu [ad]: tai lieu API v2 con nhieu endpoint cu, Long cap nhat lai giup chi, khach hoi suot   ## apidoc:assign
+10:11:02 long ^ad: Dạ em rà lại cả phần ví dụ   ## apidoc:confirm
+10:45:16 thu [iv]: Cuối tháng rồi nên có mấy việc kế toán nhờ. Hoá đơn tháng 11 cho 12 khách doanh nghiệp cần xuất trước cuối tuần, danh sách khách chị để trong drive. Quang phụ trách khách nào thì kiểm tra lại thông tin xuất hoá đơn của khách đó, xong thì Quang xuất luôn cho cả 12 khách   ## invoice:assign invoice:due
+10:46:00 quang ^iv: Dạ em xuất hết, có khách nào sai mã số thuế em báo chị   ## invoice:confirm
+11:20:42 binh: Nếu khách GHI ký trong tuần này thì mình phải dựng thêm môi trường demo riêng, chưa ký thì thôi   ## hn:conditional
+11:21:30 thu: Ừ chờ tin bên sales đã
+13:40:05 hoa: Phần tích hợp với phần mềm kế toán là team đối tác làm nhé, mình chỉ hỗ trợ khách liên hệ họ   ## hn:other_team
+14:10:38 quang: Khách bảo "bên em gửi lại báo giá có VAT giúp anh" nhưng báo giá đó bên kế toán gửi rồi   ## hn:quote
+14:11:20 thu: Ừ vậy Quang chỉ cần nhắc khách kiểm tra mail
+15:00:55 long: PR #712 em review xong rồi, đã approve và merge   ## hn:done_report
+act 08:50 ngoc approve pricingdeck
+act 09:10 quang approve churnlist
+act 09:40 mai approve webinar
+act 10:15 long approve apidoc
+act 10:50 quang approve invoice
+
+day 2026-12-02
+08:35:30 hoa [rp]: Khách gói Pro tên Minh An bị trừ tiền hai lần khi gia hạn, em hoàn tiền cho họ trong hôm nay chị nhé   ## refundpro:self_commit refundpro:due
+08:36:10 thu: Ok Hoa, nhớ ghi chú vào ticket để kế toán đối soát
+09:00:12 thu [sa]: Ticket quá SLA 4 giờ mà không ai biết, Bình cài cảnh báo cho chị, thứ 2 tuần sau bật được là tốt   ## slaalert:assign slaalert:due
+09:00:50 binh ^sa: Dạ em làm cảnh báo qua Slack trước   ## slaalert:confirm
+09:30:27 thu [nps]: Khảo sát NPS quý 4 chắc giao Mai, thứ 3 tuần sau gửi cho toàn bộ khách đang dùng   ## survey:assign survey:due
+09:31:04 mai ^nps: Dạ em dùng lại bộ câu hỏi quý trước, có sửa gì em gửi chị xem   ## survey:confirm
+10:05:49 hoa: Khách báo dashboard không tải dữ liệu tháng 11, chỉ hiện trang trắng
+10:06:30 thu [bd]: @Long sửa lỗi dashboard tháng 11 trước mai, khách đang dùng số liệu để báo cáo cuối năm   ## bugdash:assign bugdash:due
+10:07:10 long ^bd: Em xem ngay, chắc do query tháng mới bị timeout   ## bugdash:confirm
+10:40:33 ngoc [tv]: Video hướng dẫn tính năng phân quyền để em quay luôn, thứ 6 có bản đầu   ## trainvideo:self_commit trainvideo:due
+10:41:10 thu: Cảm ơn Ngọc, quay ngắn thôi dưới 5 phút nhé
+11:15:56 thu [cx]: Hợp đồng khách XYZ hết hạn giữa tháng, Quang lo gia hạn, ngày 10 cần có bản ký   ## contractxyz:assign contractxyz:due
+11:16:40 quang ^cx: Dạ em gửi bản gia hạn cho họ hôm nay   ## contractxyz:confirm
+13:30:21 thu: Không cần Bình làm cảnh báo qua email đâu, Slack là đủ rồi   ## hn:negation
+14:05:47 hoa: Vụ hoàn tiền gói Pro có ai làm chưa nhỉ, khách vừa nhắn hỏi lại   ## hn:status_question
+14:06:30 hoa: À em quên mất là việc của em, em làm ngay đây
+15:20:08 quang: Danh sách khách sắp hết hạn em gửi chị rồi, có 23 khách trong quý 1   ## hn:done_report
+act 09:05 binh approve slaalert
+act 09:35 mai approve survey
+act 10:10 long approve bugdash
+act 11:20 quang approve contractxyz
+
+day 2026-12-03
+08:40:39 thu [od]: Onboard ABC lùi sang thứ 2 tuần sau, bên họ chưa chuẩn bị xong dữ liệu   ## onboardabc:due
+08:41:20 hoa: Dạ em báo lại trainer
+09:10:15 thu [kb]: Trung tâm trợ giúp đang thiếu bài cho mấy tính năng mới, Hoa viết thêm 5 bài hướng dẫn được không em   ## kbarticle:assign
+09:10:58 hoa ^kb: Dạ được chị, em ưu tiên phần phân quyền và xuất CSV   ## kbarticle:confirm
+09:40:44 thu [df]: khach DEF bi trung 3 tai khoan, Nam gop lai truoc mai cho chi, ho dang bi tinh phi 3 lan   ## datafix:assign datafix:due
+09:41:25 nam ^df: Dạ em gộp và báo khách luôn   ## datafix:confirm
+10:20:31 thu [rm]: Roadmap quý 1 cần đưa lên trang công khai, chắc Ngọc làm sau buổi họp sản phẩm tuần sau là hợp lý nhất   ## roadmap:assign roadmap:due
+10:21:10 ngoc ^rm: Dạ em chờ họp xong rồi cập nhật   ## roadmap:confirm
+11:00:52 nam [qt]: Khách JKL xin tăng dung lượng lưu trữ lên 500GB, để em tăng trong hôm nay   ## quota:self_commit quota:due
+11:01:30 thu: Ok, nhớ báo sales để tính phí từ kỳ sau
+13:15:16 thu: Nhắc mọi người thứ 6 này hạn báo cáo tuần, Quang với Hoa nhớ gửi trước trưa   ## hn:reminder
+13:45:40 long: Lỗi dashboard em sửa xong rồi, do query tháng mới bị timeout như em đoán   ## hn:done_report
+14:30:03 binh: Ai mà đọc hết 40 file PR #719 trong một ngày thì em xin gọi là thánh review luôn 😂   ## hn:joke
+15:05:29 quang: Hay là mình tặng khách lâu năm một tháng dùng miễn phí khi gia hạn, ý tưởng thôi chưa hỏi sếp   ## hn:idea
+act 09:15 hoa approve kbarticle
+act 09:45 nam approve datafix
+act 10:25 ngoc approve roadmap
+
+day 2026-12-04
+08:30:47 quang: Báo cáo tuần nhóm sales em gửi chị rồi ạ   ## hn:done_report
+08:31:20 hoa: Phần nhóm CS em cũng gửi rồi chị   ## hn:done_report
+09:00:05 thu [rn]: Còn 10 khách sắp hết hạn trong tháng mà chưa phản hồi email gia hạn. Gọi điện vẫn hiệu quả hơn, nên Quang gọi trực tiếp cả 10 khách giúp chị, cuối tuần sau cần chốt được ai gia hạn ai không, có khách nào phàn nàn về giá thì ghi lại để chị báo sếp   ## renewal:assign renewal:due
+09:00:45 quang ^rn: Dạ em gọi từ thứ 2, có kết quả em cập nhật CRM   ## renewal:confirm
+09:30:21 thu [th]: Khách Thái Lan đang hỏi có giao diện tiếng Thái không, có ai dịch được giao diện sang tiếng Thái không mọi người   ## i18n:assign
+09:32:40 ngoc: Em không biết tiếng Thái chị ơi
+09:33:05 mai: Em cũng không, chắc phải thuê ngoài
+10:10:48 thu [pt]: Báo cáo pentest có 3 lỗi bảo mật mức cao, Bình với Long chia nhau sửa, thứ 4 tuần sau phải xong để bên kiểm định test lại   ## pentest:assign pentest:due
+10:11:30 binh ^pt: Dạ em lấy 2 lỗi phần API   ## pentest:confirm
+10:12:05 long ^pt: Em lấy lỗi phần upload file   ## pentest:confirm
+10:45:14 thu [cs]: Mai viết được case study về khách ABC Logistics không em, khi nào họ chạy ổn định thì viết   ## casestudy:assign
+10:46:00 mai ^cs: Dạ được chị, em hẹn phỏng vấn họ cuối tháng   ## casestudy:confirm
+11:30:36 nam: Nếu khách DEF hỏi về phí bị tính trùng thì mình hoàn lại phần chênh, kế toán đồng ý rồi   ## hn:conditional
+13:20:59 hoa: Khách ABC hỏi "bên em gửi lại tài liệu training giúp chị với" mà tài liệu đó em gửi hôm thứ 2 rồi   ## hn:quote
+14:40:11 ngoc: Video phân quyền em quay xong bản đầu rồi, 4 phút 30 giây   ## hn:done_report
+act 09:05 quang approve renewal
+act 10:15 binh approve pentest
+act 10:16 long approve pentest
+act 10:50 mai approve casestudy
+
+day 2026-12-07
+08:30:25 thu: Tuần mới, mọi người cập nhật nhanh việc tồn của tuần trước giúp chị
+08:32:10 thu [b2]: Báo cáo tuần này vẫn như cũ, Quang phần sales, Hoa phần CS, thứ 6 gửi   ## bcquang2:assign bcquang2:due bchoa2:assign bchoa2:due
+08:32:50 quang ^b2: Dạ chị   ## bcquang2:confirm
+08:33:15 hoa ^b2: Dạ   ## bchoa2:confirm
+09:05:42 long [p3]: PR #725 thông báo email cần người review, Bình xem được không, mai em muốn merge
+09:06:20 binh ^p3: Ok để em review trước mai   ## pr725:assign pr725:due
+09:20:07 thu: Khảo sát NPS bỏ câu hỏi về giá đi Mai, sếp không muốn khách nghĩ mình sắp tăng giá   ## survey:content
+09:50:33 hoa [mb]: Khách báo app mobile không nhận push notification từ hôm thứ 6
+09:51:15 thu ^mb: Long fix lỗi push notification trên app mobile, thứ 4 cần xong vì khách lớn đang phàn nàn   ## mobilebug:assign mobilebug:due
+09:52:00 long ^mb: Dạ em check Firebase trước   ## mobilebug:confirm
+10:30:46 mai [wx]: Chị ơi webinar tháng này có diễn ra không, em nghe nói trùng lịch sự kiện đối tác
+10:32:10 thu ^wx: Webinar tháng này huỷ nhé Mai, để sang tháng 1 tính lại   ## webinar:cancel
+10:33:00 mai: Dạ em dừng chuẩn bị
+11:10:19 binh: Cảnh báo SLA em bật rồi chị, đã gửi thử vào kênh Slack của CS   ## hn:done_report
+13:40:52 hoa: Vụ đổi gói cước viễn thông cho văn phòng là phòng hành chính làm, không phải mình   ## hn:other_team
+14:15:27 thu: Không cần Ngọc làm thêm bản tiếng Anh cho slide bảng giá đâu, khách quốc tế dùng bảng giá riêng   ## hn:negation
+15:00:03 quang: Hợp đồng XYZ có ai gửi bản ký chưa nhỉ, khách vừa hỏi   ## hn:status_question
+15:01:30 quang: À em gửi rồi, khách chưa ký lại thôi
+act 08:40 quang approve bcquang2
+act 08:41 hoa approve bchoa2
+act 09:10 binh approve pr725
+act 10:00 long approve mobilebug
+
+day 2026-12-08
+08:45:31 thu: Slide bảng giá thêm gói Enterprise nữa Ngọc, sales vừa chốt giá gói đó   ## pricingdeck:content
+09:10:04 thu [ka]: 5 bài hướng dẫn trợ giúp để Mai viết thay Hoa, Hoa đang ôm onboard ABC   ## kbarticle:assignee
+09:10:45 mai ^ka: Dạ em nhận, em đọc lại bản nháp Hoa đã viết   ## kbarticle:confirm
+09:40:18 binh [bk]: Bản backup database tuần này em chưa kiểm tra, để em restore thử trong hôm nay   ## backup:self_commit backup:due
+09:41:00 thu: Ok Bình, nhớ ghi thời gian restore vào sổ
+10:20:39 quang [tl]: Khách gói Pro bên KLM xin tăng rate limit API lên 1000 req/phút
+10:21:20 thu ^tl: Long tăng limit cho họ nhé, gói Pro được phép tới 1500   ## tierlimits:assign
+10:22:05 long ^tl: Dạ em tăng luôn   ## tierlimits:confirm
+11:00:52 thu [pl]: Quý 1 mình muốn mở rộng tích hợp với các phần mềm khác. Ngọc lên danh sách đối tác tích hợp tiềm năng cho chị, ưu tiên phần mềm kế toán và phần mềm bán hàng, có cả thông tin liên hệ nếu tìm được   ## partnerlist:assign
+11:01:40 ngoc ^pl: Dạ em tổng hợp vào một sheet   ## partnerlist:confirm
+13:30:15 thu: Nhắc Bình PR #725 hôm nay là hạn nhé   ## hn:reminder
+13:31:00 binh: Dạ em review xong rồi chị, Long đang sửa comment   ## hn:done_report
+14:10:43 nam: Ai mà gộp xong tài khoản trùng của DEF mà không bị khách gọi lại thì em gọi là kỳ tích luôn 😅   ## hn:joke
+15:20:27 binh: Restore backup em thử xong rồi, mất 18 phút, dữ liệu đầy đủ   ## hn:done_report
+act 09:15 mai approve kbarticle
+act 10:25 long approve tierlimits
+act 11:05 ngoc approve partnerlist
+
+day 2026-12-09
+08:40:22 quang: Hợp đồng XYZ khách xin dời sang ngày 15 vì giám đốc bên họ đi công tác   ## contractxyz:due
+08:41:00 thu: Ok Quang, ngày 15 nhớ nhắc họ
+09:15:48 thu [hl]: Giáng sinh khách quốc tế vẫn cần hỗ trợ, chắc Hoa xếp lịch trực cho team, thứ 6 tuần sau chốt   ## holiday:assign holiday:due
+09:16:30 hoa ^hl: Dạ em hỏi mọi người lịch nghỉ trước   ## holiday:confirm
+09:50:05 thu [cr]: CRM đang có rất nhiều liên hệ trùng, Nam dọn dữ liệu CRM trùng liên hệ khi nào rảnh nhé, không gấp   ## crmclean:assign
+09:50:44 nam ^cr: Dạ em dùng tool gộp tự động trước   ## crmclean:confirm
+10:30:37 quang: Khách GHI vừa ký rồi chị, họ muốn xem demo riêng tuần sau
+10:31:20 thu [de]: Vậy Bình dựng môi trường demo cho khách GHI trước buổi demo với họ   ## demoenv:assign demoenv:due
+10:32:00 binh ^de: Dạ em clone từ staging rồi xoá dữ liệu thật   ## demoenv:confirm
+11:20:13 thu [fp]: FAQ về bảng giá mới Hoa cập nhật được không, trước thứ 4 tuần sau, nhiều khách hỏi quá   ## faqprice:assign faqprice:due
+11:20:50 hoa ^fp: Được chị, em lấy nội dung từ slide của Ngọc   ## faqprice:confirm
+13:05:59 long: Nếu bên kiểm định test lại mà còn lỗi thì mình xin dời thêm 2 ngày, không thì đóng báo cáo pentest luôn   ## hn:conditional
+13:40:21 hoa: Khách nói "bên em hướng dẫn lại cách xuất CSV giúp chị nhé" mà bài hướng dẫn đó có trong trung tâm trợ giúp rồi   ## hn:quote
+14:20:46 ngoc: Hay là mình làm thêm bản dark mode cho trang trợ giúp, em nghĩ vậy thôi chưa cần làm   ## hn:idea
+14:50:10 thu: Không cần Nam gộp tay từng liên hệ đâu, tool gộp tự động là đủ   ## hn:negation
+15:30:34 long: 3 lỗi pentest bọn em sửa xong rồi chị, đã báo bên kiểm định   ## hn:done_report
+act 09:20 hoa approve holiday
+act 09:55 nam approve crmclean
+act 10:35 binh approve demoenv
+act 11:25 hoa approve faqprice
+
+day 2026-12-10
+08:35:47 thu: Danh sách khách sắp hết hạn Quang lọc thêm cột người phụ trách giúp chị, sếp muốn biết ai chăm khách nào   ## churnlist:content
+08:36:30 quang: Dạ em bổ sung trong sáng nay
+09:10:24 thu [ye]: Số liệu CS cả năm thì Hoa nắm hết rồi, chắc Hoa tổng hợp giúp chị, thứ 4 tuần sau chị trình sếp   ## yearend:assign yearend:due
+09:11:05 hoa ^ye: Dạ em gom số ticket, thời gian phản hồi và CSAT theo tháng   ## yearend:confirm
+09:40:39 thu [nl]: Newsletter tháng 12 Mai viết nhé, thứ 2 tuần sau gửi, nhớ có phần tổng kết tính năng năm nay   ## newsletter:assign newsletter:due
+09:41:20 mai ^nl: Dạ em làm bản nháp gửi chị cuối tuần   ## newsletter:confirm
+10:15:56 hoa [pf]: Báo cáo doanh thu theo khách chạy mất gần 2 phút, khách phàn nàn
+10:16:40 thu ^pf: Long tối ưu được truy vấn báo cáo đó không em, chậm thế khách bỏ mất   ## perf:assign
+10:17:20 long ^pf: Được chị, chắc thiếu index trên bảng invoices   ## perf:confirm
+11:00:13 thu [lg]: Logo mới đã chốt rồi, Bình thay logo trong email hệ thống luôn, tmp dùng bản png bên brand gửi   ## logo:assign
+11:00:55 binh ^lg: Dạ em thay cả email mời và email hoá đơn   ## logo:confirm
+13:20:28 quang: Gói Pro của KLM đã tăng limit chưa mọi người, khách hỏi lại   ## hn:status_question
+13:21:10 long: Tăng rồi anh, từ hôm thứ 3
+14:00:49 thu: Nhắc Hoa FAQ bảng giá thứ 4 tuần sau là hạn nhé   ## hn:reminder
+14:30:16 nam: Chuyện gia hạn tên miền công ty là bên IT nội bộ lo nhé, mình không cần gia hạn   ## hn:other_team
+act 09:15 hoa approve yearend
+act 09:45 mai approve newsletter
+act 10:20 long approve perf
+act 11:05 binh approve logo
+
+day 2026-12-11
+08:40:36 thu [yr]: Thứ 6 tuần sau chị tổ chức buổi tổng kết năm của team CS, để chị chuẩn bị nội dung, mọi người gửi chị mỗi người 3 điều đáng nhớ   ## yearretro:self_commit yearretro:due
+08:41:20 hoa: Dạ em gửi chị trong tuần sau
+09:10:03 thu [sw]: Quà cuối năm cho 20 khách thân thiết Ngọc đặt giúp chị, thứ 4 tuần sau cần giao để kịp gửi trước Giáng sinh   ## swag:assign swag:due
+09:10:45 ngoc ^sw: Dạ em đặt bộ quà có in logo mới   ## swag:confirm
+09:40:31 thu [es]: Ticket kỹ thuật đang bị chuyển lung tung, chắc Nam viết quy trình chuyển ticket lên kỹ thuật cho cả team là hợp lý nhất   ## escalation:assign
+09:41:15 nam ^es: Dạ em viết theo 3 mức độ ưu tiên   ## escalation:confirm
+10:20:58 thu [dv]: Website cần video demo 2 phút, Ngọc cắt từ video hướng dẫn được không, hôm nay đưa lên luôn   ## demovideo:assign demovideo:due
+10:21:40 ngoc ^dv: Được chị, em cắt xong trước 5h   ## demovideo:confirm
+11:30:22 quang: Báo cáo tuần sales em gửi rồi chị, có kết quả gọi 10 khách gia hạn   ## hn:done_report
+11:31:00 hoa: Phần CS em cũng gửi rồi ạ   ## hn:done_report
+13:15:49 binh: Ai mà thay logo xong 30 mẫu email trong một buổi thì xứng đáng được thưởng Tết gấp đôi 😆   ## hn:joke
+14:00:17 thu: Không cần Mai gửi newsletter bản tiếng Anh tháng này đâu, khách quốc tế ít   ## hn:negation
+14:30:40 thu: Cảm ơn cả team một tuần vất vả, cuối tuần nghỉ ngơi nhé
+act 09:15 ngoc approve swag
+act 09:45 nam approve escalation

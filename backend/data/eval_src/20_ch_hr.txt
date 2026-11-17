@@ -1,4 +1,4 @@
-conv ch_hr group train
+conv ch_hr group dev
 member lan Lan | chị Lan, Lan HR
 member nhi Nhi | Nhi Hồ
 member tram Trâm | Tram
@@ -11,68 +11,49 @@ gold insurance | Gửi danh sách đăng ký bảo hiểm | assigned | duc | 202
 
 day 2026-11-16
 08:30 lan: Chào mọi người, nhắc lịch khám sức khoẻ định kỳ tuần này nhé
-08:31 tram: dạ chị
-08:32 duc: thứ mấy chị
 08:33 lan: thứ 4 và thứ 5, đăng ký trên form
-08:34 duc: dạ em đăng ký rồi   ## hn
+08:34 duc: dạ em đăng ký rồi   ## hn:done_report
 09:00 an: Chị Lan ơi team backend cần tuyển thêm 1 senior
 09:01 lan: anh Hưng có nói rồi
-09:05 lan [jd]: @An viết JD tuyển backend senior giúp chị nhé, thứ 4 đăng   ## jd:assign jd:due
-09:06 an ^jd: dạ ok chị   ## jd:accept
+09:05 lan [jd]: @An viết JD tuyển backend senior giúp chị, thứ 4 đăng   ## jd:assign jd:due
+09:06 an ^jd: dạ ok chị   ## jd:confirm
 10:00 nhi: chị ơi tháng này có bao nhiêu bạn mới vào
-10:01 lan: 4 bạn
-10:02 nhi: đông nhỉ
-13:40 lan [or]: @Nhi chuẩn bị buổi orientation cho 4 bạn mới trước ngày onboard nhé   ## orient:assign orient:due
-13:41 +nhi like or   ## orient:accept
+13:40 lan [or]: @Nhi chuẩn bị buổi orientation cho 4 bạn mới trước ngày onboard   ## orient:assign orient:due
+13:41 +nhi like or
 14:30 duc: chị Lan ơi bảo hiểm sức khoẻ năm nay đổi nhà cung cấp à
 14:31 lan: đúng rồi em, PVI
-14:32 duc: dạ
 act 09:10 an approve jd
 act 13:45 nhi approve orient
 
 day 2026-11-17
 08:40 an: JD em viết xong bản nháp, chị xem nhé
-08:42 lan: để chị xem   ## hn
-09:30 lan: @Đức gửi chị danh sách đăng ký bảo hiểm của team trước thứ 6 nhé   ## insurance:assign insurance:due
-09:31 duc: dạ chị   ## insurance:accept
+08:42 lan: để chị xem   ## hn:defer
+09:30 lan: @Đức gửi chị danh sách đăng ký bảo hiểm của team trước thứ 6   ## insurance:assign insurance:due
+09:31 duc: dạ chị   ## insurance:confirm
 10:30 nhi: slide orientation dùng template công ty hay làm mới chị
 10:31 lan: template công ty em
-10:32 nhi: dạ
 14:00 lan: JD ổn rồi An, chị đăng lên LinkedIn luôn
 14:01 an: dạ cảm ơn chị
 15:30 duc: mọi người đăng ký bảo hiểm nhớ gửi CMND scan cho em
-15:31 tram: em gửi rồi
-15:32 an: tối em gửi
 act 09:35 duc approve insurance
 
 day 2026-11-18
 09:00 lan: JD có 15 CV nộp rồi
-09:01 an: nhanh quá
 14:00 duc: danh sách bảo hiểm em tổng hợp được 80% rồi
-14:01 lan: ok em
 16:00 an: chị ơi CV nào em được xem không
 16:01 lan: chị gửi em 5 bạn shortlist
-16:02 an: dạ
 
 day 2026-11-19
 09:30 nhi: orientation em chuẩn bị xong rồi chị
-09:31 lan: cảm ơn Nhi
 10:00 duc: danh sách bảo hiểm em gửi chị rồi nhé
-10:01 lan: cảm ơn em
 
 day 2026-11-20
 08:30 lan: chào cả nhà, thứ 6 rồi
-08:31 tram: yeah
 08:32 duc: cuối tuần đến nơi rồi
 09:00 nhi: orientation sáng thứ 2 tổ chức ở phòng nào chị
 09:01 lan: phòng họp lớn em
-09:02 nhi: dạ
 10:00 an: chị Lan ơi bạn ứng viên số 3 phỏng vấn hôm nào ạ
 10:01 lan: thứ 3 tuần sau em
-10:02 an: dạ
 13:30 lan: tháng này phòng mình đạt KPI tuyển dụng nhé
-13:31 an: tuyệt quá chị
-13:32 duc: 🎉
 14:30 nhi: bảo hiểm mới khi nào có thẻ chị
 14:31 lan: đầu tháng sau em
-14:32 nhi: dạ

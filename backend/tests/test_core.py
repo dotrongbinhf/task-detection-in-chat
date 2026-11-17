@@ -8,13 +8,18 @@ import pytest
 from detect.config import Config
 from detect.context import build_context
 from detect.dataset import load_dataset, load_prompts
-from detect.extract import resolve_assignees
-from detect.llm import FakeLLM, HeuristicLLM
+from detect.extract import resolve_user_ids
+from detect.llm import FakeLLM
 from detect.models import Member, Message, UserAction, empty_op
 from detect.run import catch_up, flush_actions, init_state, next_batch, process_turn, ui_user_action
-from detect.timeexpr import resolve_due
+from detect.timeexpr import resolve_due, ts
 
 PROMPTS = load_prompts()
+
+def Cfg(**kw) -> Config:
+    """Config cho test v5 cũ: mỗi tin một lượt (quiet_seconds = 0) trừ khi test tự đặt."""
+    return Config(**{"quiet_seconds": 0, **kw})
+
 
 
 MEMBERS = {
@@ -35,7 +40,7 @@ def state_of(messages, actions=()):
 
 
 def run_all(state, llm, cfg=None):
-    cfg = cfg or Config()
+    cfg = cfg or Cfg()
     out = []
     while (t := process_turn(state, cfg, llm, PROMPTS)) is not None:
         out.append(t)
@@ -44,13 +49,16 @@ def run_all(state, llm, cfg=None):
 
 
 def create(anchor: str, refs: list[str], kind="assigned", title="Việc A", **kw):
-    return empty_op("CREATE", kind=kind, anchor=f"@{anchor}", title=title, assignee_refs=refs, due_kind="none",
+    return empty_op("CREATE", kind=kind, anchor=f"@{anchor}", title=title, assignees=refs, due_kind="none",
                     evidence=[{"msg": f"@{anchor}", "role": "assign"}], **kw)
 
 
-def update(task: str, ev: str, changes: list[tuple[str, object]]):
-    return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": "accept"}],
-                    changes=[{"field": f, "value": json.dumps(v, ensure_ascii=False), "evidence_msg": f"@{ev}"} for f, v in changes])
+def update(task: str, ev: str, changes: list[tuple[str, object]], role: str = "accept"):
+    """UPDATE phẳng (v6 mục 7.1): ("due", {...}) → trường hạn; ("assignees_add", [...]); ("title", "..."), ..."""
+    fields: dict = {}
+    for f, v in changes:
+        fields.update(v if f == "due" else {f: v})
+    return empty_op("UPDATE", target=f"@{task}", evidence=[{"msg": f"@{ev}", "role": role}], **fields)
 
 
 # ---------------- resolve_due ----------------
@@ -83,22 +91,46 @@ def test_unresolvable_due():
 
 # ---------------- hàng đợi ----------------
 
-def test_queue_coalesce_and_order():
-    s = state_of([msg("a", "09:00:00", "u_hung", "1"), msg("b", "09:00:03", "u_hung", "2"),
-                  msg("c", "09:00:20", "u_hung", "3"), msg("x", "09:00:01", "u_linh", "dm", conv="dm")])
+def test_queue_waits_for_quiet_conversation():
+    """v6 mục 3: nối tin cùng hội thoại chừng nào cách tin trước ≤ quiet_seconds; tin hội thoại khác không cắt chuỗi."""
+    s = state_of([msg("a", "09:00:00", "u_hung", "1"), msg("b", "09:00:50", "u_hung", "2"),
+                  msg("x", "09:01:00", "u_linh", "dm", conv="dm"), msg("c", "09:01:40", "u_hung", "3"),
+                  msg("d", "09:03:00", "u_hung", "4")])
     key, batch = next_batch(s, Config())
-    assert [e.id for e in batch] == ["a", "b"]  # x thuộc key khác
-    turns = run_all(s, FakeLLM())
-    assert [t["new_event_ids"] for t in turns] == [["a", "b"], ["x"], ["c"]]
+    assert [e.id for e in batch] == ["a", "b", "c"]  # d cách c 80 giây > 60
+    turns = run_all(s, FakeLLM(), Config())
+    assert [t["new_event_ids"] for t in turns] == [["a", "b", "c"], ["x"], ["d"]]
+    assert turns[0]["at"] == "2026-11-09T09:01:40+07:00"  # thời điểm lượt = tin cuối
 
 
-def test_reaction_only_triggers_when_relevant():
-    old = msg("m0", "08:00", "u_hung", "tin cũ", reactions=[{"user_id": "u_linh", "type": "like", "created_at": "2026-11-09T10:00:00+07:00"}])
-    filler = [msg(f"f{i}", f"09:{i:02d}", "u_nam", f"filler {i}") for i in range(12)]
-    s = state_of([old, *filler])
-    turns = run_all(s, FakeLLM(), Config(window_k=10))
-    r = next(t for t in turns if "m0#r1" in t["new_event_ids"])
-    assert r["skipped"] == "reaction_not_relevant"
+def test_queue_caps_wait_and_size():
+    ms = [msg(f"m{i}", f"09:{i // 2:02d}:{30 * (i % 2):02d}", "u_hung", str(i)) for i in range(14)]  # cách nhau 30 giây
+    assert len(next_batch(state_of(ms), Config())[1]) == 10                                   # max_batch_messages
+    assert [e.id for e in next_batch(state_of(ms), Config(max_wait_seconds=120))[1]] == ["m0", "m1", "m2", "m3", "m4"]
+
+
+def test_approval_before_its_turn_is_deferred():
+    """Tin 09:00–09:06 thành một lượt lúc 09:06; dataset ghi duyệt 09:05 → áp ngay sau lượt đó, không 'unmatched'."""
+    ms = [msg("a", "09:00", "u_hung", "Linh làm A nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}])]
+    ms += [msg(f"f{i}", f"09:0{i + 1}", "u_nam", f"tin {i}") for i in range(5)]
+    acts = [UserAction(at="2026-11-09T09:05:00+07:00", user_id="u_linh", message_id="a", action="approve")]
+    s = state_of(ms, acts)
+    turns = run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh"])]}}), Config())
+    assert len(turns) == 1 and turns[0]["post"]["user_actions"][0]["type"] == "user_action"
+    assert s.tasks[0].status == "approved" and ts(s.tasks[0].status_changed_at) == ts("2026-11-09T09:05:00+07:00")
+    assert not any(e["type"] == "user_action_unmatched" for e in s.trace)
+
+
+def test_reaction_is_not_a_turn_and_is_shown_inline():
+    """v6 mục 4: reaction không sinh lượt; in kèm dòng tin, chỉ reaction có created_at ≤ thời điểm lượt."""
+    old = msg("m0", "08:00", "u_hung", "tin cũ", reactions=[
+        {"user_id": "u_linh", "type": "like", "created_at": "2026-11-09T08:30:00+07:00"},
+        {"user_id": "u_nam", "type": "love", "created_at": "2026-11-09T09:30:00+07:00"}])
+    s = state_of([old, msg("m1", "09:00", "u_nam", "tin sau")])
+    turns = run_all(s, FakeLLM(), Cfg(window_k=10))
+    assert [t["new_event_ids"] for t in turns] == [["m0"], ["m1"]]
+    line = next(l for l in turns[1]["context"]["prompt"].splitlines() if "tin cũ" in l)
+    assert line.endswith("[👍 Linh]")  # ❤️ của Nam lúc 09:30 chưa xảy ra ở lượt 09:00
 
 
 # ---------------- dựng ngữ cảnh ----------------
@@ -107,13 +139,13 @@ def test_reply_chain_and_maps():
     ms = [msg("root", "08:00", "u_hung", "gốc")] + [msg(f"f{i}", f"08:{10 + i}", "u_nam", f"x{i}") for i in range(12)]
     ms.append(msg("new", "09:00", "u_linh", "trả lời", reply_to_id="root"))
     s = state_of(ms)
-    cfg = Config(window_k=5)
+    cfg = Cfg(window_k=5)
     while True:
         key, batch = next_batch(s, cfg)
         if batch[0].id == "new":
             break
         s.processed += [e.id for e in batch]
-    ctx = build_context(s, key, batch, cfg, PROMPTS["extract"], PROMPTS["gate"])
+    ctx = build_context(s, key, batch, cfg, PROMPTS["extract"])
     assert "root" in ctx.reply_ids
     for local, mid in ctx.id_map.items():
         assert ctx.rev_map[mid] == local
@@ -129,10 +161,10 @@ def test_validate_rules():
     fake = FakeLLM({
         "a": {"ops": [create("a", ["u_linh"])]},
         "b": {"ops": [create("a", ["u_linh"]) | {"evidence": [{"msg": "@a", "role": "assign"}, {"msg": "@b", "role": "accept"}]},  # duplicate_anchor
-                      empty_op("UPDATE", target="T9", evidence=[{"msg": "@b", "role": "accept"}], changes=[])]},  # unknown_task
-        "c": {"ops": [empty_op("CREATE", kind="assigned", anchor="@a", title="x", assignee_refs=[], due_kind="none",
+                      empty_op("UPDATE", target="T9", evidence=[{"msg": "@b", "role": "accept"}])]},  # unknown_task
+        "c": {"ops": [empty_op("CREATE", kind="assigned", anchor="@a", title="x", assignees=[], due_kind="none",
                                evidence=[{"msg": "@a", "role": "assign"}]),  # không trích TIN MỚI
-                      update("K1", "c", [("title", "y")]) | {"changes": [{"field": "title", "value": '"y"', "evidence_msg": "#99"}]}]},
+                      update("K1.1", "c", [("title", "y")]) | {"evidence": [{"msg": "#99", "role": "content"}]}]},
     })
     s = state_of(ms)
     turns = run_all(s, fake)
@@ -140,7 +172,7 @@ def test_validate_rules():
     assert any(r.startswith("duplicate_anchor") for r in reasons)
     assert any(r.startswith("unknown_task") for r in reasons)
     assert "not_from_new_message" in reasons
-    assert any(r.startswith("missing_evidence") for r in reasons)
+    assert any(r.startswith("unknown_message_id") for r in reasons)
     assert len(s.tasks) == 1
 
 
@@ -161,15 +193,16 @@ def test_candidate_to_draft_and_expiry():
     ms = [msg("a", "09:00", "u_hung", "Ai làm được cái này không"), msg("b", "09:05", "u_nam", "để em làm"),
           msg("c", "09:10", "u_hung", "Cần ai viết doc")]
     fake = FakeLLM({"a": {"ops": [create("a", [], kind="open_ask")]},
-                    "b": {"ops": [update("K1", "b", [("assignee_refs", ["SPEAKER:@b"])])]},
+                    "b": {"ops": [update("K1.1", "b", [("assignees_add", ["u_nam"])])]},
                     "c": {"ops": [create("c", [], kind="open_ask")]}})
     s = state_of(ms)
     run_all(s, fake)
     t1, t2 = s.tasks
     assert t1.status == "draft" and t1.assignee_ids == ["u_nam"] and t1.kind == "assigned"
     assert t2.status == "candidate"
-    catch_up(s, "2026-11-11T09:11:00+07:00", Config())
-    assert t2.status == "expired"
+    catch_up(s, "2026-11-11T09:11:00+07:00", Cfg())
+    assert t2.status == "closed" and t2.closed_reason == "candidate_ttl"
+    assert t2.status_changed_at == "2026-11-11T09:10:00+07:00"  # đúng lúc hết TTL 48 giờ, không phải lúc lượt sau
 
 
 def test_authorization_and_multi_assignee():
@@ -177,7 +210,7 @@ def test_authorization_and_multi_assignee():
     fake = FakeLLM({"a": {"ops": [create("a", ["u_linh", "u_nam"])]}})
     s = state_of(ms)
     run_all(s, fake)
-    cfg = Config()
+    cfg = Cfg()
     out = ui_user_action(s, UserAction(at="", user_id="u_hung", message_id="a", action="approve"), cfg)
     assert out[0]["type"] == "user_action_unauthorized"
     ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="approve"), cfg)
@@ -189,7 +222,7 @@ def test_authorization_and_multi_assignee():
 def test_all_decline_makes_declined():
     s = state_of([msg("a", "09:00", "u_hung", "x")])
     run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh"])]}}))
-    ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="decline"), Config())
+    ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="decline"), Cfg())
     assert s.tasks[0].status == "declined"
 
 
@@ -211,7 +244,7 @@ DUE_SAT = {"due_text": "thứ 7", "due_kind": "weekday", "due_weekday": 7}
 def test_change_proposal_supersede_and_approve():
     s = _approved_task_state(
         [msg("b", "10:00", "u_hung", "lùi sang thứ 6"), msg("c", "10:05", "u_hung", "thôi thứ 7 nhé")],
-        {"b": {"ops": [update("K1", "b", [("due", DUE_FRI)])]}, "c": {"ops": [update("K1", "c", [("due", DUE_SAT)])]}},
+        {"b": {"ops": [update("K1.1", "b", [("due", DUE_FRI)])]}, "c": {"ops": [update("K1.1", "c", [("due", DUE_SAT)])]}},
         [UserAction(at="2026-11-09T10:10:00+07:00", user_id="u_linh", message_id="c", action="approve_change")],
     )
     t = s.tasks[0]
@@ -220,15 +253,15 @@ def test_change_proposal_supersede_and_approve():
 
 
 def test_approved_task_not_modified_until_approved():
-    s = _approved_task_state([msg("b", "10:00", "u_hung", "lùi sang thứ 6")], {"b": {"ops": [update("K1", "b", [("due", DUE_FRI)])]}})
+    s = _approved_task_state([msg("b", "10:00", "u_hung", "lùi sang thứ 6")], {"b": {"ops": [update("K1.1", "b", [("due", DUE_FRI)])]}})
     assert s.tasks[0].due_date is None and s.changes[0].status == "pending"
 
 
 def test_declined_change_suppressed_and_no_op():
     s = _approved_task_state(
         [msg("b", "10:00", "u_hung", "lùi sang thứ 6"), msg("c", "11:00", "u_hung", "thứ 6 nhé"), msg("d", "11:05", "u_hung", "ok")],
-        {"b": {"ops": [update("K1", "b", [("due", DUE_FRI)])]}, "c": {"ops": [update("K1", "c", [("due", DUE_FRI)])]},
-         "d": {"ops": [update("K1", "d", [("title", "Việc A")])]}},
+        {"b": {"ops": [update("K1.1", "b", [("due", DUE_FRI)])]}, "c": {"ops": [update("K1.1", "c", [("due", DUE_FRI)])]},
+         "d": {"ops": [update("K1.1", "d", [("title", "Việc A")])]}},
         [UserAction(at="2026-11-09T10:30:00+07:00", user_id="u_linh", message_id="b", action="decline_change")],
     )
     reasons = [e["reason"] for e in s.trace if e["type"] == "change_rejected"]
@@ -237,46 +270,48 @@ def test_declined_change_suppressed_and_no_op():
 
 def test_cancel_approved_is_proposal_and_pending_keeps_open():
     s = _approved_task_state([msg("b", "10:00", "u_hung", "thôi khỏi làm")],
-                             {"b": {"ops": [empty_op("CANCEL", target="@K1", evidence=[{"msg": "@b", "role": "cancel"}])]}})
+                             {"b": {"ops": [empty_op("CANCEL", target="@K1.1", evidence=[{"msg": "@b", "role": "cancel"}])]}})
     assert s.tasks[0].status == "approved" and s.changes[0].field == "status"
-    catch_up(s, "2026-12-30T10:00:00+07:00", Config())
+    catch_up(s, "2026-12-30T10:00:00+07:00", Cfg())
     assert s.tasks[0].status == "approved"  # có đề xuất pending → không bị closed
 
 
 def test_reassign_approved_by_new_assignee():
     s = _approved_task_state([msg("b", "10:00", "u_hung", "à thôi để Nam làm")],
-                             {"b": {"ops": [update("K1", "b", [("assignee_refs", ["u_nam"])])]}})
+                             {"b": {"ops": [update("K1.1", "b", [("assignees_add", ["u_nam"]), ("assignees_remove", ["u_linh"])],
+                                                   role="assignee")]}})
     c = s.changes[0]
     assert c.approver_ids == ["u_nam"] and c.notified_ids == ["u_linh"]
 
 
 # ---------------- gán người nhận ----------------
 
-def test_resolve_assignees():
-    ms = [msg("a", "09:00", "u_hung", "@Linh làm nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}]),
-          msg("b", "09:01", "u_linh", "ok")]
-    s = state_of(ms)
-    cfg = Config()
-    s.processed.append("a")
+def _ctx_for(messages, cfg=None):
+    s = state_of(messages)
+    cfg = cfg or Cfg()
+    for m in messages[:-1]:
+        s.processed.append(m.id)
     key, batch = next_batch(s, cfg)
-    ctx = build_context(s, key, batch, cfg, PROMPTS["extract"], PROMPTS["gate"])
-    loc_b = ctx.rev_map["b"]
-    ids, _ = resolve_assignees(["u_linh", f"SPEAKER:{loc_b}", "anh Hưng", "chị linh"], ctx, "a")
-    assert ids == ["u_linh", "u_hung"]
-    ids, det = resolve_assignees(["Nam"], ctx, "a")  # hai người tên Nam → không gán
-    assert ids == [] and "trùng" in det[0]["how"]
-    # nhóm: ADDRESSEE = người được @mention duy nhất trong tin anchor; không có @mention → không gán
-    assert resolve_assignees(["ADDRESSEE"], ctx, "a")[0] == ["u_linh"]
-    ids, det = resolve_assignees(["ADDRESSEE"], ctx, "b")
-    assert ids == [] and "0 người" in det[0]["how"]
+    return build_context(s, key, batch, cfg, PROMPTS["extract"])
 
 
-def test_addressee_in_dm():
-    s = state_of([msg("d", "09:00", "u_hung", "em làm giúp anh nhé", conv="dm")])
-    cfg = Config()
-    key, batch = next_batch(s, cfg)
-    ctx = build_context(s, key, batch, cfg, PROMPTS["extract"], PROMPTS["gate"])
-    assert resolve_assignees(["ADDRESSEE"], ctx, "d")[0] == ["u_linh"]
+def test_resolve_user_ids():
+    """v6 mục 5.3: user_id thành viên → giữ; không phải thành viên → khớp tên đúng một người; không khớp → assignee_unknown."""
+    ctx = _ctx_for([msg("a", "09:00", "u_hung", "@Linh làm nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}]),
+                    msg("b", "09:01", "u_linh", "ok")])
+    ids, det = resolve_user_ids(["u_linh", "anh Hưng", "chị linh", "u_ghost"], ctx)
+    assert ids == ["u_linh", "u_hung"] and det[3]["id"] is None and det[3]["how"].startswith("assignee_unknown")
+    ids, det = resolve_user_ids(["Nam"], ctx)  # hai người tên Nam → không gán
+    assert ids == [] and "trùng 2" in det[0]["how"]
+
+
+def test_prompt_lines_carry_author_user_id_and_members():
+    ctx = _ctx_for([msg("a", "09:00", "u_hung", "@Linh làm nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}])])
+    assert "Hưng (u_hung): @Linh làm nhé (@Linh=u_linh)" in ctx.user
+    assert "<MEMBERS>\nu_hung Hưng\nu_linh Linh\nu_nam Nam\nu_nam2 Nam\n</MEMBERS>" in ctx.user
+    small = _ctx_for([msg("a", "09:00", "u_hung", "@Linh làm nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}])],
+                     Cfg(members_max=2))  # đông hơn members_max → chỉ người có mặt trong prompt
+    assert "<MEMBERS>\nu_hung Hưng\nu_linh Linh\n</MEMBERS>" in small.user
 
 
 # ---------------- parse failure & chạy lại cho cùng kết quả ----------------
@@ -288,9 +323,24 @@ def test_parse_failure_skips_turn_without_losing_message():
     assert "a" in turns[1]["context"]["id_map"].values()
 
 
-def test_rerun_is_deterministic():
-    def go():
-        s = init_state(load_dataset("sample"))
-        run_all(s, HeuristicLLM())
-        return [t.model_dump(exclude={"model"}) for t in s.tasks]
-    assert go() == go()
+def test_jobs_1_and_4_give_same_result():
+    """v6 mục 8.4: chạy song song theo hội thoại cho cùng kết quả như chạy tuần tự."""
+    from detect.run import run_dataset
+
+    ms = [msg("a", "09:00", "u_hung", "Linh làm A nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}]),
+          msg("d1", "09:00:30", "u_hung", "em làm B giúp anh", conv="dm"),
+          msg("b", "09:05", "u_hung", "Nam làm C"), msg("d2", "09:06", "u_linh", "dạ", conv="dm"),
+          msg("c", "12:00", "u_hung", "thôi khỏi C")]
+    by = {"a": {"ops": [create("a", ["u_linh"])]}, "d1": {"ops": [create("d1", ["u_linh"], title="Việc B")]},
+          "b": {"ops": [create("b", ["Nam"], title="Việc C")]}}
+    acts = [UserAction(at="2026-11-09T09:10:00+07:00", user_id="u_linh", message_id="a", action="approve")]
+    ds = dict(name="t", messages=ms, members=MEMBERS, gold=None, hard_negatives=[], user_actions=acts)
+
+    def go(jobs):
+        s = run_dataset(ds, Cfg(), FakeLLM(by), PROMPTS, jobs)
+        return ([t.model_dump() for t in s.tasks], [(t["turn"], t["new_event_ids"]) for t in s.turns],
+                [c.model_dump() for c in s.changes])
+    one, four = go(1), go(4)
+    assert sorted(one[0], key=lambda t: t["task_id"]) == sorted(four[0], key=lambda t: t["task_id"])
+    assert one[1] == four[1] and one[2] == four[2]
+    assert {t["task_id"] for t in one[0]} == {"K1.1", "K1.2", "K2.1"}

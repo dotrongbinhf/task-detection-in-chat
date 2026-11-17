@@ -1,13 +1,13 @@
-"""Dựng ngữ cảnh cho bộ trích: code tìm task trước, LLM phán sau.
+"""Dựng ngữ cảnh cho bộ trích: code chọn task, LLM phán.
 
-Prompt lần 1 = khối 1 hướng dẫn · <CALENDAR> · <LINKED_TASKS> (task có tin bằng chứng được TIN MỚI reply / thả reaction)
-· <CANDIDATE_TASKS> (task khớp nội dung TIN MỚI `[matched: …]`, rồi task nhắc gần nhất `[recent]`) · <RECENT_HISTORY> (K tin)
-· <NEW_MESSAGES>. Lần gọi 2 (chỉ khi kiểm tra target kích hoạt) = nguyên prompt lần 1 + khối <TASK_SEARCH_RESULTS>.
+Prompt lần 1 = khối 1 hướng dẫn · `Conversation type` + <MEMBERS> · dòng `Today` · <LINKED_TASKS> (task có tin bằng chứng được
+TIN MỚI reply) · <TASK_DETAILS> (vài task có khả năng liên quan nhất, chi tiết đầy đủ) · <TASK_INDEX> (mọi task mở còn lại,
+một dòng một task) · <RECENT_HISTORY> (K tin) · <NEW_MESSAGES>. `T<n>` đánh liên tục qua ba khối (v6 mục 6).
+Lần gọi 2 (`detail_check`, hiếm) = nguyên prompt lần 1 + <TASK_DETAILS source="detail_check"> cho task chỉ có ở index.
 """
 from __future__ import annotations
 
 import copy
-import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Optional
@@ -15,14 +15,16 @@ from typing import Any, Optional
 from .config import Config
 from .ledger import pending_for
 from .models import EngineState, Member, Message, PendingChange, StreamEvent, Task
-from .timeexpr import calendar14, fmt_day_time, fmt_time, local_date, parse, to_iso, ts, vi_weekday
+from .timeexpr import fmt_day_time, fmt_time, local_date, parse, to_iso, ts, vi_weekday
 from .tokens import count_tokens, truncate_tokens
 
 REACTION_EMOJI = {"like": "👍", "love": "❤️", "heart": "❤️", "haha": "😆", "wow": "😮", "sad": "😢", "angry": "😠", "ok": "👌", "check": "✅"}
-LINKED_HEADER = ("The sender of NEW_MESSAGES replied directly to (or reacted on) an evidence message of the task below. "
+LINKED_HEADER = ("The sender of NEW_MESSAGES replied directly to an evidence message of the task below. "
                  "Assume NEW_MESSAGES are about this task unless their content clearly refers to something else.")
+INDEX_HEADER = "Other open tasks, one line each (use them to recognise a task; UPDATE / CANCEL may target any T<n>):"
 FINAL_CALL_NOTE = "This is the final call: return ops only."
 OUTSIDE = "(message outside context)"
+INDEX_MIN, DETAILS_MIN, K_MIN = 10, 1, 5
 
 
 def conversation_key(m: Message) -> str:
@@ -33,7 +35,7 @@ def conversation_key(m: Message) -> str:
 class PromptMsg:
     local: str
     id: str
-    kind: str  # message | reaction
+    kind: str  # message
     at: str
     author_id: str
     author_name: str
@@ -42,14 +44,15 @@ class PromptMsg:
     reply_to_id: Optional[str]
     target_id: Optional[str]
     reaction_type: Optional[str]
-    section: str  # evidence | reply | window | new | target_check
+    section: str  # evidence | reply | window | new | detail_check
+    reactions: list[str] = field(default_factory=list)  # "👍 Nam" — reaction có created_at ≤ thời điểm lượt (v6 mục 4)
 
 
 @dataclass
 class PromptTask:
     local: str
     task: Task
-    source: str  # linked | matched | recent | target_check
+    source: str  # linked | details | index | detail_check
     pending: list[PendingChange]
     evidence_shown: list[str]
     why: str = ""
@@ -81,41 +84,42 @@ class BuiltContext:
     window_ids: list[str]
     reply_ids: list[str]
     evidence_ids: list[str]
-    gate_system: str
-    gate_user: str
     turn_at: str
-    retrieval: dict[str, Any] = field(default_factory=dict)  # truy vấn tìm task matched: query, people, joined_reply
-    chain_ids: list[str] = field(default_factory=list)       # tin mà TIN MỚI reply / thả reaction (đi ngược chuỗi)
+    retrieval: dict[str, Any] = field(default_factory=dict)  # văn bản truy vấn (embedding), tin reply được nối
+    chain_ids: list[str] = field(default_factory=list)       # tin mà TIN MỚI reply (đi ngược chuỗi)
+    index_count: int = 0                                     # số dòng trong <TASK_INDEX>
     call: int = 1                      # lần gọi bộ trích trong lượt (1 hoặc 2)
     cache_key: Optional[str] = None    # prompt_cache_key gửi OpenAI
-    extra_block: str = ""              # khối <TASK_SEARCH_RESULTS> (chỉ ở lần gọi 2)
+    extra_block: str = ""              # khối <TASK_DETAILS source="detail_check"> (chỉ ở lần gọi 2)
 
     @property
     def candidates(self) -> list[dict[str, Any]]:
         return [p.public() for p in self.tasks]
 
 
-def _to_prompt_msg(e: StreamEvent, section: str) -> PromptMsg:
-    if e.kind == "message":
-        m = e.message
-        assert m is not None
-        text = m.text + ("".join(f" [file: {a}]" for a in m.attachments) if m.attachments else "")
-        return PromptMsg("", m.id, "message", m.created_at, m.author_id, m.author_name, text,
-                         [x.model_dump() for x in m.mentions], m.reply_to_id, None, None, section)
-    return PromptMsg("", e.id, "reaction", e.at, e.user_id or "", e.user_name or "", "", [], None, e.target_id, e.type, section)
+def _to_prompt_msg(e: StreamEvent, section: str, until: Optional[str] = None,
+                   names: Optional[dict[str, str]] = None) -> PromptMsg:
+    """Tin nhắn → dòng prompt. Reaction không phải sự kiện: in kèm dòng tin, chỉ reaction có created_at ≤ `until`."""
+    m = e.message
+    assert m is not None
+    text = m.text + ("".join(f" [file: {a}]" for a in m.attachments) if m.attachments else "")
+    names = names or {}
+    reacts = [f"{REACTION_EMOJI.get(r.type, r.type)} {names.get(r.user_id, r.user_id)}" for r in m.reactions
+              if until is None or ts(r.created_at) <= ts(until)]
+    return PromptMsg("", m.id, "message", m.created_at, m.author_id, m.author_name, text,
+                     [x.model_dump() for x in m.mentions], m.reply_to_id, None, None, section, reacts)
 
 
 def _fmt_msg(m: PromptMsg, prev_at: Optional[str], rev_map: dict[str, str], max_tokens: int) -> str:
     full = not prev_at or local_date(prev_at) != local_date(m.at) or ts(m.at) - ts(prev_at) > 3600
     stamp = fmt_day_time(m.at) if full else fmt_time(m.at)
-    if m.kind == "reaction":
-        tgt = rev_map.get(m.target_id or "", OUTSIDE)
-        return f"{m.local} [{stamp}] {m.author_name} {REACTION_EMOJI.get(m.reaction_type or '', m.reaction_type)} (reaction to {tgt})"
-    line = f"{m.local} [{stamp}] {m.author_name}: {truncate_tokens(m.text, max_tokens)}"
+    line = f"{m.local} [{stamp}] {m.author_name} ({m.author_id}): {truncate_tokens(m.text, max_tokens)}"
     if m.mentions:
         line += " (" + ", ".join(f"@{x['name']}={x['user_id']}" for x in m.mentions) + ")"
     if m.reply_to_id:
         line += f" ↩{rev_map.get(m.reply_to_id, OUTSIDE)}"
+    if m.reactions:
+        line += " [" + ", ".join(m.reactions) + "]"
     return line
 
 
@@ -128,7 +132,7 @@ def _fmt_list(lst: list[PromptMsg], rev_map: dict[str, str], max_tokens: int) ->
 
 
 def _due_en(due_type: str, due_date: Optional[str], due_text: Optional[str]) -> str:
-    """Hạn trong prompt: ngày ISO + thứ (khớp khối <CALENDAR>), sự kiện giữ nguyên chữ trong chat."""
+    """Hạn trong prompt: ngày ISO + thứ (cùng dạng dòng `Today`), sự kiện giữ nguyên chữ trong chat."""
     if due_type == "calendar" and due_date:
         return f"{due_date} ({vi_weekday(date.fromisoformat(due_date).isoweekday())})"
     if due_type == "event":
@@ -136,11 +140,15 @@ def _due_en(due_type: str, due_date: Optional[str], due_text: Optional[str]) -> 
     return "none"
 
 
+def _who(t: Task, members: list[Member]) -> str:
+    name_of = {m.user_id: m.display_name for m in members}
+    return ", ".join(f"{name_of.get(u, u)} ({u})" for u in t.assignee_ids) or "(none)"
+
+
 def _task_head(state: EngineState, t: Task, local: str, members: list[Member]) -> tuple[str, list[PendingChange]]:
-    """`T1 [status | kind] "title" — assignee: … — due: …` (+ thay đổi đang chờ duyệt)."""
-    name_of = lambda u: next((m.display_name for m in members if m.user_id == u), u)  # noqa: E731
+    """`T1 [status | kind] "title" — assignee: Hà (u_ha) — due: …` (+ thay đổi đang chờ duyệt)."""
     pend = pending_for(state, t.task_id)
-    who = ", ".join(name_of(u) for u in t.assignee_ids) or "(none)"
+    who = _who(t, members)
     p_as = next((p for p in pend if p.field == "assignee_refs"), None)
     if p_as:
         who += f", PENDING APPROVAL: {p_as.new_display}"
@@ -153,6 +161,20 @@ def _task_head(state: EngineState, t: Task, local: str, members: list[Member]) -
     return f'{local} [{t.status} | {t.kind}] "{t.title}" — assignee: {who} — due: {due}{extra}', pend
 
 
+def _index_line(t: Task, local: str, members: list[Member]) -> str:
+    """Dòng gọn ở <TASK_INDEX>: `T7 "title" — An (u_an) — due 2026-12-01 (thứ 3)`; task declined có nhãn."""
+    due = _due_en(t.due_type, t.due_date, t.due_text)
+    tag = f"[{t.status}] " if t.status == "declined" else ""
+    return f'{local} {tag}"{t.title}" — {_who(t, members)} — ' + ("no due" if due == "none" else f"due {due}")
+
+
+def members_block(members: list[Member], include: Optional[set[str]], max_n: int) -> str:
+    """`<MEMBERS>` — một dòng một người: `u_minh Minh (anh Minh, Minh Hoàng)`. Hội thoại đông hơn `max_n`: chỉ người trong `include`."""
+    rows = members if len(members) <= max_n or include is None else [m for m in members if m.user_id in include]
+    lines = [f"{m.user_id} {m.display_name}" + (f" ({', '.join(m.aliases)})" if m.aliases else "") for m in rows]
+    return "<MEMBERS>\n" + ("\n".join(lines) or "(none)") + "\n</MEMBERS>"
+
+
 def _ev_refs(t: Task, rev_map: dict[str, str]) -> str:
     refs = [f"{rev_map[e.message_id]} {e.role}" for e in t.evidence if e.message_id in rev_map]
     hidden = sum(1 for e in t.evidence if e.message_id not in rev_map)
@@ -160,7 +182,7 @@ def _ev_refs(t: Task, rev_map: dict[str, str]) -> str:
 
 
 def _pick_evidence(t: Task, n: int, at_of: dict[str, str]) -> list[str]:
-    """Tin giao (anchor) + các tin bằng chứng mới nhất, tối đa n, chỉ tin nhắn (không lấy reaction)."""
+    """Tin giao (anchor) + các tin bằng chứng mới nhất, tối đa n."""
     if n <= 0:
         return []
     ids = [i for i in dict.fromkeys(e.message_id for e in t.evidence) if i in at_of]
@@ -174,16 +196,15 @@ def _pick_evidence(t: Task, n: int, at_of: dict[str, str]) -> list[str]:
 
 
 def linked_message_ids(batch: list[StreamEvent], msgs: dict[str, Message], chain_max: int) -> list[tuple[str, str, int]]:
-    """(message_id, cách link, số bước) — reply_to_id / target_id của TIN MỚI, đi ngược chuỗi reply ≤ chain_max."""
+    """(message_id, cách link, số bước) — reply_to_id của TIN MỚI, đi ngược chuỗi reply ≤ chain_max (reaction không link)."""
     out: list[tuple[str, str, int]] = []
     seen: set[str] = set()
     for e in batch:
-        how = "reply" if e.kind == "message" else "reaction"
-        cur = e.message.reply_to_id if e.kind == "message" and e.message else e.target_id
+        cur = e.message.reply_to_id if e.message else None
         step = 0
         while cur and step < max(1, chain_max) and cur not in seen:
             seen.add(cur)
-            out.append((cur, how, step))
+            out.append((cur, "reply", step))
             cur = msgs[cur].reply_to_id if cur in msgs else None
             step += 1
     return out
@@ -193,97 +214,65 @@ def to_iso_days_before(iso: str, days: float) -> str:
     return to_iso(parse(iso) - timedelta(days=days))
 
 
-# Từ mô tả THAY ĐỔI chứ không mô tả VIỆC: "lùi sang thứ 2 tuần sau" khớp mọi task có chữ "tuần"/"lùi" (đo trên
-# data/sample: chiếm 1–2 trong 3 chỗ matched). Bỏ khỏi truy vấn tìm ứng viên — "báo cáo tuần" vẫn giữ "tuần".
-# shortcut: danh sách tay, chỉ tiếng Việt; chỉ ảnh hưởng xếp hạng ứng viên, không quyết định op nào.
-CHANGE_WORDS_RE = re.compile(
-    r"\b(tuần|tuan|tháng|thang)\s+(sau|này|nay|tới|toi|trước|truoc)\b"
-    r"|\b(lùi|lui|dời|dời lại|đổi|hoãn|hoan|gia hạn|xong|huỷ|hủy|huy|khỏi|khoi|nhé|nha)\b", re.IGNORECASE)
-
-
-def retrieval_query(store: Any, key: str, batch: list[StreamEvent], msgs: dict[str, Message],
-                    window_ids: set[str]) -> tuple[str, list[str], Optional[str]]:
-    """Truy vấn tìm task khớp TIN MỚI → (query_text, people, id tin được reply đã nối).
-
-    query_text = nội dung mọi tin nhắn trong TIN MỚI (không gồm reaction), bỏ @mention; tin reply mà tin được reply nằm
-    ngoài cửa sổ K → nối thêm nội dung tin được reply (tối đa 1 tin): "ok em, lùi sang thứ 6 nhé" một mình không có từ khoá.
-    people = người gửi TIN MỚI + người được @mention + tác giả tin được reply + tên thành viên viết hoa trong tin."""
+def query_text(store: Any, key: str, batch: list[StreamEvent], msgs: dict[str, Message],
+               window_ids: set[str]) -> tuple[str, Optional[str]]:
+    """Văn bản truy vấn (embedding) = nội dung TIN MỚI bỏ @mention; tin reply mà tin được reply nằm ngoài cửa sổ K → nối
+    thêm nội dung tin đó ("ok em, lùi sang thứ 6 nhé" một mình không nói việc gì)."""
     batch_ids = {e.id for e in batch}
-    texts = [e.message.text for e in batch if e.kind == "message" and e.message]
-    people: list[str] = []
+    texts = [e.message.text for e in batch if e.message]
     joined: Optional[str] = None
     for e in batch:
-        if e.kind == "message" and e.message:
-            people.append(e.message.author_id)
-            people += [x.user_id for x in e.message.mentions]
-            rid = e.message.reply_to_id
-            if rid and rid in msgs:
-                people.append(msgs[rid].author_id)
-                if joined is None and rid not in window_ids and rid not in batch_ids:
-                    joined = rid
-        elif e.user_id:
-            people.append(e.user_id)
+        rid = e.message.reply_to_id if e.message else None
+        if rid and rid in msgs and rid not in window_ids and rid not in batch_ids:
+            joined = rid
+            break
     if joined:
         texts.append(msgs[joined].text)
-    raw = " ".join(texts)
-    people += store.names_in_query(key, raw)
-    q = re.sub(r"\s{2,}", " ", CHANGE_WORDS_RE.sub(" ", store.query_text(key, raw))).strip()
-    return q, list(dict.fromkeys(p for p in people if p)), joined
-
-
-def _matched_label(h: Any) -> str:
-    """`[matched: bao, cao, tuan · 0.52]` — tối đa 3 từ khớp (bỏ dấu) và cosine nếu có."""
-    words = [w for w in h.matched if not w.startswith(("người:", "ngữ nghĩa"))][:3]
-    parts = ", ".join(words)
-    if h.similarity is not None:
-        parts = f"{parts} · {h.similarity:.2f}" if parts else f"{h.similarity:.2f}"
-    return f"[matched: {parts}]" if parts else "[matched]"
+    return store.strip_mentions(key, " ".join(texts)), joined
 
 
 def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: Config,
-                  instructions: str, gate_instructions: str, embedder: Any = None) -> BuiltContext:
+                  instructions: str, embedder: Any = None) -> BuiltContext:
     from .store import TaskStore  # tránh vòng import
 
     store = TaskStore(state, cfg, embedder)
-    msgs = {e.id: e.message for e in state.events if e.kind == "message"}
+    msgs = {e.id: e.message for e in state.events if e.message}
     by_id = {e.id: e for e in state.events}
     processed = set(state.processed)
     batch_ids = {e.id for e in batch}
     turn_at, first_at = batch[-1].at, batch[0].at
     members = state.members.get(key.split(";")[0], [])
-    conv_type = next((e.message.conversation_type for e in batch if e.kind == "message"), None) or next(
-        (e.message.conversation_type for e in state.events if e.kind == "message" and e.key == key), "group")
+    names = {m.user_id: m.display_name for m in members}
+    conv_type = next((e.message.conversation_type for e in batch if e.message), None) or next(
+        (e.message.conversation_type for e in state.events if e.message and e.key == key), "group")
     since = to_iso_days_before(turn_at, cfg.search_lookup_days)
 
-    hist_events = [e for e in state.events if e.key == key and e.id in processed and e.id not in batch_ids and ts(e.at) <= ts(first_at)]
-    hist_msgs = [e for e in hist_events if e.kind == "message"]
+    hist_msgs = [e for e in state.events if e.key == key and e.id in processed and e.id not in batch_ids and ts(e.at) <= ts(first_at)]
 
-    # ---- task được link: TIN MỚI reply / thả reaction vào tin bằng chứng (đi ngược chuỗi reply) ----
+    # ---- tầng 1: task được link (TIN MỚI reply vào tin bằng chứng, đi ngược chuỗi reply) — không bao giờ bị cắt ----
     chain = linked_message_ids(batch, msgs, cfg.reply_chain_max)
     linked_tasks = store.linked(key, [c[0] for c in chain], since)[: max(0, cfg.linked_tasks_max)]
     linked_via = {t.task_id: next(c for c in chain if c[0] in {e.message_id for e in t.evidence}) for t in linked_tasks}
 
-    # ---- ứng viên: task khớp nội dung TIN MỚI (matched), rồi task nhắc gần nhất (recent) ----
+    # ---- tầng 2, 3: TASK_DETAILS (gần nhất + gần nghĩa) và TASK_INDEX (phần còn lại) ----
     base_window = {e.id for e in hist_msgs[-cfg.window_k:]} if cfg.window_k > 0 else set()
-    q, q_people, joined = retrieval_query(store, key, batch, msgs, base_window)
-    matched_hits, recent = store.candidates(key, q, q_people, since, {t.task_id for t in linked_tasks}, now=turn_at)
-    cands: list[tuple[Task, str]] = [(h.task, _matched_label(h)) for h in matched_hits] + [(t, "[recent]") for t in recent]
+    q, joined = query_text(store, key, batch, msgs, base_window)
+    tiers = store.tiers(key, linked_tasks, q, turn_at)
 
-    at_of = {e.id: e.at for e in state.events if e.kind == "message" and e.key == key and ts(e.at) <= ts(turn_at)}
-    K, n_cand, cand_ev_on = cfg.window_k, len(cands), True
+    at_of = {e.id: e.at for e in state.events if e.message and e.key == key and ts(e.at) <= ts(turn_at)}
+    K, n_det, n_idx, det_anchor_on = cfg.window_k, len(tiers.details), len(tiers.index), True
     trims: list[str] = []
 
     def build() -> dict[str, Any]:
-        cur_cands = cands[:n_cand]
+        details = tiers.details[:n_det]
+        index = tiers.index[:n_idx]
         window = hist_msgs[-K:] if K > 0 else []
         window_ids = [e.id for e in window]
         wset = set(window_ids)
-        w_start = ts(window[0].at) if window else ts(first_at)
-        window_events = [e for e in hist_events if e.id in wset or (e.kind == "reaction" and ts(e.at) >= w_start)]
 
         reply_ids: list[str] = []
         for e in batch:
-            cur = e.message.reply_to_id if e.kind == "message" else e.target_id
+            cur = e.message.reply_to_id if e.message else None
             steps = 0
             while cur and steps < cfg.reply_chain_max:
                 if cur not in wset and cur not in batch_ids and cur in msgs and cur not in reply_ids:
@@ -293,17 +282,17 @@ def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: C
 
         shown = wset | set(reply_ids) | batch_ids
         ev_pick = {t.task_id: _pick_evidence(t, cfg.linked_evidence_per_task, at_of) for t in linked_tasks}
-        for t, _ in cur_cands:
-            ids = list(dict.fromkeys(e.message_id for e in sorted(t.evidence, key=lambda x: -ts(x.added_at)) if e.message_id in at_of))
-            ev_pick[t.task_id] = ids[: cfg.evidence_per_task] if cand_ev_on else []
+        for t, _ in details:
+            ev_pick[t.task_id] = [t.anchor_message_id] if det_anchor_on and t.anchor_message_id in at_of else []
         # chỉ in kèm task những tin chưa xuất hiện ở LỊCH SỬ GẦN / TIN MỚI
         ev_shown = {tid: [i for i in v if i not in shown] for tid, v in ev_pick.items()}
         evidence_ids = list(dict.fromkeys(i for v in ev_shown.values() for i in v))
 
-        all_msgs = [_to_prompt_msg(by_id[i], "evidence") for i in evidence_ids]
-        all_msgs += [_to_prompt_msg(by_id[i], "reply") for i in reply_ids if i not in evidence_ids]
-        all_msgs += [_to_prompt_msg(e, "window") for e in window_events]
-        all_msgs += [_to_prompt_msg(e, "new") for e in batch]
+        pm = lambda e, sec: _to_prompt_msg(e, sec, turn_at, names)  # noqa: E731
+        all_msgs = [pm(by_id[i], "evidence") for i in evidence_ids]
+        all_msgs += [pm(by_id[i], "reply") for i in reply_ids if i not in evidence_ids]
+        all_msgs += [pm(e, "window") for e in window]
+        all_msgs += [pm(e, "new") for e in batch]
         rank = {"evidence": 0, "reply": 0, "window": 1, "new": 2}
         all_msgs.sort(key=lambda m: (ts(m.at), rank[m.section]))
         id_map, rev_map = {}, {}
@@ -317,121 +306,136 @@ def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: C
         task_map: dict[str, str] = {}
         prompt_tasks: list[PromptTask] = []
         lines_a: list[str] = []
-        lines_b: list[str] = []
+        lines_d: list[str] = []
+        lines_i: list[str] = []
 
-        def add(t: Task, source: str, why: str, lines: list[str]) -> None:
+        def local_for(t: Task) -> str:
             local = f"T{len(task_map) + 1}"
             task_map[local] = t.task_id
-            head, pend = _task_head(state, t, local, members)
-            lines.append(f"{head} — {why} — evidence: {_ev_refs(t, rev_map)}")
-            lines += ["    " + _fmt_msg(pm_of[i], None, rev_map, mt) for i in ev_shown[t.task_id]]
-            prompt_tasks.append(PromptTask(local, t, source, pend, ev_shown[t.task_id], why))
+            return local
 
         for t in linked_tasks:
-            mid, how, step = linked_via[t.task_id]
+            local = local_for(t)
+            mid, _, step = linked_via[t.task_id]
             ref = rev_map.get(mid, mid)
-            add(t, "linked", f"NEW_MESSAGES react to {ref}" if how == "reaction"
-                else f"NEW_MESSAGES reply to {ref}" if step == 0 else f"NEW_MESSAGES reply (via thread) to {ref}", lines_a)
-        for t, label in cur_cands:
-            add(t, "recent" if label == "[recent]" else "matched", label, lines_b)
+            why = f"NEW_MESSAGES reply to {ref}" if step == 0 else f"NEW_MESSAGES reply (via thread) to {ref}"
+            head, pend = _task_head(state, t, local, members)
+            lines_a.append(f"{head} — {why} — evidence: {_ev_refs(t, rev_map)}")
+            lines_a += ["    " + _fmt_msg(pm_of[i], None, rev_map, mt) for i in ev_shown[t.task_id]]
+            prompt_tasks.append(PromptTask(local, t, "linked", pend, ev_shown[t.task_id], why))
+        for t, why in details:
+            local = local_for(t)
+            head, pend = _task_head(state, t, local, members)
+            lines_d.append(head)
+            if t.notes:
+                lines_d.append(f"    notes: {truncate_tokens(t.notes, mt)}")
+            lines_d += ["    " + _fmt_msg(pm_of[i], None, rev_map, mt) for i in ev_shown[t.task_id]]
+            prompt_tasks.append(PromptTask(local, t, "details", pend, ev_shown[t.task_id], why))
+        for t, why in index:
+            local = local_for(t)
+            lines_i.append(_index_line(t, local, members))
+            prompt_tasks.append(PromptTask(local, t, "index", pending_for(state, t.task_id), [], why))
 
         history = [m for m in all_msgs if m.section in ("window", "reply")]
         new_msgs = [m for m in all_msgs if m.section == "new"]
-        head = f"Conversation type: {conv_type}."
+        # người có mặt trong prompt: tác giả, người được @mention, người nhận / người giao của task trong prompt
+        present = ({m.author_id for m in all_msgs} | {x["user_id"] for m in all_msgs for x in m.mentions}
+                   | {u for p in prompt_tasks for u in [*p.task.assignee_ids, p.task.assigner_id] if u})
+        head = f"Conversation type: {conv_type}.\n" + members_block(members, present, cfg.members_max)
         b = {
             "b1": instructions,
-            "b2": f"<CALENDAR>\n{calendar14(turn_at).replace('← hôm nay', '← today')}\n</CALENDAR>",
+            # D1 (v6 mục 9): một dòng ngày hôm nay thay khối lịch 14 ngày — model không tính ngày, code quy hạn
+            "b2": f"Today: {vi_weekday(local_date(turn_at).isoweekday())} {local_date(turn_at).isoformat()}",
             "b3a": ("<LINKED_TASKS>\n" + LINKED_HEADER + "\n" + "\n".join(lines_a) + "\n</LINKED_TASKS>") if lines_a else "",
-            "b3b": "<CANDIDATE_TASKS>\n" + ("\n".join(lines_b) or "(none)") + "\n</CANDIDATE_TASKS>",
+            "b3b": "<TASK_DETAILS>\n" + ("\n".join(lines_d) or "(none)") + "\n</TASK_DETAILS>",
+            "b3c": ("<TASK_INDEX>\n" + INDEX_HEADER + "\n" + "\n".join(lines_i) + "\n</TASK_INDEX>") if lines_i else "",
             "b4": "<RECENT_HISTORY>\n" + (_fmt_list(history, rev_map, mt) or "(empty)") + "\n</RECENT_HISTORY>",
             "b5": f"<NEW_MESSAGES>\n{_fmt_list(new_msgs, rev_map, mt)}\n</NEW_MESSAGES>",
         }
-        tok = {"b1": count_tokens(b["b1"]), "b2": count_tokens(b["b2"]), "b3a": count_tokens(b["b3a"]),
-               "b3b": count_tokens(b["b3b"]), "b4": count_tokens(b["b4"]), "b5": count_tokens(head + "\n" + b["b5"]), "b6": 0}
+        tok = {"b1": count_tokens(b["b1"]), "b0": count_tokens(head), "b2": count_tokens(b["b2"]),
+               "b3a": count_tokens(b["b3a"]), "b3b": count_tokens(b["b3b"]), "b3c": count_tokens(b["b3c"]),
+               "b4": count_tokens(b["b4"]), "b5": count_tokens(b["b5"]), "b6": 0}
         tok["total"] = sum(tok.values())
         return dict(all=all_msgs, new=new_msgs, history=history, id_map=id_map, rev_map=rev_map, task_map=task_map,
                     tasks=prompt_tasks, blocks=b, tokens=tok, head=head, window_ids=window_ids, reply_ids=reply_ids,
-                    evidence_ids=evidence_ids)
+                    evidence_ids=evidence_ids, index_count=len(index))
 
     r = build()
-    # ---- ngân sách: bằng chứng kèm ứng viên → giảm K (≥ 5) → ứng viên từ cuối (giữ ≥ 1). KHÔNG BAO GIỜ cắt LINKED_TASKS.
+    # ---- ngân sách (v6 mục 6.5): tin anchor kèm TASK_DETAILS → giảm K (≥ 5) → dòng TASK_INDEX từ cuối (giữ ≥ 10)
+    # → task TASK_DETAILS từ cuối (giữ ≥ 1). KHÔNG BAO GIỜ cắt LINKED_TASKS, MEMBERS.
     while r["tokens"]["total"] > cfg.context_token_budget:
-        if cand_ev_on and any(p.source != "linked" and p.evidence_shown for p in r["tasks"]):
-            cand_ev_on = False
-            trims.append("drop_candidate_evidence")
-        elif K > 5:
+        if det_anchor_on and any(p.source == "details" and p.evidence_shown for p in r["tasks"]):
+            det_anchor_on = False
+            trims.append("drop_details_anchor")
+        elif K > K_MIN:
             K -= 1
             trims.append(f"reduce_k {K}")
-        elif n_cand > 1:
-            n_cand -= 1
-            trims.append(f"drop_candidate {cands[n_cand][0].task_id}")
+        elif n_idx > INDEX_MIN:
+            n_idx -= 1
+            trims.append(f"drop_index {tiers.index[n_idx][0].task_id}")
+        elif n_det > DETAILS_MIN:
+            n_det -= 1
+            trims.append(f"drop_details {tiers.details[n_det][0].task_id}")
         else:
             break
         r = build()
 
-    # ---- ngữ cảnh rút gọn cho cổng: tiêu đề task + gate_window_k tin + TIN MỚI ----
-    rev = r["rev_map"]
-
-    def g_line(m: PromptMsg) -> str:
-        if m.kind == "reaction":
-            return f"{m.local} {m.author_name} {REACTION_EMOJI.get(m.reaction_type or '', '')} (reaction vào {rev.get(m.target_id or '', 'tin cũ')})"
-        return f"{m.local} {m.author_name}: {m.text}"
-
-    g_win = [m for m in r["history"] if m.section == "window"][-cfg.gate_window_k:] if cfg.gate_window_k > 0 else []
-    titles = "\n".join(f"{p.local} [{p.task.status}] {p.task.title}" for p in r["tasks"]) or "(không có)"
-    gate_user = (f"<VIEC_DANG_THEO_DOI>\n{titles}\n</VIEC_DANG_THEO_DOI>\n<LICH_SU_GAN>\n"
-                 + ("\n".join(g_line(m) for m in g_win) or "(trống)")
-                 + "\n</LICH_SU_GAN>\n<TIN_MOI>\n" + "\n".join(g_line(m) for m in r["new"]) + "\n</TIN_MOI>")
     b = r["blocks"]
     return BuiltContext(
         key=key, conv_type=conv_type, members=members, messages=r["all"], new_msgs=r["new"], history=r["history"],
-        tasks=r["tasks"], id_map=r["id_map"], rev_map=rev, task_map=r["task_map"], blocks=b, system=b["b1"],
-        user="\n".join(x for x in [r["head"], b["b2"], b["b3a"], b["b3b"], b["b4"], b["b5"]] if x),
+        tasks=r["tasks"], id_map=r["id_map"], rev_map=r["rev_map"], task_map=r["task_map"], blocks=b, system=b["b1"],
+        user="\n".join(x for x in [r["head"], b["b2"], b["b3a"], b["b3b"], b["b3c"], b["b4"], b["b5"]] if x),
         tokens=r["tokens"], trims=trims, window_k=K, window_ids=r["window_ids"], reply_ids=r["reply_ids"],
-        evidence_ids=r["evidence_ids"], gate_system=gate_instructions, gate_user=gate_user, turn_at=turn_at,
-        retrieval={"query": q, "people": q_people, "joined_reply": joined}, chain_ids=[c[0] for c in chain],
-        cache_key=cfg.prompt_cache_key,
+        evidence_ids=r["evidence_ids"], turn_at=turn_at, index_count=r["index_count"],
+        retrieval={"query": q, "joined_reply": joined, "index_total": tiers.index_total,
+                   "similarity": {k: round(v, 3) for k, v in tiers.sims.items()}},
+        chain_ids=[c[0] for c in chain], cache_key=cfg.prompt_cache_key,
     )
 
 
-def extend_context(state: EngineState, ctx: BuiltContext, hits: list[Any], cfg: Config, intro: str) -> BuiltContext:
-    """Lần gọi 2 = CÙNG prompt lần 1 (để cache trúng) + khối <TASK_SEARCH_RESULTS source="target_check">.
+def detail_check_targets(ctx: BuiltContext, out: Any) -> list[str]:
+    """Lần gọi 2 kích hoạt bởi CẤU TRÚC op (v6 mục 6.4): UPDATE đặt `notes` hoặc `title` trên task chỉ có ở <TASK_INDEX>.
+    `notes_add`, đổi hạn, đổi người, CANCEL không kích hoạt (không cần thấy chi tiết cũ để làm đúng)."""
+    idx = {p.local: p.task.task_id for p in ctx.tasks if p.source == "index"}
+    out_ids: list[str] = []
+    for o in out.ops:
+        tid = idx.get((o.target or "").strip())
+        if o.op == "UPDATE" and tid and (o.notes is not None or o.title is not None) and tid not in out_ids:
+            out_ids.append(tid)
+    return out_ids
 
-    Task mới được đánh `T<n>` nối tiếp; tin bằng chứng chưa có trong prompt được đánh `#n` nối tiếp
-    (không đánh số lại tin cũ để giữ nguyên tiền tố prompt). Task đã có trong prompt thì bỏ qua."""
+
+def extend_context(state: EngineState, ctx: BuiltContext, task_ids: list[str], cfg: Config) -> BuiltContext:
+    """Lần gọi 2 = CÙNG prompt lần 1 (để cache trúng) + <TASK_DETAILS source="detail_check"> cho các task đã có ở index.
+
+    `T<n>` giữ nguyên (task đã có trong prompt); tin anchor chưa có trong prompt được đánh `#n` nối tiếp."""
     c = copy.copy(ctx)
     c.id_map, c.rev_map, c.task_map = dict(ctx.id_map), dict(ctx.rev_map), dict(ctx.task_map)
     c.messages, c.tasks, c.tokens = list(ctx.messages), list(ctx.tasks), dict(ctx.tokens)
     by_id = {e.id: e for e in state.events}
-    at_of = {e.id: e.at for e in state.events if e.kind == "message"}
-    in_prompt = set(ctx.task_map.values())
-    lines = [intro]
-    n_task, n_msg = len(c.task_map), len(c.id_map)
-    for h in hits:
-        t: Task = h.task
-        if t.task_id in in_prompt:
-            continue
-        n_task += 1
-        local = f"T{n_task}"
-        c.task_map[local] = t.task_id
-        pick = _pick_evidence(t, min(2, max(1, cfg.linked_evidence_per_task)), at_of)
-        ev_lines: list[str] = []
-        for i in pick:
-            if i not in c.rev_map:
-                n_msg += 1
-                pm = _to_prompt_msg(by_id[i], "target_check")
-                pm.local = f"#{n_msg}"
-                c.id_map[pm.local] = i
-                c.rev_map[i] = pm.local
-                c.messages.append(pm)
-                ev_lines.append("    " + _fmt_msg(pm, None, c.rev_map, cfg.message_max_tokens))
-        head, pend = _task_head(state, t, local, ctx.members)
-        lines.append(f"{head} — last mentioned: {fmt_day_time(t.last_mentioned_at or t.created_at)} — evidence: {_ev_refs(t, c.rev_map)}")
-        lines += ev_lines
-        why = f"điểm {h.score} · khớp: {', '.join(h.matched) or '—'}"
-        c.tasks.append(PromptTask(local, t, "target_check", pend, list(pick), why))
-    lines.append("(no other results)")
-    block = '<TASK_SEARCH_RESULTS source="target_check">\n' + "\n".join(lines) + f"\n</TASK_SEARCH_RESULTS>\n{FINAL_CALL_NOTE}"
+    names = {m.user_id: m.display_name for m in ctx.members}
+    local_of = {tid: loc for loc, tid in ctx.task_map.items()}
+    n_msg = len(c.id_map)
+    lines: list[str] = []
+    for tid in task_ids:
+        t = next(x for x in state.tasks if x.task_id == tid)
+        head, pend = _task_head(state, t, local_of[tid], ctx.members)
+        lines.append(head)
+        if t.notes:
+            lines.append(f"    notes: {truncate_tokens(t.notes, cfg.message_max_tokens)}")
+        shown: list[str] = []
+        i = t.anchor_message_id
+        if i in by_id and i not in c.rev_map:
+            n_msg += 1
+            pm = _to_prompt_msg(by_id[i], "detail_check", ctx.turn_at, names)
+            pm.local = f"#{n_msg}"
+            c.id_map[pm.local] = i
+            c.rev_map[i] = pm.local
+            c.messages.append(pm)
+            shown.append(i)
+            lines.append("    " + _fmt_msg(pm, None, c.rev_map, cfg.message_max_tokens))
+        c.tasks.append(PromptTask(local_of[tid], t, "detail_check", pend, shown, "notes/title trên task chỉ có ở index"))
+    block = '<TASK_DETAILS source="detail_check">\n' + "\n".join(lines) + f"\n</TASK_DETAILS>\n{FINAL_CALL_NOTE}"
     c.extra_block = block
     c.user = ctx.user + "\n" + block
     c.tokens["b6"] = count_tokens(block)

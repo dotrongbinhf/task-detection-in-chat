@@ -64,16 +64,6 @@ def fmt_day_time(iso: str) -> str:
     return f"{vi_weekday(dt.isoweekday())} {dt.day:02d}/{dt.month:02d} {dt.strftime('%H:%M')}"
 
 
-def calendar14(ref_iso: str) -> str:
-    today = local_date(ref_iso)
-    mon = monday_of(today)
-    lines = []
-    for i in range(14):
-        d = mon + timedelta(days=i)
-        lines.append(f"{vi_weekday(weekday(d))} {ddmm(d)}/{d.year}" + (" ← hôm nay" if d == today else ""))
-    return "\n".join(lines)
-
-
 @dataclass
 class DueResolution:
     due_type: str  # calendar | event | none

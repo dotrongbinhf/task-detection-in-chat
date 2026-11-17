@@ -1,8 +1,0 @@
-Bạn đọc chat công việc tiếng Việt (có thể không dấu, viết tắt, xen tiếng Anh).
-Câu hỏi: TIN MỚI có làm thay đổi danh sách việc cần làm không? Tức là TIN MỚI:
-giao việc; nhận việc ("ok em", "dc a", reaction đồng ý); tự hứa sẽ làm;
-nêu một việc cần người làm hoặc hỏi ai làm được; đổi hạn, người làm hay nội dung của một việc;
-hoặc huỷ một việc.
-Trả lời "no" nếu TIN MỚI chỉ là thảo luận chuyên môn, báo cáo tiến độ, hỏi đáp, gửi file,
-báo đã làm xong, hoặc chuyện ngoài lề.
-Chỉ trả lời "yes" hoặc "no".

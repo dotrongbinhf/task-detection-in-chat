@@ -7,73 +7,44 @@ member an An | An Vũ
 gold testplan | Viết test plan cho tính năng ví | assigned | khoa | 2026-11-26 | active | single_message,relative_deadline
 
 day 2026-11-23
-08:40 phong: chào team QA
-08:41 khoa: chào anh
-08:42 an: morning
 08:50 yen: cuối tuần bug mới có 12 cái
-08:51 phong: severity cao không
-08:52 yen: 2 cái high
-08:53 phong: ok
-09:20 phong [tp]: @Khoa viết test plan cho tính năng ví nhé, thứ 5 review   ## testplan:assign testplan:due
-09:21 khoa ^tp: dạ   ## testplan:accept
-10:00 an: Jira lại chậm
+09:20 phong [tp]: @Khoa viết test plan cho tính năng ví, thứ 5 review   ## testplan:assign testplan:due
+09:21 khoa ^tp: dạ   ## testplan:confirm
 10:01 yen: mọi người cũng thấy
 10:02 an: chắc do bảo trì
 11:00 khoa: tính năng ví có spec chưa anh
-11:01 phong: có trên Confluence
-11:02 khoa: dạ thấy rồi
 13:30 an: bug login trên iPad em repro không được
 13:31 yen: thử iPadOS 17 xem
-13:40 an: repro được rồi
 14:30 phong: Playwright bản mới chạy nhanh hơn hẳn
-14:31 khoa: em cũng thấy
 15:20 yen: test case thanh toán em viết xong 30 cái
-15:21 phong: ổn
 act 09:25 khoa approve testplan
 
 day 2026-11-24
 08:30 khoa: test plan em làm được phần scope rồi
-08:31 phong: ok
 09:00 yen: hôm nay deploy staging mấy giờ anh
-09:01 phong: 10h
-09:02 yen: dạ
 10:30 an: staging lên rồi, em smoke test pass
-10:31 phong: tốt
 11:30 khoa: bug 1234 dev bảo không fix, mình đóng hay để
-11:32 phong: để anh hỏi PM đã   ## hn
+11:32 phong: để anh hỏi PM đã   ## hn:defer
 13:00 yen: mọi người ơi máy test Android mới về rồi
-13:01 an: yeah
-13:02 khoa: Samsung hay Xiaomi
-13:02 yen: Samsung S24
 14:20 an: automation suite fail 3 case do timeout
 14:21 phong: chắc phải tăng timeout lên 60s
-14:22 an: dạ em tăng rồi   ## hn
+14:22 an: dạ em tăng rồi   ## hn:done_report
 16:00 yen: mai em xin nghỉ buổi sáng nhé anh
-16:01 phong: ok em
 
 day 2026-11-25
 09:00 an: bug 1234 PM nói sao anh
-09:01 phong: để sprint sau
-09:02 an: dạ
 10:00 khoa: test plan ví em xong bản nháp
-10:01 phong: ok mai review
 11:20 an: Có ai dùng thử BrowserStack chưa
 11:21 khoa: dùng ở công ty cũ
-11:22 an: ổn không
-11:23 khoa: ổn nhưng đắt
 14:00 yen: chiều nay ai họp sprint planning không
 14:01 phong: cả team mà em
-14:02 yen: à vâng
 
 day 2026-11-26
 10:00 phong: review test plan nhé Khoa
 10:45 phong: test plan ổn rồi em, chi tiết lắm
 10:46 khoa: dạ em cảm ơn anh
 14:00 an: bug high hôm trước dev fix rồi, em verify pass
-14:01 phong: tốt
 14:30 an: Tuần này tổng cộng đóng 38 bug
 14:31 phong: nhiều hơn tuần trước 6 cái
 14:32 yen: bug mới mở chỉ có 9
-14:33 phong: xu hướng tốt
 15:10 khoa: Test plan ví được dev lead duyệt rồi
-15:11 phong: ok

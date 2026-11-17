@@ -1,4 +1,4 @@
-conv ch_arch group train
+conv ch_arch group dev
 member hung Hưng | anh Hưng, Hung
 member khoa Khoa | Khoa Lê
 member nam Nam | Nam Trần
@@ -56,7 +56,6 @@ day 2026-11-17
 14:23 nam: dùng unique constraint trong database chắc hơn
 14:24 tuan: nhưng thêm một lần ghi database
 14:26 hung: với giao dịch tiền thì chắc ăn quan trọng hơn tốc độ
-14:27 tuan: đồng ý
 
 day 2026-11-18
 09:00 son: Chi phí ước tính nếu tách 4 database theo domain là thêm 35% hạ tầng
@@ -65,16 +64,12 @@ day 2026-11-18
 09:05 nam: có thể tách dần, bắt đầu từ domain ví
 09:06 hung: hướng tách dần hợp lý hơn
 10:10 minh: ClickHouse truy vấn báo cáo doanh thu từ 40 giây còn 1,2 giây
-10:11 tuan: ấn tượng
 10:12 khoa: dữ liệu bao nhiêu dòng
-10:13 minh: 900 triệu dòng
 11:30 tuan: Rate limit ở gateway nên đặt theo API key hay theo user
 11:32 khoa: API public thì theo key, app nội bộ thì theo user
 11:33 son: Kong làm được cả hai
 14:00 hung: Tuần sau mình họp chốt hướng kiến trúc, mọi người cứ tiếp tục ghi ý kiến ở đây
 14:30 nam: Em vừa đọc bài của Shopify về tách database, cách họ làm giống hướng tách dần
-14:31 khoa: link đâu anh
-14:32 nam: [link]
 14:35 son: bài hay, phần di chuyển dữ liệu online rất đáng tham khảo
 
 day 2026-11-19
@@ -84,7 +79,6 @@ day 2026-11-19
 09:24 nam: extension pg_partman có tương thích không
 09:25 khoa: có bản cho 16 rồi
 10:30 minh: CDC staging chạy 3 ngày không lỗi
-10:31 hung: tốt
 15:00 tuan: Mình có nên chuẩn hoá tracing bằng OpenTelemetry luôn không
 15:02 son: Jaeger hiện tại vẫn ổn
 15:03 tuan: OTel thì đổi backend dễ hơn
@@ -96,13 +90,11 @@ day 2026-11-20
 09:01 son: đầy đủ rồi anh
 09:02 minh: bên data đồng ý
 09:03 khoa: còn tracing chưa chốt
-09:04 hung: để tuần sau
 10:10 minh: Bên data có thêm số liệu: 60% truy vấn báo cáo chỉ cần dữ liệu trễ 5 phút
 10:11 son: vậy CDC là đủ, không cần đọc primary
 10:12 khoa: còn 40% kia là gì
 10:13 minh: đối soát cuối ngày, cần số chính xác
 10:14 nam: đối soát chạy đêm thì đọc replica được
-10:15 hung: hợp lý
 10:40 tuan: Kafka bản 3.7 bỏ ZooKeeper hoàn toàn chưa
 10:41 son: KRaft ổn định từ 3.5, cluster mình vẫn dùng ZooKeeper
 10:42 tuan: lần nâng cấp tới nên chuyển

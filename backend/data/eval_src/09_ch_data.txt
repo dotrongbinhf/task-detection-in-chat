@@ -13,42 +13,24 @@ gold export | Export data tháng 10 | assigned | tram | none | active | multi_ta
 gold gmv | Kiểm tra lại số liệu GMV | assigned | duc | none | active | multi_task_message
 
 day 2026-11-23
-08:30 minh: Chào team data
-08:31 ha: chào anh
-08:32 an: morning
-08:35 tram: hi mọi người
 08:40 duc: cuối tuần job nào fail không
 08:41 an: job sync CRM fail 1 lần, tự retry ok
-08:42 duc: ok
-09:00 minh [ds]: @Hà dựng dashboard doanh thu theo tỉnh nhé, cuối tuần xong   ## dash:assign dash:due
-09:01 ha ^ds: dạ em nhận   ## dash:accept
+09:00 minh [ds]: @Hà dựng dashboard doanh thu theo tỉnh, cuối tuần xong   ## dash:assign dash:due
+09:01 ha ^ds: dạ em nhận   ## dash:confirm
 09:20 tram: Metabase hay Superset anh
-09:21 minh: Metabase em
-09:22 tram: dạ
 09:45 an: query bảng orders chạy chậm quá
-09:46 duc: thiếu partition đó
-09:47 an: hèn gì
 10:10 minh: Đơn hàng trên dashboard bị đếm trùng mọi người ạ
-10:10:02 minh: anh vừa check
 10:10:03 minh [etl]: @Đức sửa job ETL đơn hàng bị trùng dòng giúp anh   ## etl:assign
 10:10:05 minh: chắc do join với bảng payment
-10:12 duc ^etl: dạ để em sửa   ## etl:accept
-10:40 minh [ch]: @An làm báo cáo churn tháng 11 nhé, thứ 6 gửi anh   ## churn:assign churn:due
-10:41 an: dạ   ## churn:accept
+10:12 duc ^etl: dạ để em sửa   ## etl:confirm
+10:40 minh [ch]: @An làm báo cáo churn tháng 11, thứ 6 gửi anh   ## churn:assign churn:due
+10:41 an: dạ   ## churn:confirm
 11:20 ha: dashboard có cần breakdown theo quận không anh
-11:21 minh: chưa cần em
-11:21 ha: dạ
 13:30 minh: Cần ai clean lại bảng customer bị trùng email, CRM đang lỗi gửi mail 2 lần   ## dedup:assign
 13:32 tram: em đang dở việc khác anh ạ
-13:33 an: em cũng vậy
 14:20 duc: job ETL sửa xong, do join thiếu điều kiện status
-14:21 minh: tốt
 15:00 ha: mọi người xem giúp em màu biểu đồ này ổn không
-15:01 an: hơi nhạt
-15:02 tram: tăng contrast lên
-15:03 ha: ok
 16:30 an: mai em đi khám, chiều mới lên
-16:31 minh: ok em
 act 09:05 ha approve dash
 act 10:45 an approve churn
 act 10:15 duc approve etl
@@ -56,45 +38,31 @@ act 10:15 duc approve etl
 day 2026-11-24
 08:50 tram: Hôm qua dashboard lỗi timezone không ai thấy à
 08:51 ha: em thấy, sửa rồi
-08:52 tram: à ok
-09:30 minh [mt]: Trâm export data tháng 10, Đức kiểm tra lại số liệu GMV nhé, sếp hỏi lệch 3%   ## export:assign gmv:assign
-09:31 tram: dạ   ## export:accept
-09:32 duc ^mt: ok anh   ## gmv:accept
+09:30 minh [mt]: Trâm export data tháng 10, Đức kiểm tra lại số liệu GMV, sếp hỏi lệch 3%   ## export:assign gmv:assign
+09:31 tram: dạ   ## export:confirm
+09:32 duc ^mt: ok anh   ## gmv:confirm
 10:30 an: dbt mới ra bản 1.9 mọi người
-10:31 duc: có gì mới
 10:32 an: unit test cho model
-10:33 duc: hay
 11:00 tram: data tháng 10 em export rồi, để trong Drive
-11:01 minh: cảm ơn em
 14:00 duc: GMV lệch do tính cả đơn huỷ
-14:01 minh: à đúng rồi
 14:02 minh: để anh báo sếp
 14:30 ha: mọi người có ai biết cách cache query Metabase không
 14:32 duc: bật cache trong admin
-14:33 ha: cảm ơn anh
 16:00 an: churn tháng 11 em làm được nửa rồi
-16:01 minh: ok
 act 09:35 tram approve export
 act 09:36 duc approve gmv
 
 day 2026-11-25
 09:00 minh: Hôm nay ai có lịch họp với business không
-09:01 ha: em họp 2h
 09:20 minh [dsc]: @Hà dashboard doanh thu theo tỉnh thêm filter kênh bán nhé, business vừa yêu cầu   ## dash:content
-09:21 ha: dạ
 10:30 an [chd]: Anh Minh ơi cái churn report em xin lùi sang thứ 3 tuần sau nhé, data tháng 11 chưa đủ   ## churn:due
-10:31 minh: ok em
 11:00 tram: bảng customer vẫn trùng email đó mọi người
 11:01 duc: ừ chưa ai làm
-11:02 minh: để anh xem đã   ## hn
+11:02 minh: để anh xem đã   ## hn:defer
 14:00 duc: Airflow mới upgrade, có gì lạ báo nhé
-14:01 ha: dạ
 act 10:35 an approve_change chd
 act 09:25 ha approve_change dsc
 
 day 2026-11-26
 09:30 ha: filter kênh bán thêm rồi anh nhé
-09:31 minh: cảm ơn Hà
-10:00 duc: Airflow chạy ổn
 15:00 minh: Tuần này mọi người vất vả rồi
-15:01 ha: hihi

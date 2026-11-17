@@ -1,29 +1,60 @@
-"""Đánh giá (mục 8): ghép task ↔ nhãn, chỉ số + khoảng tin cậy Wilson, danh sách lỗi kèm đường đi, report.md.
+"""Đánh giá: ghép task ↔ nhãn, chỉ số + khoảng bootstrap theo hội thoại, chấm op theo lượt, lỗi kèm đường đi, report.md.
 
-    python -m detect.eval --run runs/<id> --data data/sample
+    python -m detect.eval --run runs/<id> --data data/eval
 """
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import random
+import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .config import ROOT, load_config
 from .models import EngineState, GoldTask, PendingChange, Task
+from .text import norm
 from .timeexpr import ts
+
+BOOT_N = 2000
+BOOT_SEED = 7
+CLOSED = ("declined", "cancelled", "closed", "expired", "stale")
+# nhãn lượt (`kinds`) → nhóm thay đổi; op → nhóm thay đổi (v6 mục 11.4)
+KIND_CAT = {"assign": "create", "self_commit": "create", "open_ask": "create", "due": "due", "accept": "assignee",
+            "assignee": "assignee", "content": "content", "cancel": "cancel"}
+FIELD_CAT = {"assignee_refs": "assignee", "due": "due", "title": "content", "notes": "content", "kind": "content",
+             "status": "cancel"}
 
 
 def wilson(k: int, n: int) -> dict[str, Any]:
     if n == 0:
-        return {"k": k, "n": n, "value": None, "lo": 0.0, "hi": 0.0, "enough": False}
+        return {"k": k, "n": n, "value": None, "lo": 0.0, "hi": 0.0}
     z = 1.96
     p = k / n
     d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
     h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return {"k": k, "n": n, "value": p, "lo": max(0.0, c - h), "hi": min(1.0, c + h), "enough": n >= 30}
+    return {"k": k, "n": n, "value": p, "lo": max(0.0, c - h), "hi": min(1.0, c + h)}
+
+
+def bootstrap(by_conv: dict[str, tuple[int, int]], n_boot: int = BOOT_N, seed: int = BOOT_SEED) -> dict[str, Any]:
+    """Tỉ lệ Σk/Σn + khoảng 2,5–97,5% khi lấy mẫu lại HỘI THOẠI (nhãn cùng hội thoại không độc lập)."""
+    k = sum(v[0] for v in by_conv.values())
+    n = sum(v[1] for v in by_conv.values())
+    out = {"k": k, "n": n, "value": k / n if n else None, "lo": 0.0, "hi": 0.0, "method": "bootstrap"}
+    convs = [v for v in by_conv.values() if v[1]]
+    if not convs:
+        return out
+    rng = random.Random(seed)
+    vals = []
+    for _ in range(n_boot):
+        s = [convs[rng.randrange(len(convs))] for _ in convs]
+        sn = sum(x[1] for x in s)
+        vals.append(sum(x[0] for x in s) / sn)
+    vals.sort()
+    out["lo"], out["hi"] = vals[int(0.025 * n_boot)], vals[min(n_boot - 1, int(0.975 * n_boot))]
+    return out
 
 
 def pct(arr: list[float], q: float) -> Optional[float]:
@@ -48,19 +79,60 @@ def proposed(t: Task, changes: list[PendingChange]) -> dict[str, Any]:
     return v
 
 
+def _words(s: str) -> set[str]:
+    return {w for w in re.split(r"[\W_]+", norm(s)) if w}
+
+
+def assignees_at(t: Task, at: str) -> list[str]:
+    """Người nhận của task NGAY TRƯỚC thời điểm `at` (lùi lịch sử trường assignee_refs có sau `at`)."""
+    cur = list(t.assignee_ids)
+    for h in reversed(t.field_history):
+        if h.field != "assignee_refs" or ts(h.at) < ts(at):
+            continue
+        old = h.old
+        cur = [x for x in old.split(",") if x] if isinstance(old, str) else list(old or [])
+    return cur
+
+
+def op_fields(o: dict[str, Any], tr: dict[str, Any]) -> list[str]:
+    """Trường mà một op UPDATE đã áp / đề xuất. Lần chạy mới ghi `fields`; lần chạy cũ suy từ sự kiện op_applied."""
+    if "fields" in o:
+        return list(o["fields"])
+    out: list[str] = []
+    for e in tr.get("events") or []:
+        if e.get("type") == "op_applied" and e.get("op") == "UPDATE" and e.get("task_id") == o.get("task_id"):
+            out += [re.sub(r"^đề xuất ", "", a).split(" → ")[0] for a in e.get("changes") or []]
+    return list(dict.fromkeys(out))
+
+
+def op_cats(o: dict[str, Any], tr: dict[str, Any]) -> set[str]:
+    """Nhóm thay đổi của một op ĐÃ ÁP; rỗng = op chỉ bổ sung bằng chứng (hoặc bị loại)."""
+    if not o.get("accepted"):
+        return set()
+    if o["op"] == "CREATE":
+        return {"create"}
+    if o["op"] == "CANCEL":
+        return {"cancel"}
+    return {FIELD_CAT.get(f, "content") for f in op_fields(o, tr)}
+
+
 def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
     pricing = pricing or load_config().pricing
     # chỉ chấm nhãn của các hội thoại có trong lần chạy (chạy một split, hoặc --data nạp nhãn của cả bộ)
     keys = {e.key for e in state.events}
     ev_ids = {e.id for e in state.events}
     gold: list[GoldTask] = [g for g in state.gold or [] if g.conversation_key in keys]
-    state.hardNegatives = [h for h in state.hardNegatives if h in ev_ids]
+    hn = [h for h in state.hardNegatives if h in ev_ids]
     tasks = state.tasks
     predicted = [t for t in tasks if t.shown_at]
     msgs = [e for e in state.events if e.kind == "message"]
+    author = {e.id: e.message.author_id for e in msgs if e.message}
     items: list[dict[str, Any]] = []
+    convs = sorted({g.conversation_key for g in gold} | {t.conversation_key for t in predicted} | {tr["key"] for tr in state.turns})
 
-    # ---- ghép: cùng key, anchor task ∈ supporting hoặc anchor nhãn ∈ bằng chứng task; ưu tiên trùng anchor ----
+    # ---- ghép: cùng key, anchor task ∈ supporting hoặc anchor nhãn ∈ bằng chứng task.
+    # Khoá: trùng anchor → số tin bằng chứng chung → số người nhận chung → số từ chung giữa hai tiêu đề → tạo sớm hơn.
+    # Hai nhãn chung một tin anchor ("Trâm export…, Đức kiểm tra…") được tách nhờ người nhận và tiêu đề (v6 mục 11.2).
     pairs = []
     for g in gold:
         for t in predicted:
@@ -69,11 +141,13 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             ev = {e.message_id for e in t.evidence}
             if not (t.anchor_message_id in g.supporting_message_ids or g.anchor_message_id in ev):
                 continue
-            pairs.append((g, t, int(t.anchor_message_id == g.anchor_message_id), len(set(g.supporting_message_ids) & ev)))
-    pairs.sort(key=lambda p: (-p[2], -p[3], ts(p[1].created_at)))
+            v = proposed(t, state.changes)
+            pairs.append((g, t, (int(t.anchor_message_id == g.anchor_message_id), len(set(g.supporting_message_ids) & ev),
+                                 len(set(v["assignee_ids"]) & set(g.assignee_ids)), len(_words(g.title) & _words(t.title)))))
+    pairs.sort(key=lambda p: tuple(-x for x in p[2]) + (ts(p[1].created_at),))
     g_match: dict[str, Task] = {}
     t_match: dict[str, GoldTask] = {}
-    for g, t, _, _ in pairs:
+    for g, t, _ in pairs:
         if g.gold_id in g_match or t.task_id in t_match:
             continue
         g_match[g.gold_id] = t
@@ -96,10 +170,9 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             ctx = tr.get("context") or {}
             sel = " ".join(f"{c['local']}={c['task_id']}({c['source']})" for c in ctx.get("candidates", [])) or "—"
             ops = ", ".join(o["op"] + ("✓" if o["accepted"] else f"✗({o['reason']})") for o in tr["ops"]) or "ops rỗng"
-            gate = f" · p={tr['gate']['p']:.2f}" if tr.get("gate") and tr["gate"].get("p") is not None else ""
             trim = f" · trim: {','.join(ctx['trims'])}" if ctx.get("trims") else ""
             skip = f" bỏ: {tr['skipped']}" if tr.get("skipped") else ""
-            out.append(f"Lượt {tr['turn']} [{'+'.join(tr['new_event_ids'])}]{skip} · task chọn: {sel}{gate}{trim} · {ops}")
+            out.append(f"Lượt {tr['turn']} [{'+'.join(tr['new_event_ids'])}]{skip} · task trong prompt: {sel}{trim} · {ops}")
         return out
 
     for g in gold:
@@ -115,8 +188,6 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             cls = "3. bộ trích bỏ sót"
             if hidden:
                 cls = f"6. phát hiện nhưng chưa hiện ({hidden.task_id} vẫn {hidden.status}) — lỗi gán người nhận"
-            elif any(tr.get("skipped") == "gate_skip" for tr in related):
-                cls = "5. cổng chặn"
             elif any(not o["accepted"] for tr in related for o in tr["ops"]):
                 cls = "4. Validate loại"
             elif any_task and any(tr.get("context") and tr["turn"] > any_task.created_turn
@@ -148,23 +219,36 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
                 why = f" · {orig.task_id} có trong kho nhưng không vào prompt"
         items.append({"kind": "dup", "task_id": t.task_id, "note": f'"{t.title}" trùng nhãn {gid}{why}', "path": turn_path([e.message_id for e in t.evidence])})
 
-    # ---- trường + trích dẫn ----
+    # ---- trường + trích dẫn + nháp đúng hoàn toàn ----
     as_ok = as_n = due_ok = due_n = ev_n = fab = c_ok = c_n = 0
     ev_p: list[float] = []
     ev_r: list[float] = []
+    strict: set[str] = set()
+    per: dict[str, dict[str, list[int]]] = {}  # hội thoại -> chỉ số -> [k, n]
+
+    def bump(conv: str, metric: str, ok: bool) -> None:
+        x = per.setdefault(conv, {}).setdefault(metric, [0, 0])
+        x[0] += int(ok)
+        x[1] += 1
+
     for g in tp:
         t = g_match[g.gold_id]
         v = proposed(t, state.changes)
+        good = True
         as_n += 1
-        if sorted(v["assignee_ids"]) == sorted(g.assignee_ids):
-            as_ok += 1
-        else:
+        a_ok = sorted(v["assignee_ids"]) == sorted(g.assignee_ids)
+        as_ok += a_ok
+        bump(g.conversation_key, "assignee", a_ok)
+        good &= a_ok
+        if not a_ok:
             items.append({"kind": "field", "gold_id": g.gold_id, "task_id": t.task_id, "note": f"người nhận {','.join(v['assignee_ids']) or '∅'} ≠ nhãn {','.join(g.assignee_ids)}"})
         if g.due_type == "calendar":
             due_n += 1
-            if v["due_date"] == g.due_date:
-                due_ok += 1
-            else:
+            d_ok = v["due_date"] == g.due_date
+            due_ok += d_ok
+            bump(g.conversation_key, "due", d_ok)
+            good &= d_ok
+            if not d_ok:
                 items.append({"kind": "field", "gold_id": g.gold_id, "task_id": t.task_id, "note": f"hạn {v['due_date'] or v['due_type']} ≠ nhãn {g.due_date}"})
         if g.due_type == "event":
             ev_n += 1
@@ -172,16 +256,26 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
                 fab += 1
         if g.final_status == "cancelled":
             c_n += 1
-            if v["status"] == "cancelled":
-                c_ok += 1
-            else:
+            s_ok = v["status"] == "cancelled"
+            c_ok += s_ok
+            good &= s_ok
+            if not s_ok:
                 items.append({"kind": "field", "gold_id": g.gold_id, "task_id": t.task_id, "note": f"nhãn cancelled nhưng task ở {v['status']}"})
+        if good:
+            strict.add(g.gold_id)
         ev = {e.message_id for e in t.evidence}
-        inter = len(ev & set(g.supporting_message_ids))
-        ev_p.append(inter / len(ev) if ev else 0)
-        ev_r.append(inter / len(g.supporting_message_ids))
-        if ev and inter / len(ev) < 0.8:
-            items.append({"kind": "evidence", "gold_id": g.gold_id, "task_id": t.task_id, "note": "bằng chứng thừa: " + ", ".join(sorted(ev - set(g.supporting_message_ids)))})
+        sup = set(g.supporting_message_ids)
+        ok_ev = sup | set(g.confirm_message_ids or [])  # tin xác nhận ("dạ ok") là bằng chứng hợp lệ, chỉ không bắt buộc cho recall
+        inter = len(ev & sup)
+        ev_p.append(len(ev & ok_ev) / len(ev) if ev else 0)
+        ev_r.append(inter / len(sup))
+        if ev and len(ev & ok_ev) / len(ev) < 0.8:
+            items.append({"kind": "evidence", "gold_id": g.gold_id, "task_id": t.task_id, "note": "bằng chứng thừa: " + ", ".join(sorted(ev - ok_ev))})
+    for g in labeled:
+        bump(g.conversation_key, "recall", g.gold_id in g_match)
+        bump(g.conversation_key, "strict", g.gold_id in strict)
+    for t in predicted:
+        bump(t.conversation_key, "precision", t.task_id in t_match)
 
     # ---- kịp thời ----
     lat_m: list[float] = []
@@ -220,12 +314,14 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             recreated += sum(1 for t in tasks if t is not dec and t.shown_at and ts(t.created_at) > ts(dec.status_changed_at)
                              and any(p[1] is t and p[0].gold_id == g.gold_id for p in pairs))
 
+    # ---- chấm op theo lượt (turn_labels.jsonl, v6 mục 11.4) ----
+    turn_ops = _turn_op_stats(state, author, per, bump)
+
     # ---- chi phí ----
     with_ctx = [t for t in state.turns if t.get("context")]
-    tokens = {b: {"p50": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.5), "p95": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.95)}
-              for b in ("b1", "b2", "b3a", "b3b", "b4", "b5", "total")}
-    b6 = [c.get("extra_tokens", 0) for t in state.turns for c in (t.get("extract_calls") or []) if c.get("call", 1) > 1]
-    tokens["b6"] = {"p50": pct(b6, 0.5), "p95": pct(b6, 0.95)}
+    blocks = sorted({b for t in with_ctx for b in t["context"]["tokens"]} - {"total"}) + ["total"]
+    tokens = {b: {"p50": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.5),
+                  "p95": pct([t["context"]["tokens"].get(b, 0) for t in with_ctx], 0.95)} for b in blocks}
     ext = [t for t in state.turns if t.get("extract")]
     cost = in_tok = cached = out_tok = 0.0
     by_call: dict[int, dict[str, float]] = {}
@@ -234,7 +330,7 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
         calls = t.get("extract_calls") or [{**t["extract"], "call": 1}]
         tin = 0
         for e in calls:
-            pr = pricing.get(e["model"], pricing.get("gpt-4.1-mini", {"input": 0, "cached": 0, "output": 0}))
+            pr = pricing.get(e["model"], {"input": 0, "cached": 0, "output": 0})  # model không có trong config.yaml → $0, không đoán giá
             c_usd = ((e["input_tokens"] - e["cached_tokens"]) * pr["input"] + e["cached_tokens"] * pr["cached"] + e["output_tokens"] * pr["output"]) / 1e6
             in_tok += e["input_tokens"]
             cached += e["cached_tokens"]
@@ -252,10 +348,6 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
     emb_model = next(((t.get("embed") or {}).get("model") for t in state.turns if (t.get("embed") or {}).get("model")), None)
     emb_cost = emb_tok * pricing.get(emb_model or "", {}).get("input", 0) / 1e6
     cost += emb_cost
-    gates = [t for t in state.turns if t.get("gate")]
-    for t in gates:
-        pr = pricing.get(t["gate"]["model"], pricing.get("gpt-4.1-nano", {"input": 0, "output": 0}))
-        cost += ((t["context"]["tokens"]["total"] if t.get("context") else 0) * 0.5 * pr["input"] + pr["output"]) / 1e6  # ước tính
     trims: dict[str, int] = {}
     for t in with_ctx:
         for tr in t["context"]["trims"]:
@@ -263,30 +355,32 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             trims[k] = trims.get(k, 0) + 1
     op_turns = sum(1 for t in ext if any(o["accepted"] for o in t["ops"]))
     n_msgs = len(state.processed) or 1
+    batch = [len(t["new_event_ids"]) for t in state.turns]
+    index_n = [t["context"]["index_count"] for t in with_ctx if "index_count" in t["context"]]
+    detail_turns = sum(1 for t in ext if any(c.get("reason") == "detail_check" for c in t.get("extract_calls") or []))
 
-    # ---- đường cong cổng (từ lần chạy shadow) ----
-    g_turns = [t for t in state.turns if t.get("gate") and t["gate"].get("p") is not None]
-    applied = [t for t in g_turns if any(o["accepted"] for o in t["ops"])]
-    curve = [{"threshold": th, "recall_vs_ceiling": wilson(sum(1 for t in applied if t["gate"]["p"] >= th), len(applied)),
-              "pass_rate": wilson(sum(1 for t in g_turns if t["gate"]["p"] >= th), len(g_turns))}
-             for th in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)]
-
-    cand_stats = _candidate_stats(gold, g_match, tasks, ext)
+    cand_stats = _candidate_stats(gold, g_match, tasks, ext, state, author)
 
     tags = sorted({tag for g in labeled for tag in g.scenario_tags})
     by_tag = [{"tag": tag, "recall": wilson(sum(1 for g in labeled if tag in g.scenario_tags and g.gold_id in g_match),
                                             sum(1 for g in labeled if tag in g.scenario_tags))} for tag in tags]
-    hn = state.hardNegatives
+
+    def boot(metric: str) -> dict[str, Any]:
+        return bootstrap({c: tuple(per.get(c, {}).get(metric, [0, 0])) for c in convs})
+
     return {
         "hasGold": bool(gold),
         "summary": {
-            "recall": wilson(len(tp), len(labeled)),
-            "precision": wilson(len(tp), len(predicted)),
+            "strict_correct": boot("strict"),
+            "strict_ids": sorted(strict),
+            "recall": boot("recall"),
+            "recall_ids": sorted(g.gold_id for g in tp),
+            "precision": boot("precision"),
             "dup_rate": wilson(len(dups), len(predicted)),
             "hard_negative_fp": wilson(sum(1 for i in hn if any(t.anchor_message_id == i for t in predicted)), len(hn)),
             "declined_recreated": recreated,
-            "assignee_acc": wilson(as_ok, as_n),
-            "due_acc": wilson(due_ok, due_n),
+            "assignee_acc": boot("assignee"),
+            "due_acc": boot("due"),
             "event_fabricated": wilson(fab, ev_n),
             "cancel_correct": wilson(c_ok, c_n),
             "ev_precision": sum(ev_p) / len(ev_p) if ev_p else None,
@@ -301,22 +395,78 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             "repeated_changes": repeated,
             "empty_assignee_kept_candidate": wilson(len(kept_candidate), len(empty)),
             "empty_assignee_shown": len(shown_empty),
+            "false_alarm_turns": boot("false_alarm"),
         },
+        "turn_ops": turn_ops,
         "cost": {
-            "turns": len(state.turns), "extract_calls": len(ext), "gate_calls": len(gates),
+            "turns": len(state.turns), "extract_calls": len(ext),
             "op_turn_ratio": wilson(op_turns, len(ext)), "tokens": tokens,
             "input_tokens": in_tok, "cached_tokens": cached, "output_tokens": out_tok,
             "cost_usd": cost, "cost_per_1000_msgs": cost / n_msgs * 1000, "budget_trims": trims, "messages": len(state.processed),
             "by_call": by_call, "turn_input_tokens": {"p50": pct(turn_in, 0.5), "p95": pct(turn_in, 0.95)},
             "cache_ratio": (cached / in_tok) if in_tok else None,
             "embed_tokens": emb_tok, "embed_cost_usd": emb_cost, "embed_model": emb_model,
+            "batch_size": {"p50": pct(batch, 0.5), "p95": pct(batch, 0.95)},
+            "index_tasks": {"p50": pct(index_n, 0.5), "p95": pct(index_n, 0.95), "max": max(index_n) if index_n else None},
+            "detail_check_turns": detail_turns,
+            "failed_turns": sum(1 for t in state.turns if t.get("skipped") in ("llm_error", "parse_failure", "refusal")),
         },
         "candidates": cand_stats,
-        "gate_curve": curve,
         "by_tag": by_tag,
         "items": items,
         "matches": [{"gold_id": g, "task_id": t.task_id} for g, t in g_match.items()],
     }
+
+
+def _turn_op_stats(state: EngineState, author: dict[str, str], per: dict, bump: Callable[[str, str, bool], None]) -> dict[str, Any]:
+    """Lượt báo nhầm (nhãn 0, có op làm đổi sổ cái), lượt bỏ sót (nhãn 1, không op nào được áp), đúng loại op."""
+    if not state.turnLabels:
+        return {"available": False}
+    by_ev: dict[str, dict[str, Any]] = {}
+    for r in state.turnLabels:
+        for i in r["new_event_ids"]:
+            by_ev[i] = r
+    hn_tag = {h: state.hardNegativeTags.get(h, "untagged") for h in state.hardNegatives}
+    fa = miss = pos = neg = typed_ok = typed_n = 0
+    by_hn: dict[str, list[int]] = {}
+    items: list[str] = []
+    for tr in state.turns:
+        rows = list({id(by_ev[i]): by_ev[i] for i in tr["new_event_ids"] if i in by_ev}.values())
+        if not rows:
+            continue
+        label = max(int(r["label"]) for r in rows)
+        kinds = {k for r in rows for k in r.get("kinds") or []}
+        cats = set().union(*(op_cats(o, tr) for o in tr["ops"])) if tr["ops"] else set()
+        tag = f"Lượt {tr['turn']} [{'+'.join(tr['new_event_ids'])}]"
+        if label == 0:
+            neg += 1
+            bad = bool(cats)
+            fa += bad
+            bump(tr["key"], "false_alarm", bad)
+            for h in tr["new_event_ids"]:
+                if h in hn_tag:
+                    x = by_hn.setdefault(hn_tag[h], [0, 0])
+                    x[0] += bad
+                    x[1] += 1
+            if bad:
+                items.append(f"{tag}: báo nhầm ({', '.join(sorted(cats))})")
+            continue
+        pos += 1
+        if not any(o["accepted"] for o in tr["ops"]):
+            miss += 1
+            items.append(f"{tag}: bỏ sót ({', '.join(sorted(kinds)) or 'không rõ loại'})")
+        elif kinds and cats:
+            typed_n += 1
+            want = {KIND_CAT[k] for k in kinds if k in KIND_CAT}
+            if "create" in want:  # hạn / người nhận / nội dung nêu cùng lúc giao việc nằm sẵn trong op CREATE
+                want -= {"due", "assignee", "content"}
+            if cats == want:
+                typed_ok += 1
+            else:
+                items.append(f"{tag}: sai loại (nhãn {', '.join(sorted(want))} · op {', '.join(sorted(cats))})")
+    return {"available": True, "neg_turns": neg, "pos_turns": pos, "false_alarm": wilson(fa, neg), "missed": wilson(miss, pos),
+            "type_correct": wilson(typed_ok, typed_n),
+            "false_alarm_by_hn_tag": {k: wilson(v[0], v[1]) for k, v in sorted(by_hn.items())}, "items": items}
 
 
 # ---------- report.md ----------
@@ -324,8 +474,8 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
 def _r(x: dict[str, Any]) -> str:
     if x["value"] is None:
         return "— (n=0)"
-    s = f"{x['value'] * 100:.0f}% ({x['k']}/{x['n']}, CI95 {x['lo'] * 100:.0f}–{x['hi'] * 100:.0f}%)"
-    return s + ("" if x["enough"] else " · chưa đủ để kết luận")
+    ci = "boot" if x.get("method") == "bootstrap" else "CI95"
+    return f"{x['value'] * 100:.0f}% ({x['k']}/{x['n']}, {ci} {x['lo'] * 100:.0f}–{x['hi'] * 100:.0f}%)"
 
 
 def _p(v: Optional[float]) -> str:
@@ -334,36 +484,51 @@ def _p(v: Optional[float]) -> str:
 
 def to_markdown(rep: dict[str, Any], meta: dict[str, Any] | None = None) -> str:
     s, c = rep["summary"], rep["cost"]
+    cfg = (meta or {}).get("config", {})
     L = ["# Báo cáo đánh giá", ""]
     if meta:
-        L += [f"- Dataset: `{meta.get('dataset')}` · chế độ: `{meta.get('mode')}` · bộ trích: `{meta.get('extract_model')}` · cổng: `{meta.get('gate_model')}` · gate_mode: `{meta.get('config', {}).get('gate_mode')}`", ""]
-        if meta.get("replay"):
-            r = meta["replay"]
-            L += [f"> **Phát lại** trên nền `{r['base']}`: chỉ {r['real_calls']} lần gọi LLM thật (lượt có việc, hard negative,"
-                  f" {r['neg']} lượt không có việc), {r['replayed']} lượt dùng lại đầu ra cũ. Số đo chỉ để so nhanh, không để chốt.", ""]
-    L += ["## Phát hiện", "| Chỉ số | Giá trị | Ngưỡng |", "|---|---|---|",
+        L += [f"- Dataset: `{meta.get('dataset')}` · chế độ: `{meta.get('mode')}` · bộ trích: `{meta.get('extract_model')}`"
+              f" · seed: `{meta.get('seed', '-')}`", ""]
+    L += ["Khoảng `boot` = bootstrap theo hội thoại (2.000 lần, 2,5–97,5%); `CI95` = Wilson (chỉ cho bảng phụ).", "",
+          "## Phát hiện", "| Chỉ số | Giá trị | Ngưỡng |", "|---|---|---|",
+          f"| **Nháp đúng hoàn toàn** | {_r(s['strict_correct'])} | báo cáo |",
           f"| Recall | {_r(s['recall'])} | ≥ 70% |", f"| Precision | {_r(s['precision'])} | ≥ 60% |",
-          f"| Tỉ lệ trùng | {_r(s['dup_rate'])} | ≤ 5% |", f"| Báo nhầm hard negative | {_r(s['hard_negative_fp'])} | báo cáo |",
+          f"| Tỉ lệ trùng | {_r(s['dup_rate'])} | ≤ 5% |", f"| Báo nhầm hard negative (task) | {_r(s['hard_negative_fp'])} | báo cáo |",
           f"| Tạo lại task đã từ chối | {s['declined_recreated']} | = 0 |", "",
           "## Trường", "| Chỉ số | Giá trị | Ngưỡng |", "|---|---|---|",
           f"| Người nhận đúng | {_r(s['assignee_acc'])} | ≥ 85% |", f"| Hạn lịch đúng | {_r(s['due_acc'])} | ≥ 80% |",
-          f"| Hạn sự kiện bị bịa ngày | {_r(s['event_fabricated'])} | ≤ 5% |", f"| Huỷ đúng | {_r(s['cancel_correct'])} | báo cáo |", "",
-          "## Trích dẫn & kịp thời",
-          f"- Precision bằng chứng: {_p(s['ev_precision'])} (≥ 80%) · Recall bằng chứng: {_p(s['ev_recall'])} (≥ 70%)",
-          f"- Độ trễ phát hiện: p50 {s['latency_msgs']['p50']} tin / {s['latency_sec']['p50']} s · p90 {s['latency_msgs']['p90']} tin / {s['latency_sec']['p90']} s",
+          f"| Hạn sự kiện bị bịa ngày | {_r(s['event_fabricated'])} | ≤ 5% |", f"| Huỷ đúng | {_r(s['cancel_correct'])} | báo cáo |", ""]
+    to = rep.get("turn_ops") or {}
+    if to.get("available"):
+        L += ["## Op theo lượt (turn_labels)", "| Chỉ số | Giá trị |", "|---|---|",
+              f"| Lượt báo nhầm (nhãn 0, op làm đổi sổ cái) | {_r(s['false_alarm_turns'])} |",
+              f"| Lượt bỏ sót (nhãn 1, không op nào được áp) | {_r(to['missed'])} |",
+              f"| Đúng loại op (lượt dương có op) | {_r(to['type_correct'])} |"]
+        for k, v in to["false_alarm_by_hn_tag"].items():
+            L.append(f"| — báo nhầm hard negative `{k}` | {_r(v)} |")
+        L.append("")
+    quiet = cfg.get("quiet_seconds")
+    lat = (f"- Độ trễ phát hiện (theo giờ tin): p50 {s['latency_msgs']['p50']} tin / {s['latency_sec']['p50']} s"
+           f" · p90 {s['latency_msgs']['p90']} tin / {s['latency_sec']['p90']} s")
+    if quiet:
+        lat += f" · **độ trễ thật = số đo + quiet_seconds ({quiet:g} s)**"
+    L += ["## Trích dẫn & kịp thời",
+          f"- Precision bằng chứng: {_p(s['ev_precision'])} (≥ 80%) · Recall bằng chứng: {_p(s['ev_recall'])} (≥ 70%)", lat,
           f"- Số lần nháp bị sửa: p50 {s['draft_updates']['p50']} · p90 {s['draft_updates']['p90']}", "",
           "## Gánh nặng duyệt",
           f"- Đề xuất thay đổi: {s['changes_proposed']} (superseded {s['changes_superseded']}) trên {s['approved_tasks']} task đã duyệt",
           f"- Đề xuất sai: {_r(s['wrong_changes'])} (≤ 20%) · bị Validate loại: {s['repeated_changes'] or 0}",
           f"- Nhãn không người nhận giữ đúng ở candidate: {_r(s['empty_assignee_kept_candidate'])} · bị hiện nhầm: {s['empty_assignee_shown']}", "",
           "## Chi phí",
-          f"- Lượt: {c['turns']} · gọi bộ trích: {c['extract_calls']} · gọi cổng: {c['gate_calls']} · lượt có op: {_r(c['op_turn_ratio'])}",
+          f"- Lượt: {c['turns']} · gọi bộ trích: {c['extract_calls']} · lượt có op: {_r(c['op_turn_ratio'])}"
+          f" · lượt detail_check: {c.get('detail_check_turns', 0)} · **lượt lỗi LLM (bị bỏ): {c.get('failed_turns', 0)}**",
+          f"- Kích thước lượt (số tin): p50 {c['batch_size']['p50']} · p95 {c['batch_size']['p95']}"
+          + (f" · task trong TASK_INDEX: p50 {c['index_tasks']['p50']} · p95 {c['index_tasks']['p95']} · max {c['index_tasks']['max']}"
+             if c.get("index_tasks", {}).get("max") is not None else ""),
           f"- Token input {c['input_tokens']:.0f} (cache {c['cached_tokens']:.0f}) · output {c['output_tokens']:.0f} · ước tính ${c['cost_usd']:.4f} (${c['cost_per_1000_msgs']:.3f} / 1.000 tin)",
           f"- budget_trim: {c['budget_trims'] or 0}", "", "| Khối | p50 | p95 |", "|---|---|---|"]
-    names = {"b1": "1. Hướng dẫn", "b2": "2. Lịch", "b3a": "3a. LINKED_TASKS", "b3b": "3b. CANDIDATE_TASKS",
-             "b4": "4. Lịch sử gần", "b5": "5. Tin mới", "b6": "6. Kết quả kiểm tra target (lần 2)", "total": "Tổng lần 1"}
     for b, v in c["tokens"].items():
-        L.append(f"| {names.get(b, b)} | {v['p50']} | {v['p95']} |")
+        L.append(f"| {b} | {v['p50']} | {v['p95']} |")
     if c.get("by_call"):
         L += ["", "| Lần gọi | Số lần | Token input | Cache | Output | Tiền |", "|---|---|---|---|---|---|"]
         for k, v in sorted(c["by_call"].items(), key=lambda x: int(x[0])):
@@ -372,22 +537,21 @@ def to_markdown(rep: dict[str, Any], meta: dict[str, Any] | None = None) -> str:
                  f" · tỉ lệ cache {_p(c.get('cache_ratio'))}")
     cs = rep.get("candidates")
     if cs and cs.get("n_turns"):
-        L += ["", "## Tầng tìm ứng viên & tầng model",
+        L += ["", "## Tầng chọn task & tầng model",
               f"- **Candidate recall** (task đúng đã có trong kho có trong prompt lần 1): {_r(cs['first_call_recall'])}",
-              "", "| Nguồn | Số lượt |", "|---|---|"]
+              "", "| Tầng | Số lượt |", "|---|---|"]
         L += [f"| lần 1 · {k} | {v} |" for k, v in cs["by_source"].items() if v]
-        L += [f"| lần 2 · kiểm tra target | {cs['second_found']} |", f"| bỏ lỡ hẳn | {cs['missed']} |",
+        L += [f"| lần 2 | {cs['second_found']} |", f"| bỏ lỡ | {cs['missed']} |",
               f"| (không tính: task đã từ chối / đóng) | {cs['closed_excluded']} |", "",
               f"- **Link accuracy** (task đúng có trong prompt lần 1 → model nhắm đúng): {_r(cs['link_accuracy'])}"
               f" · nhắm task khác {cs['link_outcomes']['wrong_target']} · CREATE thay vì UPDATE {cs['link_outcomes']['create_instead']}"
               f" · không làm gì {cs['link_outcomes']['no_op']}",
-              f"- Lượt gọi lần 2 (kiểm tra target): {_r(cs['second_call_turns'])}"]
+              f"- Không cần đổi (tin chỉ `accept` của người đã là người nhận — không tính vào mẫu số): {cs['no_change_needed']}"]
         for x in cs["items"]:
             L.append(f"  - {x}")
-    if any(x["pass_rate"]["n"] for x in rep["gate_curve"]):
-        L += ["", "## Đường cong cổng (shadow)", "| Ngưỡng | Recall so với trần | Tỉ lệ lượt qua cổng |", "|---|---|---|"]
-        L += [f"| {x['threshold']} | {_r(x['recall_vs_ceiling'])} | {_r(x['pass_rate'])} |" for x in rep["gate_curve"]]
     L += ["", "## Theo scenario_tags", "| Tag | Recall |", "|---|---|"] + [f"| {x['tag']} | {_r(x['recall'])} |" for x in rep["by_tag"]]
+    if to.get("items"):
+        L += ["", "## Lượt sai (op theo lượt)"] + [f"- {x}" for x in to["items"]]
     L += ["", "## Lỗi kèm đường đi"]
     bad = [i for i in rep["items"] if i["kind"] != "tp"]
     if not bad:
@@ -405,12 +569,20 @@ def _prompt_tasks(tr: dict[str, Any]) -> set[str]:
     return set((c.get("task_map_final") or c.get("task_map") or {}).values())
 
 
-def _candidate_stats(gold: list[GoldTask], g_match: dict[str, Task], tasks: list[Task], ext: list[dict]) -> dict[str, Any]:
-    """Tầng tìm ứng viên (candidate recall theo nguồn) tách khỏi tầng model (link accuracy).
+def _candidate_stats(gold: list[GoldTask], g_match: dict[str, Task], tasks: list[Task], ext: list[dict],
+                     state: EngineState, author: dict[str, str]) -> dict[str, Any]:
+    """Tầng chọn task (candidate recall theo tầng) tách khỏi tầng model (link accuracy).
 
-    Đơn vị = lượt chứa tin bằng chứng của một nhãn mà task đúng ĐÃ có trong kho trước lượt đó (không gồm lượt tạo task)."""
-    by_src: dict[str, int] = {"linked": 0, "matched": 0, "recent": 0}
-    second_found = missed = n = hit1 = closed = 0
+    Đơn vị = lượt chứa tin bằng chứng (`supporting`) của một nhãn mà task đúng ĐÃ có trong kho trước lượt đó.
+    Lượt mà tin chỉ là `accept` của người đã là người nhận (vd. "dạ" khi task đã giao đúng người) không cần đổi gì →
+    đếm riêng, không tính vào mẫu số link accuracy (v6 mục 11.3)."""
+    kinds_of: dict[str, set[str]] = {}
+    for r in state.turnLabels:
+        for i in r["new_event_ids"]:
+            kinds_of.setdefault(i, set()).update(r.get("kinds") or [])
+    mentioned = {e.id: {x.user_id for x in e.message.mentions} for e in state.events if e.kind == "message" and e.message}
+    by_src: dict[str, int] = {}
+    second_found = missed = n = hit1 = closed = no_need = 0
     outcomes = {"correct": 0, "wrong_target": 0, "create_instead": 0, "no_op": 0}
     items: list[str] = []
     for g in gold:
@@ -422,10 +594,16 @@ def _candidate_stats(gold: list[GoldTask], g_match: dict[str, Task], tasks: list
                 continue
             src = {c["task_id"]: c["source"] for c in (tr.get("context") or {}).get("candidates") or []}.get(t.task_id)
             tag = f"Lượt {tr['turn']} [{'+'.join(tr['new_event_ids'])}] {g.gold_id} → {t.task_id}"
-            # task đã bị từ chối / đóng / huỷ trước lượt này: theo thiết kế chỉ vào prompt qua LINKED_TASKS → không tính
-            if not src and t.status in ("declined", "cancelled", "closed", "expired", "stale") and ts(t.status_changed_at) <= ts(tr["at"]):
+            if not src and t.status in CLOSED and ts(t.status_changed_at) <= ts(tr["at"]):
                 closed += 1
-                items.append(f"{tag}: task đang {t.status} (không vào CANDIDATE_TASKS theo thiết kế)")
+                items.append(f"{tag}: task đang {t.status} (không vào prompt theo thiết kế)")
+                continue
+            kinds = set().union(*(kinds_of.get(i, set()) for i in tr["new_event_ids"]))
+            senders = {author.get(i) for i in tr["new_event_ids"]} - {None}
+            # "đã là người nhận": theo sổ cái lúc đó, hoặc theo nhãn — tin giao việc đã @mention đúng người đó
+            named = set(assignees_at(t, tr["at"])) | (set(g.assignee_ids) & mentioned.get(g.anchor_message_id, set()))
+            if kinds and kinds <= {"accept"} and senders and senders <= named:
+                no_need += 1
                 continue
             n += 1
             if src:
@@ -442,20 +620,26 @@ def _candidate_stats(gold: list[GoldTask], g_match: dict[str, Task], tasks: list
                     items.append(f"{tag}: có trong prompt lần 1 ({src}) nhưng model {did}")
             elif t.task_id in set((tr["context"].get("task_map_final") or {}).values()):
                 second_found += 1
-                items.append(f"{tag}: không có ở lần 1, vào lần 2 qua kiểm tra target")
+                items.append(f"{tag}: không có ở lần 1, vào lần 2")
             else:
                 missed += 1
                 items.append(f"{tag}: BỎ LỠ (không có ở lần 1 lẫn lần 2)")
-    second = sum(1 for t in ext if len(t.get("extract_calls") or []) > 1)
     return {
         "n_turns": n, "first_call_recall": wilson(hit1, n), "by_source": by_src, "second_found": second_found,
-        "missed": missed, "closed_excluded": closed, "link_accuracy": wilson(outcomes["correct"], hit1), "link_outcomes": outcomes,
-        "second_call_turns": wilson(second, len(ext)), "items": items,
+        "missed": missed, "closed_excluded": closed, "no_change_needed": no_need,
+        "link_accuracy": wilson(outcomes["correct"], hit1), "link_outcomes": outcomes, "items": items,
     }
 
 
 def load_run(run_dir: Path) -> tuple[EngineState, dict[str, Any]]:
-    state = EngineState.model_validate_json((run_dir / "state.json").read_text(encoding="utf-8"))
+    raw = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    for t in raw.get("tasks", []):
+        # lần chạy trước C2: `kind` đổi qua chuỗi JSON tự do nên có thể là giá trị lạ ("declined") — v6 schema đã chặn
+        if t.get("kind") not in ("assigned", "self_commit", "open_ask"):
+            t["kind"] = "assigned"
+        if t.get("due_kind") == "date":  # nhánh thí nghiệm D2: model trả ngày ISO
+            t["due_kind"] = "absolute"
+    state = EngineState.model_validate(raw)
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8")) if (run_dir / "meta.json").exists() else {}
     return state, meta
 
@@ -463,22 +647,20 @@ def load_run(run_dir: Path) -> tuple[EngineState, dict[str, Any]]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True)
-    ap.add_argument("--data", default=None, help="(tuỳ chọn) dataset để lấy gold mới nhất")
+    ap.add_argument("--data", default=None, help="(tuỳ chọn) dataset để lấy nhãn mới nhất")
     a = ap.parse_args()
     run_dir = Path(a.run) if Path(a.run).is_absolute() else ROOT / a.run
     state, meta = load_run(run_dir)
     if a.data:
-        from .dataset import load_dataset
+        from .dataset import apply_labels, load_dataset
 
-        ds = load_dataset(a.data)
-        state.gold, state.hardNegatives = ds["gold"], ds["hard_negatives"]
+        apply_labels(state, load_dataset(a.data))
     rep = evaluate(state)
     (run_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
     md = to_markdown(rep, meta)
     (run_dir / "report.md").write_text(md, encoding="utf-8")
-    print(md)
+    print(md[:3000])
 
 
 if __name__ == "__main__":
     main()
-

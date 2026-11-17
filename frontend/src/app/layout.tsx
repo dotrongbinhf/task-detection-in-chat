@@ -6,7 +6,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin", "vietnamese"]
 const mono = JetBrains_Mono({ variable: "--font-jbmono", subsets: ["latin", "vietnamese"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "AI Reminder · Task Detection v3",
+  title: "AI Reminder · Task Detection v6",
   description: "Demo pipeline phát hiện và tạo task từ chat công việc — sổ cái cập nhật theo từng tin.",
 };
 
