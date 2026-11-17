@@ -407,6 +407,7 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
             "batch_size": {"p50": pct(batch, 0.5), "p95": pct(batch, 0.95)},
             "index_tasks": {"p50": pct(index_n, 0.5), "p95": pct(index_n, 0.95), "max": max(index_n) if index_n else None},
             "detail_check_turns": detail_turns,
+            "failed_turns": sum(1 for t in state.turns if t.get("skipped") in ("llm_error", "parse_failure", "refusal")),
         },
         "candidates": cand_stats,
         "by_tag": by_tag,
@@ -516,7 +517,7 @@ def to_markdown(rep: dict[str, Any], meta: dict[str, Any] | None = None) -> str:
           f"- Nhãn không người nhận giữ đúng ở candidate: {_r(s['empty_assignee_kept_candidate'])} · bị hiện nhầm: {s['empty_assignee_shown']}", "",
           "## Chi phí",
           f"- Lượt: {c['turns']} · gọi bộ trích: {c['extract_calls']} · lượt có op: {_r(c['op_turn_ratio'])}"
-          f" · lượt detail_check: {c.get('detail_check_turns', 0)}",
+          f" · lượt detail_check: {c.get('detail_check_turns', 0)} · **lượt lỗi LLM (bị bỏ): {c.get('failed_turns', 0)}**",
           f"- Kích thước lượt (số tin): p50 {c['batch_size']['p50']} · p95 {c['batch_size']['p95']}"
           + (f" · task trong TASK_INDEX: p50 {c['index_tasks']['p50']} · p95 {c['index_tasks']['p95']} · max {c['index_tasks']['max']}"
              if c.get("index_tasks", {}).get("max") is not None else ""),

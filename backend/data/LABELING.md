@@ -65,7 +65,7 @@ Kappa đã đo: _chưa có_ (ghi số, ngày, số lượt ở đây).
   `python -m detect.build_eval --src data/eval_src --out data/eval`. **Không sửa tay file trong `data/eval/`** — sửa nguồn rồi dựng lại.
 - Split: `dev` 14 hội thoại (114 nhãn có người nhận), `test` 7 hội thoại (75 nhãn) — v6 gộp `train` cũ vào `dev`. `test` chỉ chạy
   khi báo cáo cuối.
-- 1.500 tin, 195 nhãn (189 có người nhận), 113 hard negative có tag (`hard_negatives.txt`: `<message_id>\t<tag>`), mỗi loại v6 ≥ 5:
+- 1.467 tin (940 lượt), 195 nhãn (189 có người nhận), 113 hard negative có tag (`hard_negatives.txt`: `<message_id>\t<tag>`), mỗi loại v6 ≥ 5:
   `done_report`, `status_question`, `conditional`, `negation`, `other_team`, `quote`, `idea`, `reminder`, `joke`; thêm `defer`,
   `name_time_word` từ v5.
 - `ch_ecom` (dev) và `ch_saas` (test): 11 ngày, đỉnh 44 / 43 task mở, tiêu đề gần giống nhau ("PR #482" / "#490", báo cáo tuần

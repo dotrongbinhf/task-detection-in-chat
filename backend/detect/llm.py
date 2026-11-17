@@ -68,8 +68,9 @@ def _cached(key_obj: Any, no_cache: bool, fn: Callable[[], dict]) -> tuple[dict,
     return v, False
 
 
-def _retry(fn: Callable[[], Any], retries: int = 3) -> Any:
-    """Retry có backoff với 429 / 5xx."""
+def _retry(fn: Callable[[], Any], retries: int = 8) -> Any:
+    """Retry có backoff với 429 / 5xx (tới ~2 phút): chạy song song nhiều hội thoại dễ chạm giới hạn token / phút,
+    lượt bị bỏ vì 429 sẽ làm sai số đo."""
     for i in range(retries + 1):
         try:
             return fn()
@@ -77,7 +78,7 @@ def _retry(fn: Callable[[], Any], retries: int = 3) -> Any:
             status = getattr(e, "status_code", 0) or 0
             if i == retries or (status != 429 and status < 500):
                 raise
-            time.sleep(0.5 * 2**i)
+            time.sleep(min(30.0, 1.0 * 2**i))
 
 
 class OpenAILLM:
