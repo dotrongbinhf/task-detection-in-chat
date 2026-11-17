@@ -1,6 +1,6 @@
 """Dựng ngữ cảnh cho bộ trích: code chọn task, LLM phán.
 
-Prompt lần 1 = khối 1 hướng dẫn · `Conversation type` + <MEMBERS> · <CALENDAR> · <LINKED_TASKS> (task có tin bằng chứng được
+Prompt lần 1 = khối 1 hướng dẫn · `Conversation type` + <MEMBERS> · dòng `Today` · <LINKED_TASKS> (task có tin bằng chứng được
 TIN MỚI reply) · <TASK_DETAILS> (vài task có khả năng liên quan nhất, chi tiết đầy đủ) · <TASK_INDEX> (mọi task mở còn lại,
 một dòng một task) · <RECENT_HISTORY> (K tin) · <NEW_MESSAGES>. `T<n>` đánh liên tục qua ba khối (v6 mục 6).
 Lần gọi 2 (`detail_check`, hiếm) = nguyên prompt lần 1 + <TASK_DETAILS source="detail_check"> cho task chỉ có ở index.
@@ -132,7 +132,7 @@ def _fmt_list(lst: list[PromptMsg], rev_map: dict[str, str], max_tokens: int) ->
 
 
 def _due_en(due_type: str, due_date: Optional[str], due_text: Optional[str]) -> str:
-    """Hạn trong prompt: ngày ISO + thứ (khớp khối <CALENDAR>), sự kiện giữ nguyên chữ trong chat."""
+    """Hạn trong prompt: ngày ISO + thứ (cùng dạng dòng `Today`), sự kiện giữ nguyên chữ trong chat."""
     if due_type == "calendar" and due_date:
         return f"{due_date} ({vi_weekday(date.fromisoformat(due_date).isoweekday())})"
     if due_type == "event":

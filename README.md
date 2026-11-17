@@ -26,7 +26,7 @@ Một lượt = các tin của một hội thoại đến liền nhau cho tới 
 Độ trễ thật = độ trễ đo + `quiet_seconds`. Reaction không sinh lượt — in kèm dòng tin (`[👍 Nam]`), không đổi task.
 
 1. **Hết hạn & thao tác duyệt** tới thời điểm của lượt. Thao tác duyệt trỏ tới tin chưa xử lý được hoãn tới ngay sau lượt chứa tin đó.
-2. **Dựng ngữ cảnh** — `Conversation type` + `<MEMBERS>` (user_id, tên, alias) · `<CALENDAR>` · ba khối task, mỗi task đúng một lần,
+2. **Dựng ngữ cảnh** — `Conversation type` + `<MEMBERS>` (user_id, tên, alias) · dòng `Today: <thứ> <YYYY-MM-DD>` (DECISIONS #88) · ba khối task, mỗi task đúng một lần,
    `T<n>` đánh liên tục:
    - `<LINKED_TASKS>`: task có tin bằng chứng mà TIN MỚI reply vào (đi ngược chuỗi reply). Chi tiết đầy đủ, không bao giờ bị cắt.
    - `<TASK_DETAILS>`: 3 task mở nhắc gần nhất + 2 task mở gần nghĩa nhất với TIN MỚI (embedding, chỉ xếp hạng, không ngưỡng).

@@ -139,7 +139,7 @@ export function EvalPanel({ engine }: { engine: Engine }) {
             <tbody>
               {(["b1", "b0", "b2", "b3a", "b3b", "b3c", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
                 <tr key={b} className="border-t border-line">
-                  <td>{{ b1: "1. Hướng dẫn", b0: "MEMBERS", b2: "2. Lịch", b3a: "3a. LINKED_TASKS", b3b: "3b. TASK_DETAILS", b3c: "3c. TASK_INDEX", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. detail_check (lần 2)", total: "Tổng lần 1" }[b]}</td>
+                  <td>{{ b1: "1. Hướng dẫn", b0: "MEMBERS", b2: "2. Today", b3a: "3a. LINKED_TASKS", b3b: "3b. TASK_DETAILS", b3c: "3c. TASK_INDEX", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. detail_check (lần 2)", total: "Tổng lần 1" }[b]}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p50 ?? "—"}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p95 ?? "—"}</td>
                 </tr>

@@ -10,7 +10,7 @@ type BlockKey = "b1" | "b0" | "b2" | "b3a" | "b3b" | "b3c" | "b4" | "b5";
 const BLOCKS: { k: BlockKey; label: string; color: string }[] = [
   { k: "b1", label: "1 · Hướng dẫn", color: "bg-slate-400" },
   { k: "b0", label: "0 · MEMBERS", color: "bg-slate-300" },
-  { k: "b2", label: "2 · Lịch 14 ngày", color: "bg-sky-400" },
+  { k: "b2", label: "2 · Today", color: "bg-sky-400" },
   { k: "b3a", label: "3a · LINKED", color: "bg-amber-500" },
   { k: "b3b", label: "3b · DETAILS", color: "bg-orange-300" },
   { k: "b3c", label: "3c · INDEX", color: "bg-yellow-200" },
