@@ -637,6 +637,8 @@ def load_run(run_dir: Path) -> tuple[EngineState, dict[str, Any]]:
         # lần chạy trước C2: `kind` đổi qua chuỗi JSON tự do nên có thể là giá trị lạ ("declined") — v6 schema đã chặn
         if t.get("kind") not in ("assigned", "self_commit", "open_ask"):
             t["kind"] = "assigned"
+        if t.get("due_kind") == "date":  # nhánh thí nghiệm D2: model trả ngày ISO
+            t["due_kind"] = "absolute"
     state = EngineState.model_validate(raw)
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8")) if (run_dir / "meta.json").exists() else {}
     return state, meta
