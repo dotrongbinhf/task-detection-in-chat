@@ -12,9 +12,14 @@ from detect.extract import resolve_user_ids
 from detect.llm import FakeLLM
 from detect.models import Member, Message, UserAction, empty_op
 from detect.run import catch_up, flush_actions, init_state, next_batch, process_turn, ui_user_action
-from detect.timeexpr import resolve_due
+from detect.timeexpr import resolve_due, ts
 
 PROMPTS = load_prompts()
+
+def Cfg(**kw) -> Config:
+    """Config cho test v5 cũ: mỗi tin một lượt (quiet_seconds = 0) trừ khi test tự đặt."""
+    return Config(**{"quiet_seconds": 0, **kw})
+
 
 
 MEMBERS = {
@@ -35,7 +40,7 @@ def state_of(messages, actions=()):
 
 
 def run_all(state, llm, cfg=None):
-    cfg = cfg or Config()
+    cfg = cfg or Cfg()
     out = []
     while (t := process_turn(state, cfg, llm, PROMPTS)) is not None:
         out.append(t)
@@ -86,13 +91,34 @@ def test_unresolvable_due():
 
 # ---------------- hàng đợi ----------------
 
-def test_queue_coalesce_and_order():
-    s = state_of([msg("a", "09:00:00", "u_hung", "1"), msg("b", "09:00:03", "u_hung", "2"),
-                  msg("c", "09:00:20", "u_hung", "3"), msg("x", "09:00:01", "u_linh", "dm", conv="dm")])
+def test_queue_waits_for_quiet_conversation():
+    """v6 mục 3: nối tin cùng hội thoại chừng nào cách tin trước ≤ quiet_seconds; tin hội thoại khác không cắt chuỗi."""
+    s = state_of([msg("a", "09:00:00", "u_hung", "1"), msg("b", "09:00:50", "u_hung", "2"),
+                  msg("x", "09:01:00", "u_linh", "dm", conv="dm"), msg("c", "09:01:40", "u_hung", "3"),
+                  msg("d", "09:03:00", "u_hung", "4")])
     key, batch = next_batch(s, Config())
-    assert [e.id for e in batch] == ["a", "b"]  # x thuộc key khác
-    turns = run_all(s, FakeLLM())
-    assert [t["new_event_ids"] for t in turns] == [["a", "b"], ["x"], ["c"]]
+    assert [e.id for e in batch] == ["a", "b", "c"]  # d cách c 80 giây > 60
+    turns = run_all(s, FakeLLM(), Config())
+    assert [t["new_event_ids"] for t in turns] == [["a", "b", "c"], ["x"], ["d"]]
+    assert turns[0]["at"] == "2026-11-09T09:01:40+07:00"  # thời điểm lượt = tin cuối
+
+
+def test_queue_caps_wait_and_size():
+    ms = [msg(f"m{i}", f"09:{i // 2:02d}:{30 * (i % 2):02d}", "u_hung", str(i)) for i in range(14)]  # cách nhau 30 giây
+    assert len(next_batch(state_of(ms), Config())[1]) == 10                                   # max_batch_messages
+    assert [e.id for e in next_batch(state_of(ms), Config(max_wait_seconds=120))[1]] == ["m0", "m1", "m2", "m3", "m4"]
+
+
+def test_approval_before_its_turn_is_deferred():
+    """Tin 09:00–09:06 thành một lượt lúc 09:06; dataset ghi duyệt 09:05 → áp ngay sau lượt đó, không 'unmatched'."""
+    ms = [msg("a", "09:00", "u_hung", "Linh làm A nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}])]
+    ms += [msg(f"f{i}", f"09:0{i + 1}", "u_nam", f"tin {i}") for i in range(5)]
+    acts = [UserAction(at="2026-11-09T09:05:00+07:00", user_id="u_linh", message_id="a", action="approve")]
+    s = state_of(ms, acts)
+    turns = run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh"])]}}), Config())
+    assert len(turns) == 1 and turns[0]["post"]["user_actions"][0]["type"] == "user_action"
+    assert s.tasks[0].status == "approved" and ts(s.tasks[0].status_changed_at) == ts("2026-11-09T09:05:00+07:00")
+    assert not any(e["type"] == "user_action_unmatched" for e in s.trace)
 
 
 def test_reaction_is_not_a_turn_and_is_shown_inline():
@@ -101,7 +127,7 @@ def test_reaction_is_not_a_turn_and_is_shown_inline():
         {"user_id": "u_linh", "type": "like", "created_at": "2026-11-09T08:30:00+07:00"},
         {"user_id": "u_nam", "type": "love", "created_at": "2026-11-09T09:30:00+07:00"}])
     s = state_of([old, msg("m1", "09:00", "u_nam", "tin sau")])
-    turns = run_all(s, FakeLLM(), Config(window_k=10))
+    turns = run_all(s, FakeLLM(), Cfg(window_k=10))
     assert [t["new_event_ids"] for t in turns] == [["m0"], ["m1"]]
     line = next(l for l in turns[1]["context"]["prompt"].splitlines() if "tin cũ" in l)
     assert line.endswith("[👍 Linh]")  # ❤️ của Nam lúc 09:30 chưa xảy ra ở lượt 09:00
@@ -113,7 +139,7 @@ def test_reply_chain_and_maps():
     ms = [msg("root", "08:00", "u_hung", "gốc")] + [msg(f"f{i}", f"08:{10 + i}", "u_nam", f"x{i}") for i in range(12)]
     ms.append(msg("new", "09:00", "u_linh", "trả lời", reply_to_id="root"))
     s = state_of(ms)
-    cfg = Config(window_k=5)
+    cfg = Cfg(window_k=5)
     while True:
         key, batch = next_batch(s, cfg)
         if batch[0].id == "new":
@@ -174,7 +200,7 @@ def test_candidate_to_draft_and_expiry():
     t1, t2 = s.tasks
     assert t1.status == "draft" and t1.assignee_ids == ["u_nam"] and t1.kind == "assigned"
     assert t2.status == "candidate"
-    catch_up(s, "2026-11-11T09:11:00+07:00", Config())
+    catch_up(s, "2026-11-11T09:11:00+07:00", Cfg())
     assert t2.status == "closed" and t2.closed_reason == "candidate_ttl"
     assert t2.status_changed_at == "2026-11-11T09:10:00+07:00"  # đúng lúc hết TTL 48 giờ, không phải lúc lượt sau
 
@@ -184,7 +210,7 @@ def test_authorization_and_multi_assignee():
     fake = FakeLLM({"a": {"ops": [create("a", ["u_linh", "u_nam"])]}})
     s = state_of(ms)
     run_all(s, fake)
-    cfg = Config()
+    cfg = Cfg()
     out = ui_user_action(s, UserAction(at="", user_id="u_hung", message_id="a", action="approve"), cfg)
     assert out[0]["type"] == "user_action_unauthorized"
     ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="approve"), cfg)
@@ -196,7 +222,7 @@ def test_authorization_and_multi_assignee():
 def test_all_decline_makes_declined():
     s = state_of([msg("a", "09:00", "u_hung", "x")])
     run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh"])]}}))
-    ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="decline"), Config())
+    ui_user_action(s, UserAction(at="", user_id="u_linh", message_id="a", action="decline"), Cfg())
     assert s.tasks[0].status == "declined"
 
 
@@ -246,7 +272,7 @@ def test_cancel_approved_is_proposal_and_pending_keeps_open():
     s = _approved_task_state([msg("b", "10:00", "u_hung", "thôi khỏi làm")],
                              {"b": {"ops": [empty_op("CANCEL", target="@K1.1", evidence=[{"msg": "@b", "role": "cancel"}])]}})
     assert s.tasks[0].status == "approved" and s.changes[0].field == "status"
-    catch_up(s, "2026-12-30T10:00:00+07:00", Config())
+    catch_up(s, "2026-12-30T10:00:00+07:00", Cfg())
     assert s.tasks[0].status == "approved"  # có đề xuất pending → không bị closed
 
 
@@ -262,7 +288,7 @@ def test_reassign_approved_by_new_assignee():
 
 def _ctx_for(messages, cfg=None):
     s = state_of(messages)
-    cfg = cfg or Config()
+    cfg = cfg or Cfg()
     for m in messages[:-1]:
         s.processed.append(m.id)
     key, batch = next_batch(s, cfg)
@@ -284,7 +310,7 @@ def test_prompt_lines_carry_author_user_id_and_members():
     assert "Hưng (u_hung): @Linh làm nhé (@Linh=u_linh)" in ctx.user
     assert "<MEMBERS>\nu_hung Hưng\nu_linh Linh\nu_nam Nam\nu_nam2 Nam\n</MEMBERS>" in ctx.user
     small = _ctx_for([msg("a", "09:00", "u_hung", "@Linh làm nhé", mentions=[{"user_id": "u_linh", "name": "Linh"}])],
-                     Config(members_max=2))  # đông hơn members_max → chỉ người có mặt trong prompt
+                     Cfg(members_max=2))  # đông hơn members_max → chỉ người có mặt trong prompt
     assert "<MEMBERS>\nu_hung Hưng\nu_linh Linh\n</MEMBERS>" in small.user
 
 
@@ -311,7 +337,7 @@ def test_jobs_1_and_4_give_same_result():
     ds = dict(name="t", messages=ms, members=MEMBERS, gold=None, hard_negatives=[], user_actions=acts)
 
     def go(jobs):
-        s = run_dataset(ds, Config(), FakeLLM(by), PROMPTS, jobs)
+        s = run_dataset(ds, Cfg(), FakeLLM(by), PROMPTS, jobs)
         return ([t.model_dump() for t in s.tasks], [(t["turn"], t["new_event_ids"]) for t in s.turns],
                 [c.model_dump() for c in s.changes])
     one, four = go(1), go(4)

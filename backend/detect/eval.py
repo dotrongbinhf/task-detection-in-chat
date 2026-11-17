@@ -627,7 +627,12 @@ def _candidate_stats(gold: list[GoldTask], g_match: dict[str, Task], tasks: list
 
 
 def load_run(run_dir: Path) -> tuple[EngineState, dict[str, Any]]:
-    state = EngineState.model_validate_json((run_dir / "state.json").read_text(encoding="utf-8"))
+    raw = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    for t in raw.get("tasks", []):
+        # lần chạy trước C2: `kind` đổi qua chuỗi JSON tự do nên có thể là giá trị lạ ("declined") — v6 schema đã chặn
+        if t.get("kind") not in ("assigned", "self_commit", "open_ask"):
+            t["kind"] = "assigned"
+    state = EngineState.model_validate(raw)
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8")) if (run_dir / "meta.json").exists() else {}
     return state, meta
 

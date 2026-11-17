@@ -67,26 +67,53 @@ def pending_events(state: EngineState) -> list[StreamEvent]:
 
 
 def next_batch(state: EngineState, cfg: Config) -> Optional[tuple[str, list[StreamEvent]]]:
-    """Sự kiện đầu chưa xử lý + các sự kiện cùng conversation_key trong coalesce_seconds."""
+    """Đợi hội thoại yên (v6 mục 3): sự kiện đầu chưa xử lý + các tin kế tiếp CÙNG conversation_key chừng nào khoảng cách
+    tới tin liền trước ≤ quiet_seconds, cả lượt ≤ max_wait_seconds và ≤ max_batch_messages tin."""
     pend = pending_events(state)
     if not pend:
         return None
     first = pend[0]
-    return first.key, [e for e in pend if e.key == first.key and ts(e.at) - ts(first.at) <= cfg.coalesce_seconds]
+    batch = [first]
+    for e in pend[1:]:
+        if e.key != first.key:
+            continue
+        if (ts(e.at) - ts(batch[-1].at) > cfg.quiet_seconds or ts(e.at) - ts(first.at) > cfg.max_wait_seconds
+                or len(batch) >= cfg.max_batch_messages):
+            break
+        batch.append(e)
+    return first.key, batch
+
+
+def _waits_for_message(state: EngineState, a: UserAction) -> bool:
+    """Thao tác duyệt (dataset) trỏ tới tin chưa được xử lý: tin đó đang nằm trong một lượt chưa chạy xong (đợi hội thoại
+    yên) → hoãn tới ngay sau lượt chứa tin ấy ("duyệt khi nháp hiện ra"). Thao tác trỏ thẳng task_id / change_id (UI) không hoãn."""
+    return bool(a.message_id) and not a.task_id and not a.change_id and a.message_id not in set(state.processed)
 
 
 def catch_up(state: EngineState, t: str, cfg: Config) -> tuple[list[dict], list[dict]]:
-    """Áp hết hạn + user_actions (dataset) có at ≤ t."""
+    """Áp hết hạn + user_actions (dataset) có at ≤ t, trừ thao tác còn đợi tin của nó được xử lý."""
     exp: list[dict] = []
     acts: list[dict] = []
-    while state.userActions and ts(state.userActions[0].at) <= ts(t):
-        a = state.userActions.pop(0)
+    while True:
+        a = next((x for x in state.userActions if ts(x.at) <= ts(t) and not _waits_for_message(state, x)), None)
+        if a is None:
+            break
+        state.userActions.remove(a)
         exp += apply_expiry(state, a.at, cfg)
         acts += apply_user_action(state, a, cfg)
     exp += apply_expiry(state, t, cfg)
     if ts(t) > ts(state.simNow):
         state.simNow = t
     return exp, acts
+
+
+def apply_deferred(state: EngineState, at: str, cfg: Config) -> list[dict]:
+    """Ngay sau một lượt: áp các thao tác đã đến hạn (at ≤ thời điểm lượt) mà trước đó phải đợi tin của nó, tại thời điểm lượt."""
+    acts: list[dict] = []
+    for a in [x for x in state.userActions if ts(x.at) <= ts(at) and x.message_id in set(state.processed)]:
+        state.userActions.remove(a)
+        acts += apply_user_action(state, a.model_copy(update={"at": at}), cfg)
+    return acts
 
 
 def end_time(state: EngineState) -> str:
@@ -110,12 +137,13 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
     turn = state.counters.turn
     at = batch[-1].at
     exp, acts = catch_up(state, at, cfg)
-    rec: dict[str, Any] = {"turn": turn, "key": key, "at": at, "new_event_ids": [e.id for e in batch], "coalesced": len(batch) > 1,
+    rec: dict[str, Any] = {"turn": turn, "key": key, "at": at, "new_event_ids": [e.id for e in batch], "batch_size": len(batch),
                            "skipped": None, "pre": {"expirations": exp, "user_actions": acts}, "context": None,
                            "extract": None, "extract_calls": [], "detail_check": None, "ops": [], "events": []}
 
     def finish(skipped: Optional[str] = None, **extra: Any) -> dict[str, Any]:
         rec["skipped"] = skipped
+        rec["post"] = {"user_actions": apply_deferred(state, at, cfg)}
         state.turns.append(rec)
         state.trace.append({"type": "turn", "at": at, "turn": turn, "key": key, "new": rec["new_event_ids"], "skipped": skipped, **extra})
         return rec

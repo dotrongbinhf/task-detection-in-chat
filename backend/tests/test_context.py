@@ -14,6 +14,11 @@ from detect.models import EXTRACT_JSON_SCHEMA, Member, Message, UserAction, empt
 from detect.run import flush_actions, init_state, process_turn
 
 PROMPTS = load_prompts()
+
+def Cfg(**kw) -> Config:
+    """Config cho test v5 cũ: mỗi tin một lượt (quiet_seconds = 0) trừ khi test tự đặt."""
+    return Config(**{"quiet_seconds": 0, **kw})
+
 MEMBERS = {"g": [Member(user_id="u_hung", display_name="Hưng"), Member(user_id="u_linh", display_name="Linh"),
                  Member(user_id="u_nam", display_name="Nam"), Member(user_id="u_tuan", display_name="Tuấn")]}
 NAMES = {"u_hung": "Hưng", "u_linh": "Linh", "u_nam": "Nam", "u_tuan": "Tuấn"}
@@ -102,7 +107,7 @@ def test_linked_direct_reply_chain():
            msg("x", "11:05", "u_nam", "anh ơi việc này gấp không", reply_to_id="b"),
            msg("y", "11:06", "u_hung", "gấp nhé", reply_to_id="x"),                             # qua chuỗi y → x → b
            msg("z", "11:10", "u_nam", "ok", reactions=[])]
-    turns = run_all(state_of(ms), FakeLLM(by), Config(window_k=10))
+    turns = run_all(state_of(ms), FakeLLM(by), Cfg(window_k=10))
     r1 = turn_of(turns, "r1")
     assert src(r1, "linked") == ["K1.1"] and "K1.1" not in src(r1, "matched", "recent")
     assert "<LINKED_TASKS>" in r1["context"]["prompt"] and "NEW_MESSAGES reply to" in r1["context"]["prompt"]
@@ -117,7 +122,7 @@ def test_linked_includes_closed_task_and_respects_max():
                         create("a", ["Tuấn"], "Làm C"), create("a", ["Linh"], "Làm D")]}}
     ms += fillers(0, 12) + [msg("r", "11:00", "u_hung", "thôi huỷ hết nhé", reply_to_id="a")]
     s = state_of(ms)
-    cfg = Config(linked_tasks_max=3)
+    cfg = Cfg(linked_tasks_max=3)
     llm = FakeLLM(by)
     while (t := process_turn(s, cfg, llm, PROMPTS)) is not None:
         if t["new_event_ids"] == ["a"]:
@@ -136,7 +141,7 @@ def test_details_recent_order_ignores_approval_and_declined_goes_to_index():
     acts = [UserAction(at=at("09:40"), user_id="u_linh", message_id="a", action="approve"),   # duyệt K1.1 ≠ "được nhắc"
             UserAction(at=at("09:45"), user_id="u_linh", message_id="d", action="decline")]   # K1.4 declined
     s = state_of(ms, acts)
-    turns = run_all(s, FakeLLM(by), Config())
+    turns = run_all(s, FakeLLM(by), Cfg())
     e = turn_of(turns, "e")
     assert src(e, "details") == ["K1.3", "K1.2", "K1.1"] and src(e, "index") == ["K1.4"]
     assert '[declined] "Làm slide tổng kết sprint"' in e["context"]["blocks"]["b3c"]
@@ -151,7 +156,7 @@ def test_last_mentioned_at_is_evidence_message_time():
     ms += [msg("ok", "12:00", "u_linh", "dạ em gửi trước thứ 5 ạ", reply_to_id="a")]
     by["ok"] = {"ops": [update_due("K1.1", "ok", 4)]}
     s = state_of(ms)
-    run_all(s, FakeLLM(by), Config())
+    run_all(s, FakeLLM(by), Cfg())
     assert next(t for t in s.tasks if t.task_id == "K1.1").last_mentioned_at == at("12:00")
 
 
@@ -159,7 +164,7 @@ def test_each_task_once_numbering_continuous_and_formats():
     ms, by = six_tasks()
     ms += [msg("u", "11:00", "u_hung", "báo cáo tuần lùi sang thứ 6 nhé", reply_to_id="b")]
     llm = FakeLLM(by, embedder=EMB)
-    t = turn_of(run_all(state_of(ms), llm, Config(detail_similar_max=1)), "u")
+    t = turn_of(run_all(state_of(ms), llm, Cfg(detail_similar_max=1)), "u")
     c = t["context"]["candidates"]
     assert [x["local"] for x in c] == [f"T{i}" for i in range(1, 7)]               # T<n> liên tục qua ba khối
     assert len({x["task_id"] for x in c}) == 6                                       # mỗi task đúng một lần
@@ -175,7 +180,7 @@ def test_each_task_once_numbering_continuous_and_formats():
 def test_details_without_embedder_is_recency_only():
     ms, by = six_tasks()
     ms += [msg("u", "11:00", "u_hung", "báo cáo tuần lùi sang thứ 6 nhé")]
-    t = turn_of(run_all(state_of(ms), FakeLLM(by), Config()), "u")
+    t = turn_of(run_all(state_of(ms), FakeLLM(by), Cfg()), "u")
     assert src(t, "details") == ["K1.6", "K1.5", "K1.4"] and src(t, "index") == ["K1.3", "K1.2", "K1.1"]
 
 
@@ -184,7 +189,7 @@ def test_index_overflow_keeps_recent_then_most_similar():
     ms[0] = msg("t00", "09:00", "u_hung", "@Nam gửi báo cáo tuần nhé", mentions=mention("u_nam"))
     by = {m.id: {"ops": [create(m.id, ["u_nam"], "Gửi báo cáo tuần" if m.id == "t00" else f"Làm việc số {int(m.id[1:])}")]} for m in ms}
     ms += [msg("u", "11:00", "u_hung", "weekly report gửi chưa em")]
-    cfg = Config(detail_recent_max=1, detail_similar_max=0, index_tasks_max=4, index_overflow_max=1)
+    cfg = Cfg(detail_recent_max=1, detail_similar_max=0, index_tasks_max=4, index_overflow_max=1)
     t = turn_of(run_all(state_of(ms), FakeLLM(by, embedder=EMB), cfg), "u")
     assert src(t, "details") == ["K1.12"]
     assert src(t, "index") == ["K1.11", "K1.10", "K1.9", "K1.1"]  # 3 gần nhất + chỗ tràn cho task gần nghĩa nhất
@@ -195,10 +200,10 @@ def test_query_joins_replied_message_outside_window():
     ms, by = six_tasks()
     ms += fillers(0, 6, hour=10)
     ms += [msg("u", "11:00", "u_linh", "ok anh, em gửi trước thứ 6 nhé", reply_to_id="a")]
-    r = turn_of(run_all(state_of(ms), FakeLLM(by), Config(window_k=3)), "u")["context"]["retrieval"]
+    r = turn_of(run_all(state_of(ms), FakeLLM(by), Cfg(window_k=3)), "u")["context"]["retrieval"]
     assert r["joined_reply"] == "a" and "báo cáo tuần" in r["query"]
     # tin được reply nằm trong cửa sổ K → không nối
-    assert turn_of(run_all(state_of(ms), FakeLLM(by), Config(window_k=20)), "u")["context"]["retrieval"]["joined_reply"] is None
+    assert turn_of(run_all(state_of(ms), FakeLLM(by), Cfg(window_k=20)), "u")["context"]["retrieval"]["joined_reply"] is None
 
 
 def test_budget_trim_order_never_cuts_linked():
@@ -207,7 +212,7 @@ def test_budget_trim_order_never_cuts_linked():
     by = {m.id: {"ops": [create(m.id, ["u_nam"], f"Làm việc số {int(m.id[1:])}")]} for m in ms}
     ms += [msg(f"h{i}", f"10:{i:02d}", "u_nam", f"{long} {i}") for i in range(12)]
     ms += [msg("r", "11:00", "u_hung", "việc này nhớ thêm số liệu nhé", reply_to_id="t03")]
-    t = turn_of(run_all(state_of(ms), FakeLLM(by), Config(context_token_budget=700)), "r")
+    t = turn_of(run_all(state_of(ms), FakeLLM(by), Cfg(context_token_budget=700)), "r")
     order = ["drop_details_anchor", "reduce_k", "drop_index", "drop_details"]
     kinds = [x.split(" ")[0] for x in t["context"]["trims"]]
     assert kinds == sorted(kinds, key=order.index) and kinds[0] == "drop_details_anchor" and "drop_details" in kinds
@@ -228,7 +233,7 @@ def _index_state(op_for_u, extra=()):
 def test_detail_check_on_notes_for_index_task():
     upd = empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "@u", "role": "content"}], notes="bỏ phần demo")
     s, llm = _index_state([{"ops": [upd]}, {"ops": [upd]}])
-    t = turn_of(run_all(s, llm, Config()), "u")
+    t = turn_of(run_all(s, llm, Cfg()), "u")
     assert "K1.1" in src(t, "index")
     assert t["detail_check"]["tasks"] == ["K1.1"] and len(t["extract_calls"]) == 2
     block = t["extract_calls"][1]["extra_block"]
@@ -244,7 +249,7 @@ def test_detail_check_not_triggered():
              empty_op("CANCEL", target="@K1.1", evidence=[{"msg": "@u", "role": "cancel"}])]
     for op in cases:
         s, llm = _index_state({"ops": [op]})
-        t = turn_of(run_all(s, llm, Config()), "u")
+        t = turn_of(run_all(s, llm, Cfg()), "u")
         assert t["detail_check"] is None and len(t["extract_calls"]) == 1, op
 
 
@@ -255,7 +260,7 @@ def test_evidence_msg_with_copied_line_is_accepted():
     ms = [msg("a", "09:00", "u_hung", "@Linh gửi báo cáo tuần nhé", mentions=mention("u_linh"))]
     op = create("a", ["u_linh"], "Gửi báo cáo tuần")
     op["evidence"] = [{"msg": "#1 [thứ 2 09/11 09:00] Hưng (u_hung): @Linh gửi báo cáo tuần nhé", "role": "assign"}]
-    t = turn_of(run_all(state_of(ms), FakeLLM({"a": {"ops": [op]}}), Config()), "a")
+    t = turn_of(run_all(state_of(ms), FakeLLM({"a": {"ops": [op]}}), Cfg()), "a")
     assert t["ops"][0]["accepted"]
 
 
@@ -268,7 +273,7 @@ def test_message_text_instead_of_id_is_mapped():
     op["anchor"] = op["evidence"][0]["msg"] = "@Nam làm màn hình lịch sử giao dịch nhé (@Nam=u_nam)"
     acc = empty_op("UPDATE", target="@K1.1", evidence=[{"msg": "ok anh", "role": "accept"}])
     s = state_of(ms)
-    turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [acc]}}), Config())
+    turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [acc]}}), Cfg())
     assert turn_of(turns, "a")["ops"][0]["accepted"] and s.tasks[0].anchor_message_id == "a"
     assert turn_of(turns, "b")["ops"][0]["accepted"] and "b" in {e.message_id for e in s.tasks[0].evidence}
 
@@ -282,7 +287,7 @@ def test_recreating_declined_task_is_left_to_reviewer():
     by["z"] = {"ops": [create("z", ["Linh"], "Làm banner Black Friday")]}
     acts = [UserAction(at=at("08:55"), user_id="u_linh", message_id="bn", action="decline")]
     s = state_of(ms, acts)
-    t = turn_of(run_all(s, FakeLLM(by), Config()), "z")
+    t = turn_of(run_all(s, FakeLLM(by), Cfg()), "z")
     assert len(t["extract_calls"]) == 1 and t["ops"][0]["accepted"] and s.tasks[-1].status == "draft"
 
 
@@ -293,7 +298,7 @@ def test_schema_and_prompt():
     p = PROMPTS["extract"]
     assert "TASK_INDEX" in p and "CANDIDATE_TASKS" not in p and "SPEAKER" not in p and "ADDRESSEE" not in p
     s = state_of(six_tasks()[0])
-    run_all(s, FakeLLM(six_tasks()[1]), Config())
+    run_all(s, FakeLLM(six_tasks()[1]), Cfg())
     assert {t.prompt_version for t in s.tasks} == {PROMPT_VERSION}
 
 
@@ -311,7 +316,7 @@ def test_assignees_add_and_remove():
           "b": {"ops": [_upd("K1.1", "b", assignees_add=["u_nam"])]},
           "c": {"ops": [_upd("K1.1", "c", "assignee", assignees_add=["Tuấn"], assignees_remove=["u_linh"])]}}
     s = state_of(ms)
-    turns = run_all(s, FakeLLM(by), Config())
+    turns = run_all(s, FakeLLM(by), Cfg())
     assert s.tasks[0].assignee_ids == ["u_nam", "u_tuan"]          # tên → khớp thành viên
     assert turn_of(turns, "c")["ops"][0]["fields"] == ["assignee_refs"]
 
@@ -319,7 +324,7 @@ def test_assignees_add_and_remove():
 def test_unknown_user_id_is_dropped():
     ms = [msg("a", "09:00", "u_hung", "@Linh gửi báo cáo tuần nhé", mentions=mention("u_linh"))]
     s = state_of(ms)
-    t = turn_of(run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh", "u_khach"], "Gửi báo cáo tuần")]}}), Config()), "a")
+    t = turn_of(run_all(s, FakeLLM({"a": {"ops": [create("a", ["u_linh", "u_khach"], "Gửi báo cáo tuần")]}}), Cfg()), "a")
     assert s.tasks[0].assignee_ids == ["u_linh"] and any(n.startswith("assignee_unknown") for n in t["ops"][0]["notes"])
 
 
@@ -330,11 +335,11 @@ def test_notes_add_appends_and_notes_replaces():
     by = {"a": {"ops": [create("a", ["u_linh"], "Làm banner Black Friday", notes="3 kích thước")]},
           "b": {"ops": [_upd("K1.1", "b", "content", notes_add="thêm bản dọc cho story")]}}
     s = state_of(ms)
-    run_all(s, FakeLLM(by), Config())
+    run_all(s, FakeLLM(by), Cfg())
     assert s.tasks[0].notes == "3 kích thước; thêm bản dọc cho story"
     by["c"] = {"ops": [_upd("K1.1", "c", "content", notes="chỉ cần bản ngang")]}
     s = state_of(ms)
-    run_all(s, FakeLLM(by), Config())
+    run_all(s, FakeLLM(by), Cfg())
     assert s.tasks[0].notes == "chỉ cần bản ngang"
 
 
@@ -352,7 +357,7 @@ def test_due_kind_null_none_and_shift():
           "d": {"ops": [_upd("K1.1", "d", "due", due_kind="none")]},
           "e": {"ops": [_upd("K1.1", "e", "due", due_shift_days=1)]}}
     s = state_of(ms)
-    turns = run_all(s, FakeLLM(by), Config())
+    turns = run_all(s, FakeLLM(by), Cfg())
     hist = [(h.field, h.new) for h in s.tasks[0].field_history]
     assert ("due", "thứ 7 (21/11)") in hist                                  # 19/11 + 2 ngày
     assert s.tasks[0].due_type == "none" and s.tasks[0].due_date is None      # "none" = bỏ hạn
@@ -369,7 +374,7 @@ def test_weekday_written_number_and_roll_forward():
     op.update(due_text="thứ 5", due_kind="weekday", due_weekday=5)
     lui = _upd("K1.1", "b", "due", due_text="thứ 2", due_kind="weekday", due_weekday=2, due_week_offset=0)
     s = state_of(ms)
-    turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [lui]}}), Config())
+    turns = run_all(s, FakeLLM({"a": {"ops": [op]}, "b": {"ops": [lui]}}), Cfg())
     assert any("2026-11-19" in n for n in turn_of(turns, "a")["ops"][0]["notes"])
     assert s.tasks[0].due_date == "2026-11-23"
     assert any("due_rolled_forward" in n for n in turn_of(turns, "b")["ops"][0]["notes"])

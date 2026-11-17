@@ -4,7 +4,9 @@ window_k: 10                   # số tin trước trong LỊCH SỬ GẦN
 reply_chain_max: 3
 context_token_budget: 3500
 message_max_tokens: 80
-coalesce_seconds: 5
+quiet_seconds: 60             # lượt = tin đến liền nhau tới khi hội thoại yên 60 giây
+max_wait_seconds: 300
+max_batch_messages: 10
 candidate_ttl_hours: 48
 draft_ttl_days: 7
 approved_grace_days: 3

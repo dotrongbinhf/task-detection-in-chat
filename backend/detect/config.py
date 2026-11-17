@@ -20,7 +20,10 @@ class Config(BaseModel):
     reply_chain_max: int = 3
     context_token_budget: int = 3500
     message_max_tokens: int = 80
-    coalesce_seconds: float = 5
+    # hàng đợi: đợi hội thoại yên (v6 mục 3)
+    quiet_seconds: float = 60
+    max_wait_seconds: float = 300
+    max_batch_messages: int = 10
     candidate_ttl_hours: float = 48
     draft_ttl_days: float = 7
     approved_grace_days: int = 3
@@ -47,7 +50,9 @@ CONFIG_HELP: dict[str, str] = {
     "reply_chain_max": "Số tin tối đa lần ngược theo chuỗi reply",
     "context_token_budget": "Trần token input của bộ trích",
     "message_max_tokens": "Cắt tin dài hơn số token này",
-    "coalesce_seconds": "Gộp tin đến dồn (giây)",
+    "quiet_seconds": "Lượt kết thúc khi hội thoại yên quá số giây này (tin kế tiếp cách tin trước > quiet_seconds)",
+    "max_wait_seconds": "Trần thời lượng một lượt (giây, từ tin đầu)",
+    "max_batch_messages": "Trần số tin một lượt",
     "candidate_ttl_hours": "Task ẩn chưa ai nhận thì hết hạn (giờ)",
     "draft_ttl_days": "Nháp không được chạm tới thì đóng (closed, draft_ttl) sau (ngày)",
     "approved_grace_days": "Task đã duyệt còn mở sau hạn (ngày)",

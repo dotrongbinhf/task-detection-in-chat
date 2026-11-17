@@ -239,7 +239,7 @@ def main() -> None:
     p = sub.add_parser("agree"); p.add_argument("a"); p.add_argument("b")
     p = sub.add_parser("stats"); p.add_argument("labels"); p.add_argument("--data", default=None)
     for s in sub.choices.values():
-        s.add_argument("--set", action="append", default=[], help="ghi đè config, vd. coalesce_seconds=5")
+        s.add_argument("--set", action="append", default=[], help="ghi đè config, vd. quiet_seconds=60")
     a = ap.parse_args()
     cfg = load_config(sets=a.set)
 

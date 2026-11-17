@@ -32,8 +32,8 @@ def test_derive_labels_supporting_and_hard(sample):
 def test_export_matches_derive_turns(sample):
     ex, de = export(sample, Config(), 5), derive(sample, Config())
     assert [r["turn_id"] for r in ex] == [r["turn_id"] for r in de]
-    m4 = next(r for r in ex if r["new_event_ids"] == ["m004"])
-    assert m4["has_reply"] and "m003" in m4["context"] and m4["label"] is None
+    m4 = next(r for r in ex if "m004" in r["new_event_ids"])  # v6: m003 + m004 cùng một lượt (đợi hội thoại yên)
+    assert m4["has_reply"] and "m003" in m4["new_event_ids"] and m4["label"] is None
 
 
 # ---------------- import ----------------
