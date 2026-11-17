@@ -15,7 +15,7 @@ from typing import Any, Optional
 from .config import Config
 from .ledger import pending_for
 from .models import EngineState, Member, Message, PendingChange, StreamEvent, Task
-from .timeexpr import calendar14, fmt_day_time, fmt_time, local_date, parse, to_iso, ts, vi_weekday
+from .timeexpr import fmt_day_time, fmt_time, local_date, parse, to_iso, ts, vi_weekday
 from .tokens import count_tokens, truncate_tokens
 
 REACTION_EMOJI = {"like": "👍", "love": "❤️", "heart": "❤️", "haha": "😆", "wow": "😮", "sad": "😢", "angry": "😠", "ok": "👌", "check": "✅"}
@@ -344,7 +344,8 @@ def build_context(state: EngineState, key: str, batch: list[StreamEvent], cfg: C
         head = f"Conversation type: {conv_type}.\n" + members_block(members, present, cfg.members_max)
         b = {
             "b1": instructions,
-            "b2": f"<CALENDAR>\n{calendar14(turn_at).replace('← hôm nay', '← today')}\n</CALENDAR>",
+            # D1 (v6 mục 9): một dòng ngày hôm nay thay khối lịch 14 ngày — model không tính ngày, code quy hạn
+            "b2": f"Today: {vi_weekday(local_date(turn_at).isoweekday())} {local_date(turn_at).isoformat()}",
             "b3a": ("<LINKED_TASKS>\n" + LINKED_HEADER + "\n" + "\n".join(lines_a) + "\n</LINKED_TASKS>") if lines_a else "",
             "b3b": "<TASK_DETAILS>\n" + ("\n".join(lines_d) or "(none)") + "\n</TASK_DETAILS>",
             "b3c": ("<TASK_INDEX>\n" + INDEX_HEADER + "\n" + "\n".join(lines_i) + "\n</TASK_INDEX>") if lines_i else "",
