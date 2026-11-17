@@ -328,7 +328,7 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
         calls = t.get("extract_calls") or [{**t["extract"], "call": 1}]
         tin = 0
         for e in calls:
-            pr = pricing.get(e["model"], pricing.get("gpt-4o-mini", {"input": 0, "cached": 0, "output": 0}))
+            pr = pricing.get(e["model"], {"input": 0, "cached": 0, "output": 0})  # model không có trong config.yaml → $0, không đoán giá
             c_usd = ((e["input_tokens"] - e["cached_tokens"]) * pr["input"] + e["cached_tokens"] * pr["cached"] + e["output_tokens"] * pr["output"]) / 1e6
             in_tok += e["input_tokens"]
             cached += e["cached_tokens"]

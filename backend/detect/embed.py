@@ -21,7 +21,7 @@ from .config import ROOT, read_cache, write_cache
 from .text import norm
 
 load_dotenv(ROOT / ".env")
-for _k in ("OPENAI_BASE_URL", "EMBED_MODEL"):  # biến rỗng trong .env → SDK hiểu là URL rỗng (DECISIONS #17)
+for _k in ("OPENAI_BASE_URL", "EMBED_MODEL", "EMBED_BASE_URL", "EMBED_API_KEY"):  # biến rỗng trong .env → SDK hiểu là URL rỗng (DECISIONS #17)
     if not os.environ.get(_k, "").strip():
         os.environ.pop(_k, None)
 CACHE_DIR = ROOT / ".cache" / "emb"
@@ -71,7 +71,8 @@ class OpenAIEmbedder:
         if miss:
             from openai import OpenAI
 
-            client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
+            client = OpenAI(api_key=os.environ.get("EMBED_API_KEY") or os.environ["OPENAI_API_KEY"],
+                            base_url=os.environ.get("EMBED_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or None)
             r = client.embeddings.create(model=self.name, input=[t or " " for _, t, _ in miss])
             self.tokens_used += getattr(r.usage, "total_tokens", 0) or 0
             for (i, _, k), d in zip(miss, r.data):

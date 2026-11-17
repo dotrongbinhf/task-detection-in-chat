@@ -22,7 +22,7 @@ from .models import EXTRACT_JSON_SCHEMA
 
 load_dotenv(ROOT / ".env")
 # Biến để trống trong .env (vd. OPENAI_BASE_URL=) sẽ bị SDK hiểu là URL rỗng → bỏ đi.
-for _k in ("OPENAI_BASE_URL", "EXTRACT_MODEL"):
+for _k in ("OPENAI_BASE_URL", "EXTRACT_MODEL", "RESPONSE_FORMAT", "EMBED_MODEL"):
     if not os.environ.get(_k, "").strip():
         os.environ.pop(_k, None)
 
@@ -54,6 +54,30 @@ def has_openai_key() -> bool:
 
 def extract_model_name() -> str:
     return os.environ.get("EXTRACT_MODEL") or "gpt-4o-mini"  # model tham chiếu v6 (mục 14.3)
+
+
+def is_openai() -> bool:
+    """Endpoint là OpenAI thật (không đặt OPENAI_BASE_URL hoặc trỏ api.openai.com) — chỉ khi đó mới gửi `prompt_cache_key`."""
+    url = os.environ.get("OPENAI_BASE_URL") or ""
+    return not url or "api.openai.com" in url
+
+
+def response_format() -> dict[str, Any]:
+    """`RESPONSE_FORMAT=json_object` cho endpoint không nhận json_schema strict; Pydantic vẫn kiểm schema khi parse."""
+    if os.environ.get("RESPONSE_FORMAT") == "json_object":
+        return {"type": "json_object"}
+    return {"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA}
+
+
+def make_embedder(no_cache: bool = False) -> Any:
+    """`EMBED_MODEL=none` → không embedding (TASK_DETAILS / TASK_INDEX chỉ xếp theo độ mới).
+    `EMBED_BASE_URL` / `EMBED_API_KEY` cho embedding ở endpoint khác bộ trích; trống = dùng chung OPENAI_*."""
+    name = os.environ.get("EMBED_MODEL") or "text-embedding-3-small"
+    if name.lower() == "none":
+        return None
+    from .embed import OpenAIEmbedder
+
+    return OpenAIEmbedder(name=name, no_cache=no_cache)
 
 
 # ---------- cache đĩa: khoá = hash(model + prompt + tham số) ----------
@@ -91,17 +115,15 @@ class OpenAILLM:
         self.extract_model = extract_model_name()
         self.no_cache = no_cache
         self.seed = seed  # `seed` của lời gọi, nằm trong khoá cache đĩa → mỗi seed là một lần chạy riêng (v6 mục 11.5)
-        from .embed import OpenAIEmbedder
-
-        self.embedder = OpenAIEmbedder(name=os.environ.get("EMBED_MODEL") or "text-embedding-3-small", no_cache=no_cache)
+        self.embedder = make_embedder(no_cache)
 
     def extract(self, ctx: BuiltContext, attempt: int) -> ExtractResult:
         """response_format json_schema strict; temperature=0, seed cố định; khối 1 đứng đầu để tận dụng prompt caching."""
         t0 = time.time()
         req = dict(model=self.extract_model, messages=[{"role": "system", "content": ctx.system},
                                                        {"role": "user", "content": ctx.user}],
-                   temperature=0, seed=self.seed + attempt, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
-        if ctx.cache_key:
+                   temperature=0, seed=self.seed + attempt, response_format=response_format())
+        if ctx.cache_key and is_openai():
             req["prompt_cache_key"] = ctx.cache_key  # định tuyến các lời gọi có cùng tiền tố tới cùng máy cache
 
         def call() -> dict:
@@ -163,22 +185,46 @@ def make_llm(no_cache: bool = False, seed: int = 7) -> LLM:
 
 
 def probe() -> dict[str, Any]:
-    """Model bộ trích có nhận json_schema strict và temperature không."""
+    """Endpoint + model bộ trích nhận gì: json_schema strict, json_object, seed, prompt_cache_key; embedding có chạy không.
+    Kết quả gợi ý đặt RESPONSE_FORMAT / EMBED_MODEL trong .env."""
     if not has_openai_key():
         return {"ok": False, "error": NO_KEY, "models": []}
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None, max_retries=1)
     model = extract_model_name()
-    r: dict[str, Any] = {"model": model}
-    try:
-        b = client.chat.completions.create(model=model, messages=[{"role": "user", "content": 'Trả về {"ops": []}'}],
-                                           temperature=0, response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
-        r["json_schema_strict"] = bool(b.choices[0].message.content)
-    except Exception as e:  # noqa: BLE001
-        r["json_schema_strict"] = False
-        r["json_schema_error"] = str(e)
-    return {"ok": r["json_schema_strict"], "models": [r]}
+    msgs = [{"role": "system", "content": 'Return JSON: {"message_type": "no_change", "ops": []}'},
+            {"role": "user", "content": "NEW_MESSAGES: ok"}]
+    r: dict[str, Any] = {"model": model, "base_url": os.environ.get("OPENAI_BASE_URL") or "api.openai.com"}
+
+    def attempt(name: str, **kw: Any) -> None:
+        try:
+            b = client.chat.completions.create(model=model, messages=msgs, temperature=0, **kw)
+            raw = b.choices[0].message.content or ""
+            r[name] = parse_ok = __import__("detect.extract", fromlist=["parse_extract"]).parse_extract(raw)[0] is not None
+            if not parse_ok:
+                r[name + "_raw"] = raw[:200]
+        except Exception as e:  # noqa: BLE001
+            r[name] = False
+            r[name + "_error"] = str(e)[:300]
+
+    attempt("json_schema_strict", response_format={"type": "json_schema", "json_schema": EXTRACT_JSON_SCHEMA})
+    attempt("json_object", response_format={"type": "json_object"})
+    attempt("seed", response_format={"type": "json_object"}, seed=7)
+    attempt("prompt_cache_key", response_format={"type": "json_object"}, extra_body={"prompt_cache_key": "probe"})
+    emb = make_embedder(True)
+    if emb is None:
+        r["embedding"] = "tắt (EMBED_MODEL=none)"
+    else:
+        try:
+            r["embedding"] = f"{emb.name}: {len(emb.embed(['thử'])[0])} chiều"
+        except Exception as e:  # noqa: BLE001
+            r["embedding"] = False
+            r["embedding_error"] = str(e)[:300]
+    r["suggest"] = {"RESPONSE_FORMAT": "json_schema" if r["json_schema_strict"] else "json_object" if r["json_object"] else "?",
+                    "EMBED_MODEL": None if r["embedding"] else "none (hoặc EMBED_BASE_URL / EMBED_API_KEY của endpoint khác)"}
+    ok = (r["json_schema_strict"] or r["json_object"]) and r["seed"] is not False
+    return {"ok": bool(ok), "models": [r]}
 
 
 if __name__ == "__main__":

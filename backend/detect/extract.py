@@ -22,6 +22,8 @@ from .timeexpr import DATE_FIELDS, local_date, resolve_due, ts
 
 
 def parse_extract(raw: str) -> tuple[Optional[ExtractOutput], Optional[str]]:
+    # model ngoài OpenAI ở chế độ json_object đôi khi bọc JSON trong ```json … ```
+    raw = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw)
     try:
         return ExtractOutput.model_validate(json.loads(raw)), None
     except (json.JSONDecodeError, ValidationError) as e:

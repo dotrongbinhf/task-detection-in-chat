@@ -230,7 +230,7 @@ def process_turn(state: EngineState, cfg: Config, llm: LLM, prompts: dict[str, s
 
 
 def call_cost(r: dict[str, Any], pricing: dict[str, dict[str, float]]) -> float:
-    pr = pricing.get(r["model"], pricing.get("gpt-4o-mini", {"input": 0, "cached": 0, "output": 0}))
+    pr = pricing.get(r["model"], {"input": 0, "cached": 0, "output": 0})  # thiếu giá → $0, không đoán
     return ((r["input_tokens"] - r["cached_tokens"]) * pr.get("input", 0) + r["cached_tokens"] * pr.get("cached", 0)
             + r["output_tokens"] * pr.get("output", 0)) / 1e6
 
