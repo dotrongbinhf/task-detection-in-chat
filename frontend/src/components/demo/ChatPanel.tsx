@@ -44,7 +44,7 @@ type Props = {
 
 export function ChatPanel({ engine, conv, setConv, turn, task, onSelectTurnForEvent, onActivity }: Props) {
   const s = engine.state!;
-  const members = s.members[conv] ?? [];
+  const members = useMemo(() => s.members[conv] ?? [], [s.members, conv]);
   const processed = useMemo(() => new Set(s.processed), [s.processed]);
   const msgs = useMemo(
     () => s.events.filter((e) => e.kind === "message" && e.message!.conversation_id === conv && processed.has(e.id)).map((e) => e.message!),
@@ -52,10 +52,15 @@ export function ChatPanel({ engine, conv, setConv, turn, task, onSelectTurnForEv
   );
   const shownReactions = useMemo(() => {
     const m = new Map<string, { user: string; type: string; id: string }[]>();
+    // v6: reaction gắn vào tin, không sinh lượt — hiện mọi reaction đã xảy ra tới giờ mô phỏng
+    const nameOf = (u: string) => members.find((x) => x.user_id === u)?.display_name ?? u;
     for (const e of s.events)
-      if (e.kind === "reaction" && processed.has(e.id)) m.set(e.target_id!, [...(m.get(e.target_id!) ?? []), { user: e.user_name ?? "", type: e.type ?? "", id: e.id }]);
+      if (e.message && processed.has(e.id))
+        e.message.reactions.forEach((r, i) => {
+          if (r.created_at <= s.simNow) m.set(e.id, [...(m.get(e.id) ?? []), { user: nameOf(r.user_id), type: r.type, id: `${e.id}#r${i + 1}` }]);
+        });
     return m;
-  }, [s.events, processed]);
+  }, [s.events, s.simNow, processed, members]);
   const pendingInConv = s.events.filter((e) => !processed.has(e.id) && e.key.split(";")[0] === conv);
   const nextAny = s.events.find((e) => !processed.has(e.id));
 

@@ -75,7 +75,7 @@ export default function Demo() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white"><BellRing size={17} aria-hidden /></span>
           <div className="leading-tight">
             <h1 className="text-[15px] font-semibold text-ink">AI Reminder <span className="font-normal text-ink-3">· phát hiện task từ chat</span></h1>
-            <p className="text-[11px] text-ink-3">Prototype v5 — code tìm ứng viên trước, LLM phán sau · sổ cái cập nhật theo từng tin · bằng chứng theo task · người nhận duyệt</p>
+            <p className="text-[11px] text-ink-3">Prototype v6 — đợi hội thoại yên · ba tầng task · người nhận bằng user_id · bằng chứng theo task · người nhận duyệt</p>
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
@@ -84,28 +84,16 @@ export default function Demo() {
             className="h-8 cursor-pointer rounded-md border border-line bg-white px-2">
             {info.datasets.map((d) => <option key={d} value={d}>{DATASET_LABEL[d] ?? d}</option>)}
           </select>
-          <label className="ml-1 text-ink-3" htmlFor="mode">LLM</label>
-          <select id="mode" value={engine.mode} onChange={(e) => engine.setMode(e.target.value as "openai" | "heuristic")}
-            className="h-8 cursor-pointer rounded-md border border-line bg-white px-2">
-            <option value="openai" disabled={!info.hasKey}>OpenAI · {info.extractModel}{info.hasKey ? "" : " (chưa có key)"}</option>
-            <option value="heuristic">Giả lập bằng luật (offline)</option>
-          </select>
-          <label className="ml-1 text-ink-3" htmlFor="gm">Cổng</label>
-          <select id="gm" value={String(engine.config.gate_mode ?? "none")} onChange={(e) => engine.setConfig({ ...engine.config, gate_mode: e.target.value })}
-            className="h-8 cursor-pointer rounded-md border border-line bg-white px-2">
-            <option value="none">none — trần chất lượng</option>
-            <option value="shadow">shadow — chấm p, không chặn</option>
-            <option value="llm">llm — chặn khi p &lt; {engine.config.gate_threshold}</option>
-          </select>
+          <span className="ml-1 text-ink-3">LLM: <b className="text-ink-2">OpenAI · {info.extractModel}</b></span>
           <Button onClick={() => setShowConfig(true)} aria-label="Tham số"><Settings2 size={14} /> Tham số</Button>
         </div>
       </header>
 
-      {engine.mode === "heuristic" && (
-        <div className="flex items-center gap-2 border-b border-orange-200 bg-orange-50 px-4 py-1.5 text-[12px] text-orange-900">
+      {!info.hasKey && (
+        <div role="alert" className="flex items-center gap-2 border-b border-orange-200 bg-orange-50 px-4 py-1.5 text-[12px] text-orange-900">
           <Info size={14} aria-hidden />
-          Đang dùng <b>bộ trích giả lập bằng luật</b> để xem luồng offline — không phản ánh chất lượng LLM thật.
-          {!info.hasKey && <> Điền <code className="rounded bg-white/70 px-1">OPENAI_API_KEY</code> vào <code className="rounded bg-white/70 px-1">backend/.env</code> rồi khởi động lại backend để dùng OpenAI.</>}
+          Chưa có <b>OPENAI_API_KEY</b> — engine không chạy được (v6 đã bỏ bộ trích giả lập). Điền key vào
+          <code className="rounded bg-white/70 px-1">backend/.env</code> rồi khởi động lại backend. Vẫn xem được dữ liệu và chấm điểm.
         </div>
       )}
 

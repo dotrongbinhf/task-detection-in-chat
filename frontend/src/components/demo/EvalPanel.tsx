@@ -1,5 +1,4 @@
 "use client";
-import clsx from "clsx";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { pct } from "@/lib/format";
@@ -29,8 +28,7 @@ function Metric({ label, r, target, higher = true }: { label: string; r: Rate; t
       </div>
       <div className="mt-1 text-xl font-semibold tabular-nums text-ink">{pct(r.value)}</div>
       <div className="text-[11px] text-ink-3">
-        {r.k}/{r.n} · CI95 {pct(r.lo)}–{pct(r.hi)}
-        {!r.enough && r.n > 0 && " · chưa đủ mẫu"}
+        {r.k}/{r.n} · {r.method === "bootstrap" ? "boot" : "CI95"} {pct(r.lo)}–{pct(r.hi)}
       </div>
     </div>
   );
@@ -71,6 +69,7 @@ export function EvalPanel({ engine }: { engine: Engine }) {
           <section>
             <h3 className="mb-1.5 text-[12px] font-semibold uppercase tracking-wide text-ink-3">Phát hiện & trường</h3>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <Metric label="Nháp đúng hoàn toàn" r={m.strict_correct} />
               <Metric label="Recall" r={m.recall} target={0.7} />
               <Metric label="Precision" r={m.precision} target={0.6} />
               <Metric label="Tỉ lệ trùng" r={m.dup_rate} target={0.05} higher={false} />
@@ -78,7 +77,7 @@ export function EvalPanel({ engine }: { engine: Engine }) {
               <Metric label="Hạn lịch đúng" r={m.due_acc} target={0.8} />
               <Metric label="Hạn sự kiện bị bịa" r={m.event_fabricated} target={0.05} higher={false} />
               <Metric label="Đề xuất thay đổi sai" r={m.wrong_changes} target={0.2} higher={false} />
-              <Metric label="Báo nhầm hard negative" r={m.hard_negative_fp} />
+              <Metric label="Lượt báo nhầm" r={m.false_alarm_turns} />
             </div>
           </section>
 
@@ -117,7 +116,8 @@ export function EvalPanel({ engine }: { engine: Engine }) {
         <div className="rounded-lg border border-line bg-white p-2.5">
           <h4 className="mb-1 font-semibold text-ink">Chi phí</h4>
           <ul className="space-y-0.5 text-ink-2">
-            <li>{c.turns} lượt · {c.extract_calls} lần gọi bộ trích · {c.gate_calls} lần gọi cổng</li>
+            <li>{c.turns} lượt · {c.extract_calls} lần gọi bộ trích · detail_check {c.detail_check_turns ?? 0}</li>
+            {c.batch_size && <li>Số tin mỗi lượt: p50 {c.batch_size.p50 ?? "—"} · p95 {c.batch_size.p95 ?? "—"}{c.index_tasks?.max != null ? ` · task trong TASK_INDEX p50 ${c.index_tasks.p50} · max ${c.index_tasks.max}` : ""}</li>}
             <li>Lượt có op: <RateCell r={c.op_turn_ratio} /></li>
             <li>Token input {c.input_tokens.toLocaleString("vi")} (cache {c.cached_tokens.toLocaleString("vi")}) · output {c.output_tokens.toLocaleString("vi")}</li>
             <li>Ước tính ${c.cost_usd.toFixed(4)} · ${c.cost_per_1000_msgs.toFixed(3)} / 1.000 tin</li>
@@ -128,18 +128,18 @@ export function EvalPanel({ engine }: { engine: Engine }) {
             {c.turn_input_tokens && <li>Token input mỗi lượt (mọi lần gọi): p50 {c.turn_input_tokens.p50 ?? "—"} · p95 {c.turn_input_tokens.p95 ?? "—"}{c.cache_ratio != null ? ` · cache ${(c.cache_ratio * 100).toFixed(0)}%` : ""}</li>}
             {rep.candidates && rep.candidates.n_turns > 0 && (
               <>
-                <li><b>Candidate recall</b> (task đúng có trong prompt lần 1): <RateCell r={rep.candidates.first_call_recall} /> · linked {rep.candidates.by_source.linked ?? 0} · matched {rep.candidates.by_source.matched ?? 0} · recent {rep.candidates.by_source.recent ?? 0} · vào lần 2 {rep.candidates.second_found} · bỏ lỡ {rep.candidates.missed}</li>
+                <li><b>Candidate recall</b> (task đúng có trong prompt lần 1): <RateCell r={rep.candidates.first_call_recall} /> · linked {rep.candidates.by_source.linked ?? 0} · details {rep.candidates.by_source.details ?? 0} · index {rep.candidates.by_source.index ?? 0} · bỏ lỡ {rep.candidates.missed}</li>
                 <li><b>Link accuracy</b>: <RateCell r={rep.candidates.link_accuracy} /> · nhắm task khác {rep.candidates.link_outcomes.wrong_target} · CREATE thay UPDATE {rep.candidates.link_outcomes.create_instead} · không làm gì {rep.candidates.link_outcomes.no_op}</li>
-                <li>Lượt gọi lần 2 (kiểm tra target): <RateCell r={rep.candidates.second_call_turns} /></li>
+                <li>Không cần đổi (tin <i>accept</i> của người đã là người nhận): {rep.candidates.no_change_needed}</li>
               </>
             )}
           </ul>
           <table className="mt-2 w-full">
             <thead><tr className="text-left text-ink-3"><th className="font-medium">Khối</th><th className="text-right font-medium">p50</th><th className="text-right font-medium">p95</th></tr></thead>
             <tbody>
-              {(["b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
+              {(["b1", "b0", "b2", "b3a", "b3b", "b3c", "b4", "b5", "b6", "total"] as const).filter((b) => c.tokens[b]).map((b) => (
                 <tr key={b} className="border-t border-line">
-                  <td>{{ b1: "1. Hướng dẫn", b2: "2. Lịch", b3a: "3a. Được link", b3b: "3b. Ứng viên", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. Kiểm tra target (lần 2)", total: "Tổng lần 1" }[b]}</td>
+                  <td>{{ b1: "1. Hướng dẫn", b0: "MEMBERS", b2: "2. Lịch", b3a: "3a. LINKED_TASKS", b3b: "3b. TASK_DETAILS", b3c: "3c. TASK_INDEX", b4: "4. Lịch sử gần", b5: "5. Tin mới", b6: "6. detail_check (lần 2)", total: "Tổng lần 1" }[b]}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p50 ?? "—"}</td>
                   <td className="text-right tabular-nums">{c.tokens[b]?.p95 ?? "—"}</td>
                 </tr>
@@ -148,22 +148,18 @@ export function EvalPanel({ engine }: { engine: Engine }) {
           </table>
         </div>
         <div className="rounded-lg border border-line bg-white p-2.5">
-          <h4 className="mb-1 font-semibold text-ink">Đường cong cổng</h4>
-          {rep.gate_curve.every((x) => x.pass_rate.n === 0) ? (
-            <p className="text-ink-3">Chạy với <b>gate_mode = shadow</b> để có đường cong (cổng chấm p mọi lượt nhưng không chặn).</p>
+          <h4 className="mb-1 font-semibold text-ink">Op theo lượt (turn_labels)</h4>
+          {!rep.turn_ops?.available ? (
+            <p className="text-ink-3">Dataset không có turn_labels.jsonl.</p>
           ) : (
-            <table className="w-full">
-              <thead><tr className="text-left text-ink-3"><th className="font-medium">Ngưỡng</th><th className="font-medium">Recall so với trần</th><th className="font-medium">Lượt qua cổng</th></tr></thead>
-              <tbody>
-                {rep.gate_curve.map((g) => (
-                  <tr key={g.threshold} className="border-t border-line">
-                    <td className="font-mono">{g.threshold}</td>
-                    <td className={clsx(g.recall_vs_ceiling.value != null && g.recall_vs_ceiling.value < 0.95 && "text-rose-600")}>{pct(g.recall_vs_ceiling.value)}</td>
-                    <td>{pct(g.pass_rate.value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul className="space-y-0.5 text-ink-2">
+              <li>Lượt báo nhầm: <RateCell r={m.false_alarm_turns} /></li>
+              {rep.turn_ops.missed && <li>Lượt bỏ sót: <RateCell r={rep.turn_ops.missed} /></li>}
+              {rep.turn_ops.type_correct && <li>Đúng loại op: <RateCell r={rep.turn_ops.type_correct} /></li>}
+              {Object.entries(rep.turn_ops.false_alarm_by_hn_tag ?? {}).map(([k, v]) => (
+                <li key={k}>— hard negative <span className="font-mono">{k}</span>: <RateCell r={v} /></li>
+              ))}
+            </ul>
           )}
         </div>
       </section>

@@ -33,16 +33,15 @@ function Shell({ title, onClose, children, wide, footer }: { title: ReactNode; o
 }
 
 export function PromptDialog({ turn, instructions, onClose }: { turn: TurnRecord; instructions: string; onClose: () => void }) {
-  const [tab, setTab] = useState<"user" | "system" | "gate">("user");
+  const [tab, setTab] = useState<"user" | "system">("user");
   const ctx = turn.context!;
-  const text = tab === "system" ? instructions : tab === "gate" ? turn.gate?.prompt ?? "(gate_mode = none)" : ctx.prompt;
+  const text = tab === "system" ? instructions : ctx.prompt;
   return (
     <Shell title={`Prompt gửi bộ trích — lượt #${turn.turn}`} onClose={onClose} wide>
       <div className="flex gap-1 border-b border-line px-4 py-2 text-xs">
         {([
-          ["user", `Khối 2–5 (đổi theo lượt) · ${ctx.tokens.b2 + ctx.tokens.b3a + ctx.tokens.b3b + ctx.tokens.b4 + ctx.tokens.b5} tok`],
+          ["user", `Tin người dùng (đổi theo lượt) · ${ctx.tokens.total - ctx.tokens.b1} tok`],
           ["system", `Khối 1 — hướng dẫn cố định · ${ctx.tokens.b1} tok`],
-          ["gate", "Ngữ cảnh rút gọn của cổng"],
         ] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`cursor-pointer rounded-md px-2.5 py-1 ${tab === k ? "bg-teal-50 font-medium text-primary-ink" : "text-ink-3 hover:bg-slate-100"}`}>
             {l}
@@ -80,7 +79,7 @@ export function ConfigDialog({ engine, onClose }: { engine: Engine; onClose: () 
       <div className="grid gap-x-4 gap-y-3 p-4 sm:grid-cols-2">
         {keys.map((k) => {
           const v = draft[k];
-          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : k === "gate_mode" ? ["none", "shadow", "llm"] : null;
+          const enumOpts = k === "draft_min" ? ["assignee", "assignee_due"] : null;
           return (
             <div key={k}>
               <label htmlFor={`cfg-${k}`} className="block font-mono text-[11.5px] font-medium text-ink">{k}</label>

@@ -84,7 +84,10 @@ def write_cache(f: Path, v: Any) -> None:
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_name(f"{f.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, f)
+    try:
+        os.replace(tmp, f)
+    except PermissionError:  # Windows: file đích đang được tiến trình khác đọc — bỏ lần ghi này, cache chỉ là tối ưu
+        tmp.unlink(missing_ok=True)
 
 
 def load_config(overrides: dict[str, Any] | None = None, sets: list[str] | None = None) -> Config:

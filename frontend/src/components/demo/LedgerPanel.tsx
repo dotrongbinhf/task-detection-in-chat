@@ -161,7 +161,7 @@ function TaskCard({ t, state, nameOf, selected, onSelect, children }: { t: Task;
   const changes = state.changes.filter((c) => c.task_id === t.task_id);
   const pending = changes.filter((c) => c.status === "pending");
   const [showHist, setShowHist] = useState(false);
-  const faded = ["cancelled", "expired", "stale", "closed", "declined"].includes(t.status);
+  const faded = ["cancelled", "closed", "declined"].includes(t.status);
   return (
     <article
       className={clsx(
@@ -175,6 +175,7 @@ function TaskCard({ t, state, nameOf, selected, onSelect, children }: { t: Task;
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[11px] font-semibold text-ink-3">{t.task_id}</span>
           <StatusBadge status={t.status} />
+          {t.status === "closed" && t.closed_reason && <Badge tone="zinc" title="lý do đóng">{t.closed_reason}</Badge>}
           <Badge tone="slate">{KIND_LABEL[t.kind]}</Badge>
           {t.draft_update_count > 0 && <Badge tone="slate" title="số lần nháp được cập nhật tại chỗ">sửa {t.draft_update_count}×</Badge>}
           <span className="ml-auto text-[10.5px] text-ink-3">lượt {t.created_turn}</span>
