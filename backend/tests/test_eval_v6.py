@@ -54,18 +54,28 @@ def test_false_alarm_and_missed_turns():
     create = {"op": "CREATE", "accepted": True, "task_id": "K9", "fields": []}
     evidence_only = {"op": "UPDATE", "accepted": True, "task_id": "K9", "fields": []}
     turns = [_turn(1, ["m1"], [create]), _turn(2, ["m2"], [evidence_only]), _turn(3, ["m3"], []),
-             _turn(4, ["m4"], [{"op": "UPDATE", "accepted": True, "task_id": "K9", "fields": ["due"]}])]
+             _turn(4, ["m4"], [{"op": "UPDATE", "accepted": True, "task_id": "K9", "fields": ["due"]}]),
+             _turn(5, ["m5"], [create])]  # giao việc kèm hạn = một CREATE, đúng loại
     labels = [{"conversation_key": "c", "new_event_ids": ["m1"], "label": 0, "kinds": []},
               {"conversation_key": "c", "new_event_ids": ["m2"], "label": 0, "kinds": []},
               {"conversation_key": "c", "new_event_ids": ["m3"], "label": 1, "kinds": ["assign"]},
+              {"conversation_key": "c", "new_event_ids": ["m5"], "label": 1, "kinds": ["assign", "due"]},
               {"conversation_key": "c", "new_event_ids": ["m4"], "label": 1, "kinds": ["due"]}]
     rep = evaluate(_state([], [], turns, labels), {})
     to = rep["turn_ops"]
     assert rep["summary"]["false_alarm_turns"]["k"] == 1 and rep["summary"]["false_alarm_turns"]["n"] == 2  # bằng chứng không tính
-    assert to["missed"]["k"] == 1 and to["type_correct"]["k"] == 1
+    assert to["missed"]["k"] == 1 and to["type_correct"]["k"] == 2 and to["type_correct"]["n"] == 2
 
 
 def test_bootstrap_is_deterministic():
     by = {"a": (3, 5), "b": (1, 4), "c": (4, 4)}
     x, y = bootstrap(by, seed=3), bootstrap(by, seed=3)
     assert x == y and x["k"] == 8 and x["n"] == 13 and x["lo"] <= x["value"] <= x["hi"]
+
+
+def test_confirm_message_counts_as_valid_evidence():
+    t = _task("K1", "m1", "Gửi báo cáo", ["u_a"])
+    t.evidence.append(Evidence(message_id="m2", role="accept", added_at=AT))  # "Dạ ok anh"
+    g = _gold("g", "m1", "Gửi báo cáo", ["u_a"]).model_copy(update={"confirm_message_ids": ["m2"]})
+    s = evaluate(_state([t], [g]), {})["summary"]
+    assert s["ev_precision"] == 1.0 and s["ev_recall"] == 1.0

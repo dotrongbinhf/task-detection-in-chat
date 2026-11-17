@@ -264,11 +264,13 @@ def evaluate(state: EngineState, pricing: dict[str, dict[str, float]] | None = N
         if good:
             strict.add(g.gold_id)
         ev = {e.message_id for e in t.evidence}
-        inter = len(ev & set(g.supporting_message_ids))
-        ev_p.append(inter / len(ev) if ev else 0)
-        ev_r.append(inter / len(g.supporting_message_ids))
-        if ev and inter / len(ev) < 0.8:
-            items.append({"kind": "evidence", "gold_id": g.gold_id, "task_id": t.task_id, "note": "bằng chứng thừa: " + ", ".join(sorted(ev - set(g.supporting_message_ids)))})
+        sup = set(g.supporting_message_ids)
+        ok_ev = sup | set(g.confirm_message_ids or [])  # tin xác nhận ("dạ ok") là bằng chứng hợp lệ, chỉ không bắt buộc cho recall
+        inter = len(ev & sup)
+        ev_p.append(len(ev & ok_ev) / len(ev) if ev else 0)
+        ev_r.append(inter / len(sup))
+        if ev and len(ev & ok_ev) / len(ev) < 0.8:
+            items.append({"kind": "evidence", "gold_id": g.gold_id, "task_id": t.task_id, "note": "bằng chứng thừa: " + ", ".join(sorted(ev - ok_ev))})
     for g in labeled:
         bump(g.conversation_key, "recall", g.gold_id in g_match)
         bump(g.conversation_key, "strict", g.gold_id in strict)
@@ -456,6 +458,8 @@ def _turn_op_stats(state: EngineState, author: dict[str, str], per: dict, bump: 
         elif kinds and cats:
             typed_n += 1
             want = {KIND_CAT[k] for k in kinds if k in KIND_CAT}
+            if "create" in want:  # hạn / người nhận / nội dung nêu cùng lúc giao việc nằm sẵn trong op CREATE
+                want -= {"due", "assignee", "content"}
             if cats == want:
                 typed_ok += 1
             else:
